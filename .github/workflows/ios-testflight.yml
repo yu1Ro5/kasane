@@ -27,6 +27,7 @@ jobs:
         shell: bash
         run: |
           echo "API_KEY_PATH=$RUNNER_TEMP/app-store-connect/AuthKey.p8" >> "$GITHUB_ENV"
+          echo "EXPORT_LOG_PATH=$RUNNER_TEMP/xcodebuild-export.log" >> "$GITHUB_ENV"
           echo "EXPORT_OPTIONS_PATH=$RUNNER_TEMP/TestFlightExportOptions.plist" >> "$GITHUB_ENV"
 
       - name: Validate release secrets
@@ -135,6 +136,7 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           set -euo pipefail
+          set +e
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportPath "$EXPORT_PATH" \
@@ -142,9 +144,19 @@ jobs:
             -allowProvisioningUpdates \
             -authenticationKeyPath "$API_KEY_PATH" \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
-            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+            2>&1 | tee "$EXPORT_LOG_PATH"
+          export_status="${PIPESTATUS[0]}"
+          set -e
+
+          if (( export_status != 0 )); then
+            if grep -q "Cloud signing permission error" "$EXPORT_LOG_PATH"; then
+              echo "::error::Cloud signing requires a Team API Key with the Admin role. Replace the App Store Connect API key secrets with an Admin key, then rerun this workflow."
+            fi
+            exit "$export_status"
+          fi
 
       - name: Remove authentication material
         if: always()
         shell: bash
-        run: rm -f "$API_KEY_PATH" "$EXPORT_OPTIONS_PATH"
+        run: rm -f "$API_KEY_PATH" "$EXPORT_LOG_PATH" "$EXPORT_OPTIONS_PATH"
