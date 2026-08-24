@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 @Model
-final class WorkoutSet {
-    /// セットID
+final class SetEntry {
+    /// セット記録ID
     @Attribute(.unique) var id: UUID
     /// セット順
     var order: Int
@@ -13,19 +13,19 @@ final class WorkoutSet {
     var reps: Int
     /// ウォームアップフラグ
     var isWarmup: Bool
-    /// ワークアウト種目
-    var workoutExercise: WorkoutExercise?
+    /// 種目実施記録
+    var exerciseEntry: ExerciseEntry?
 
     init(
         id: UUID = UUID(),
-        workoutExercise: WorkoutExercise,
+        exerciseEntry: ExerciseEntry,
         order: Int,
         weightKg: Double,
         reps: Int,
         isWarmup: Bool = false
     ) {
         self.id = id
-        self.workoutExercise = workoutExercise
+        self.exerciseEntry = exerciseEntry
         self.order = order
         self.weightKg = weightKg
         self.reps = reps

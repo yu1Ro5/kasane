@@ -8,32 +8,32 @@
 
 ```mermaid
 erDiagram
-    Workout ||--o{ WorkoutExercise : "contains (cascade)"
-    Exercise o|--o{ WorkoutExercise : "referenced by (nullify)"
-    WorkoutExercise ||--o{ WorkoutSet : "contains (cascade)"
+    WorkoutSession ||--o{ ExerciseEntry : "contains (cascade)"
+    Exercise o|--o{ ExerciseEntry : "referenced by (nullify)"
+    ExerciseEntry ||--o{ SetEntry : "contains (cascade)"
 ```
 
 ## モデルの責務
 
-- `Workout`: 1回のトレーニング。開始・終了日時と任意のメモを保持する。
+- `WorkoutSession`: 1回のトレーニング。開始・終了日時と任意のメモを保持する。
 - `Exercise`: 現在の種目マスター。名称、主要部位、アーカイブ状態を保持する。
-- `WorkoutExercise`: 特定のWorkoutで行った種目。表示順と実施時点の名称・主要部位を保持する。
-- `WorkoutSet`: 1セットの実績。順序、kg基準の重量、回数、ウォームアップ状態を保持する。
+- `ExerciseEntry`: 特定のWorkoutSessionで行った種目。表示順と実施時点の名称・主要部位を保持する。
+- `SetEntry`: 1セットの実績。順序、kg基準の重量、回数、ウォームアップ状態を保持する。
 
 各モデルは永続的な識別子として `UUID` の `id` を持ちます。主要部位は、保存・検索が単純な文字列として永続化し、アプリ内では `BodyPart` に変換します。
 
 ## RelationshipとDelete Rule
 
-`Workout.exercises` と `WorkoutExercise.sets` は `.cascade` です。親を削除すると、そのWorkoutだけに属する中間レコードとセットも削除され、孤児を残しません。
+`WorkoutSession.exerciseEntries` と `ExerciseEntry.setEntries` は `.cascade` です。親を削除すると、そのWorkoutSessionだけに属する中間レコードとセットも削除され、孤児を残しません。
 
-`Exercise.workoutExercises` は `.nullify` です。通常は種目を物理削除せず `isArchived` で新規選択から除外します。仮にExerciseを削除しても過去のWorkoutExerciseは残ります。この削除を安全に表現するため、SwiftData上の `WorkoutExercise.workout`、`exercise`、`WorkoutSet.workoutExercise` は任意Relationshipです。通常の生成時にはinitializerが親を必須とし、不完全なグラフを作らないようにしています。
+`Exercise.exerciseEntries` は `.nullify` です。通常は種目を物理削除せず `isArchived` で新規選択から除外します。仮にExerciseを削除しても過去のExerciseEntryは残ります。この削除を安全に表現するため、SwiftData上の `ExerciseEntry.workoutSession`、`exercise`、`SetEntry.exerciseEntry` は任意Relationshipです。通常の生成時にはinitializerが親を必須とし、不完全なグラフを作らないようにしています。
 
-## ExerciseとWorkoutExerciseを分ける理由
+## ExerciseとExerciseEntryを分ける理由
 
-`Exercise` は現在のマスター、`WorkoutExercise` は過去に実施した事実です。分離することで同じ種目を複数Workoutから参照でき、種目マスターの変更と過去の記録を独立させられます。
+`Exercise` は現在のマスター、`ExerciseEntry` は過去に実施した事実です。分離することで同じ種目を複数WorkoutSessionから参照でき、種目マスターの変更と過去の記録を独立させられます。
 
-`WorkoutExercise` は生成時の種目名と主要部位をスナップショットとして保持します。後からExerciseを改名・再分類・アーカイブしても、当時の履歴、Stats、Replayを当時の値で再現できます。
+`ExerciseEntry` は生成時の種目名と主要部位をスナップショットとして保持します。後からExerciseを改名・再分類・アーカイブしても、当時の履歴、Stats、Replayを当時の値で再現できます。
 
 ## Source of Truth
 
-Stats / Replayの集計結果は保存しません。Workout、WorkoutExercise、WorkoutSetを記録のSource of Truthとして必要時に算出し、導出値の不整合を避けます。
+Stats / Replayの集計結果は保存しません。WorkoutSession、ExerciseEntry、SetEntryを記録のSource of Truthとして必要時に算出し、導出値の不整合を避けます。

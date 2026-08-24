@@ -12,9 +12,9 @@ final class Exercise {
     /// アーカイブフラグ
     var isArchived: Bool
 
-    /// この種目を参照するワークアウト種目
-    @Relationship(deleteRule: .nullify, inverse: \WorkoutExercise.exercise)
-    var workoutExercises: [WorkoutExercise]
+    /// この種目を参照する実施記録一覧
+    @Relationship(deleteRule: .nullify, inverse: \ExerciseEntry.exercise)
+    var exerciseEntries: [ExerciseEntry]
 
     init(
         id: UUID = UUID(),
@@ -26,7 +26,7 @@ final class Exercise {
         self.name = name
         self.primaryBodyPart = primaryBodyPart.rawValue
         self.isArchived = isArchived
-        workoutExercises = []
+        exerciseEntries = []
     }
 
     var bodyPart: BodyPart {

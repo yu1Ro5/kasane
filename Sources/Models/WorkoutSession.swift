@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 @Model
-final class Workout {
-    /// ワークアウトID
+final class WorkoutSession {
+    /// ワークアウトセッションID
     @Attribute(.unique) var id: UUID
     /// 開始日時
     var startedAt: Date
@@ -12,9 +12,9 @@ final class Workout {
     /// ワークアウトメモ
     var note: String?
 
-    /// ワークアウト種目
-    @Relationship(deleteRule: .cascade, inverse: \WorkoutExercise.workout)
-    var exercises: [WorkoutExercise]
+    /// 実施種目一覧
+    @Relationship(deleteRule: .cascade, inverse: \ExerciseEntry.workoutSession)
+    var exerciseEntries: [ExerciseEntry]
 
     init(
         id: UUID = UUID(),
@@ -26,6 +26,6 @@ final class Workout {
         self.startedAt = startedAt
         self.endedAt = endedAt
         self.note = note
-        exercises = []
+        exerciseEntries = []
     }
 }

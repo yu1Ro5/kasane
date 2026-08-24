@@ -7,10 +7,10 @@ import XCTest
 final class KASANETests: XCTestCase {
     private func makeContainer() throws -> ModelContainer {
         let schema = Schema([
-            Workout.self,
+            WorkoutSession.self,
             Exercise.self,
-            WorkoutExercise.self,
-            WorkoutSet.self,
+            ExerciseEntry.self,
+            SetEntry.self,
         ])
         return try ModelContainer(
             for: schema,
@@ -18,86 +18,86 @@ final class KASANETests: XCTestCase {
         )
     }
 
-    func testWorkoutCanBeSavedAndFetched() throws {
+    func testWorkoutSessionCanBeSavedAndFetched() throws {
         let container = try makeContainer()
         let context = container.mainContext
-        let workout = Workout(startedAt: Date(timeIntervalSince1970: 100), note: "Morning")
+        let workoutSession = WorkoutSession(startedAt: Date(timeIntervalSince1970: 100), note: "Morning")
 
-        context.insert(workout)
+        context.insert(workoutSession)
         try context.save()
 
-        let workouts = try context.fetch(FetchDescriptor<Workout>())
-        XCTAssertEqual(workouts.count, 1)
-        XCTAssertEqual(workouts.first?.id, workout.id)
-        XCTAssertEqual(workouts.first?.note, "Morning")
+        let workoutSessions = try context.fetch(FetchDescriptor<WorkoutSession>())
+        XCTAssertEqual(workoutSessions.count, 1)
+        XCTAssertEqual(workoutSessions.first?.id, workoutSession.id)
+        XCTAssertEqual(workoutSessions.first?.note, "Morning")
     }
 
-    func testWorkoutGraphCanBeSavedAndFetched() throws {
+    func testWorkoutSessionGraphCanBeSavedAndFetched() throws {
         let container = try makeContainer()
         let context = container.mainContext
-        let workout = Workout()
+        let workoutSession = WorkoutSession()
         let exercise = Exercise(name: "Bench Press", primaryBodyPart: .chest)
-        let workoutExercise = WorkoutExercise(workout: workout, exercise: exercise, order: 0)
-        let set = WorkoutSet(
-            workoutExercise: workoutExercise,
+        let exerciseEntry = ExerciseEntry(workoutSession: workoutSession, exercise: exercise, order: 0)
+        let setEntry = SetEntry(
+            exerciseEntry: exerciseEntry,
             order: 0,
             weightKg: 80,
             reps: 8
         )
-        workout.exercises.append(workoutExercise)
-        workoutExercise.sets.append(set)
+        workoutSession.exerciseEntries.append(exerciseEntry)
+        exerciseEntry.setEntries.append(setEntry)
 
-        context.insert(workout)
+        context.insert(workoutSession)
         context.insert(exercise)
         try context.save()
 
-        let fetched = try XCTUnwrap(try context.fetch(FetchDescriptor<Workout>()).first)
-        XCTAssertEqual(fetched.exercises.first?.exercise?.id, exercise.id)
-        XCTAssertEqual(fetched.exercises.first?.sets.first?.weightKg, 80)
+        let fetched = try XCTUnwrap(try context.fetch(FetchDescriptor<WorkoutSession>()).first)
+        XCTAssertEqual(fetched.exerciseEntries.first?.exercise?.id, exercise.id)
+        XCTAssertEqual(fetched.exerciseEntries.first?.setEntries.first?.weightKg, 80)
     }
 
-    func testExerciseCanBeReferencedByMultipleWorkouts() throws {
+    func testExerciseCanBeReferencedByMultipleWorkoutSessions() throws {
         let container = try makeContainer()
         let context = container.mainContext
         let exercise = Exercise(name: "Squat", primaryBodyPart: .legs)
-        let first = WorkoutExercise(workout: Workout(), exercise: exercise, order: 0)
-        let second = WorkoutExercise(workout: Workout(), exercise: exercise, order: 0)
+        let first = ExerciseEntry(workoutSession: WorkoutSession(), exercise: exercise, order: 0)
+        let second = ExerciseEntry(workoutSession: WorkoutSession(), exercise: exercise, order: 0)
 
         context.insert(first)
         context.insert(second)
         try context.save()
 
-        XCTAssertEqual(exercise.workoutExercises.count, 2)
+        XCTAssertEqual(exercise.exerciseEntries.count, 2)
     }
 
-    func testDeletingWorkoutCascadesThroughItsGraph() throws {
+    func testDeletingWorkoutSessionCascadesThroughItsGraph() throws {
         let container = try makeContainer()
         let context = container.mainContext
-        let workout = Workout()
+        let workoutSession = WorkoutSession()
         let exercise = Exercise(name: "Deadlift", primaryBodyPart: .back)
-        let workoutExercise = WorkoutExercise(workout: workout, exercise: exercise, order: 0)
-        workout.exercises.append(workoutExercise)
-        workoutExercise.sets.append(
-            WorkoutSet(workoutExercise: workoutExercise, order: 0, weightKg: 120, reps: 5)
+        let exerciseEntry = ExerciseEntry(workoutSession: workoutSession, exercise: exercise, order: 0)
+        workoutSession.exerciseEntries.append(exerciseEntry)
+        exerciseEntry.setEntries.append(
+            SetEntry(exerciseEntry: exerciseEntry, order: 0, weightKg: 120, reps: 5)
         )
-        context.insert(workout)
+        context.insert(workoutSession)
         context.insert(exercise)
         try context.save()
 
-        context.delete(workout)
+        context.delete(workoutSession)
         try context.save()
 
-        XCTAssertTrue(try context.fetch(FetchDescriptor<WorkoutExercise>()).isEmpty)
-        XCTAssertTrue(try context.fetch(FetchDescriptor<WorkoutSet>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ExerciseEntry>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SetEntry>()).isEmpty)
         XCTAssertEqual(try context.fetch(FetchDescriptor<Exercise>()).count, 1)
     }
 
-    func testArchivingAndRenamingExercisePreservesWorkoutSnapshot() throws {
+    func testArchivingAndRenamingExercisePreservesExerciseEntrySnapshot() throws {
         let container = try makeContainer()
         let context = container.mainContext
         let exercise = Exercise(name: "Press", primaryBodyPart: .shoulders)
-        let workoutExercise = WorkoutExercise(workout: Workout(), exercise: exercise, order: 0)
-        context.insert(workoutExercise)
+        let exerciseEntry = ExerciseEntry(workoutSession: WorkoutSession(), exercise: exercise, order: 0)
+        context.insert(exerciseEntry)
         try context.save()
 
         exercise.name = "Overhead Press"
@@ -106,8 +106,8 @@ final class KASANETests: XCTestCase {
         try context.save()
 
         XCTAssertTrue(exercise.isArchived)
-        XCTAssertEqual(workoutExercise.exerciseNameSnapshot, "Press")
-        XCTAssertEqual(workoutExercise.bodyPartSnapshot, .shoulders)
-        XCTAssertEqual(workoutExercise.exercise?.id, exercise.id)
+        XCTAssertEqual(exerciseEntry.exerciseNameSnapshot, "Press")
+        XCTAssertEqual(exerciseEntry.bodyPartSnapshot, .shoulders)
+        XCTAssertEqual(exerciseEntry.exercise?.id, exercise.id)
     }
 }

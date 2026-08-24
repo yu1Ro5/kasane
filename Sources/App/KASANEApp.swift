@@ -7,6 +7,6 @@ struct KASANEApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: [Workout.self, Exercise.self, WorkoutExercise.self, WorkoutSet.self])
+        .modelContainer(for: [WorkoutSession.self, Exercise.self, ExerciseEntry.self, SetEntry.self])
     }
 }

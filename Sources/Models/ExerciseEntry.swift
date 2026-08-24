@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 @Model
-final class WorkoutExercise {
-    /// ワークアウト種目ID
+final class ExerciseEntry {
+    /// 種目実施記録ID
     @Attribute(.unique) var id: UUID
     /// 種目名スナップショット
     var exerciseNameSnapshot: String
@@ -11,28 +11,28 @@ final class WorkoutExercise {
     var primaryBodyPartSnapshot: String
     /// 種目順
     var order: Int
-    /// ワークアウト
-    var workout: Workout?
+    /// ワークアウトセッション
+    var workoutSession: WorkoutSession?
     /// 種目
     var exercise: Exercise?
 
-    /// セット
-    @Relationship(deleteRule: .cascade, inverse: \WorkoutSet.workoutExercise)
-    var sets: [WorkoutSet]
+    /// セット一覧
+    @Relationship(deleteRule: .cascade, inverse: \SetEntry.exerciseEntry)
+    var setEntries: [SetEntry]
 
     init(
         id: UUID = UUID(),
-        workout: Workout,
+        workoutSession: WorkoutSession,
         exercise: Exercise,
         order: Int
     ) {
         self.id = id
-        self.workout = workout
+        self.workoutSession = workoutSession
         self.exercise = exercise
         exerciseNameSnapshot = exercise.name
         primaryBodyPartSnapshot = exercise.primaryBodyPart
         self.order = order
-        sets = []
+        setEntries = []
     }
 
     var bodyPartSnapshot: BodyPart {
