@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 @main
@@ -6,5 +7,6 @@ struct KASANEApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: [Workout.self, Exercise.self, WorkoutExercise.self, WorkoutSet.self])
     }
 }
