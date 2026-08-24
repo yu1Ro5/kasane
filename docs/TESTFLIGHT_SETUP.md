@@ -14,11 +14,11 @@
 
 1. 「マイApp」でBundle ID `com.yu1Ro5.kasane`のKASANEアプリレコードを作成します。
 2. 「ユーザとアクセス」から「統合」または「App Store Connect API」を開き、Team API Keyを発行します。
-3. API Keyには、ビルドをアップロードできる**App Manager**以上のロールを付与します。アクセス対象を限定する場合はKASANEを含めます。
+3. Team API Keyには**Admin**ロールを付与します。App Managerロールではビルドのアップロードは可能でも、本Workflowが利用するcloud-managed distribution certificateへのアクセスが許可されず、書き出しに失敗します。Team API Keyのアクセスは特定アプリだけに限定できません。
 4. 一覧に表示されるKey IDと、同じ画面に表示されるIssuer IDを控えます。
 5. 発行時に一度だけダウンロードできる`.p8`秘密鍵を安全な場所へ保存します。秘密鍵をGitへ追加しないでください。
 
-API Keyを使ったautomatic signingには、Developer Portal側のリソースへアクセスできる権限とcloud-managed certificateの利用許可も必要です。組織の権限設定によって署名を完結できない場合は、Account HolderまたはAdminが権限を見直してください。不足を固定証明書やApple IDパスワードのコミットで回避しないでください。
+API Keyを使ったautomatic signingには、Developer Portal側のリソースへアクセスできる権限とcloud-managed certificateの利用許可も必要です。Team API Keyのロールは作成後に変更できないため、既存のKeyがAdmin以外の場合は、AdminロールのTeam API Keyを新しく発行してGitHub Environment Secretsの3項目（Key ID、Issuer ID、秘密鍵）を差し替えます。組織の権限設定によって署名を完結できない場合は、Account HolderまたはAdminが権限を見直してください。不足を固定証明書やApple IDパスワードのコミットで回避しないでください。
 
 ## 2. 秘密鍵をbase64化する
 
@@ -75,7 +75,8 @@ WorkflowはXcode 26を選択し、XcodeGenでプロジェクトを生成して�
 
 - **Validate release secretsで失敗する**: 表示されたSecretが未登録または空です。Secret名と登録先リポジトリを確認します。
 - **API Keyの復元に失敗する**: `APP_STORE_CONNECT_API_KEY_BASE64`が`.p8`全体の正しいbase64ではありません。元ファイルから再作成します。
-- **authentication / authorizationエラー**: Key ID、Issuer ID、秘密鍵の組み合わせ、API Keyのロール、KASANEへのアクセス範囲を確認します。失効したKeyは再発行が必要です。
+- **authentication / authorizationエラー**: Key ID、Issuer ID、秘密鍵の組み合わせと、Team API KeyがAdminロールであることを確認します。失効したKeyやAdmin以外のKeyは再発行が必要です。
+- **Cloud signing permission error**: App Manager以下のTeam API Keyではcloud-managed distribution certificateを利用できません。AdminロールのTeam API Keyを新しく発行し、`APP_STORE_CONNECT_KEY_ID`、`APP_STORE_CONNECT_ISSUER_ID`、`APP_STORE_CONNECT_API_KEY_BASE64`を同じKeyの値へ差し替えます。
 - **No Accounts / provisioning profileエラー**: Team ID、App ID、Bundle IDが一致するか、automatic signingとcloud-managed certificatesを利用できる権限があるか確認します。
 - **certificate作成またはcloud signingエラー**: Account Holderがcloud-managed certificateのアクセスを許可し、API Keyのロールが十分か確認します。秘密の証明書をrepositoryへ追加して回避しません。
 - **アプリレコードが見つからない**: App Store Connectに`com.yu1Ro5.kasane`のアプリレコードが存在するか確認します。
