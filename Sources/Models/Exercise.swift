@@ -3,11 +3,16 @@ import SwiftData
 
 @Model
 final class Exercise {
+    /// 種目ID
     @Attribute(.unique) var id: UUID
+    /// 種目名
     var name: String
+    /// 主対象部位
     var primaryBodyPart: String
+    /// アーカイブフラグ
     var isArchived: Bool
 
+    /// この種目を参照するワークアウト種目
     @Relationship(deleteRule: .nullify, inverse: \WorkoutExercise.exercise)
     var workoutExercises: [WorkoutExercise]
 

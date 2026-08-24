@@ -3,11 +3,17 @@ import SwiftData
 
 @Model
 final class WorkoutSet {
+    /// セットID
     @Attribute(.unique) var id: UUID
+    /// セット順
     var order: Int
+    /// 重量kg
     var weightKg: Double
+    /// 回数
     var reps: Int
+    /// ウォームアップフラグ
     var isWarmup: Bool
+    /// ワークアウト種目
     var workoutExercise: WorkoutExercise?
 
     init(
