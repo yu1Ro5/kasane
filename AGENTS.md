@@ -1,28 +1,28 @@
-# KASANE agent guide
+# KASANE エージェントガイド
 
-This file guides AI coding agents working in this repository.
+このファイルでは、このリポジトリで作業するAIコーディングエージェント向けのルールを説明します。
 
-## Project overview
+## プロジェクト概要
 
-KASANE is an iOS workout logger whose planned differentiator is monthly and yearly Replay-style training summaries. It uses SwiftUI, adopts SwiftData for persistence as models are introduced, and follows an MVVM-oriented architecture. XcodeGen generates `KASANE.xcodeproj` from `project.yml`.
+KASANEは、月間・年間のReplay形式のまとめを特徴とするiOS向けワークアウト記録アプリです。UIにはSwiftUIを使用し、データモデルの追加に合わせてSwiftDataを採用します。アーキテクチャはMVVMを基本とし、`project.yml`からXcodeGenで`KASANE.xcodeproj`を生成します。
 
-## Repository layout
+## リポジトリ構成
 
-- `Sources/App/`: app lifecycle and dependency composition
-- `Sources/Models/`: SwiftData and domain models
-- `Sources/Services/`: persistence and external integrations
-- `Sources/ViewModels/`: presentation state and business actions
-- `Sources/Views/`: SwiftUI views
-- `Sources/Assets.xcassets/`: app assets
-- `Tests/`: unit tests
-- `project.yml`: source of truth for Xcode project configuration
-- `.github/workflows/`: continuous integration
+- `Sources/App/`: アプリのライフサイクルと依存関係の構築
+- `Sources/Models/`: SwiftDataモデルとドメインモデル
+- `Sources/Services/`: データ永続化や外部サービスとの連携
+- `Sources/ViewModels/`: 画面状態とビジネス上の操作
+- `Sources/Views/`: SwiftUIの画面
+- `Sources/Assets.xcassets/`: アプリで使用する画像や色などのアセット
+- `Tests/`: ユニットテスト
+- `project.yml`: Xcodeプロジェクト設定の正本
+- `.github/workflows/`: 継続的インテグレーション
 
-Empty architecture directories need not be committed. Add files to the appropriate directory when that layer is needed.
+空のディレクトリをGitへ登録する必要はありません。各レイヤーが必要になった時点で、適切なディレクトリへファイルを追加してください。
 
-## XcodeGen workflow
+## XcodeGenの運用
 
-Do not edit or commit a generated `.xcodeproj`. After adding, removing, or moving source files, regenerate it:
+生成された`.xcodeproj`を直接編集したり、Gitへコミットしたりしないでください。ソースファイルを追加、削除、移動した場合は、次のコマンドでプロジェクトを再生成します。
 
 ```sh
 brew install xcodegen
@@ -30,9 +30,9 @@ xcodegen generate
 open KASANE.xcodeproj
 ```
 
-## Build and test
+## ビルドとテスト
 
-Use an available iOS 26 simulator on the local machine:
+ローカルにインストールされているiOS 26シミュレーターを指定して実行します。
 
 ```sh
 xcodegen generate
@@ -52,27 +52,27 @@ xcodebuild -project KASANE.xcodeproj \
   test
 ```
 
-Simulator names vary between Xcode releases. Check `xcrun simctl list devices available` and substitute an installed device when necessary. CI must build and test generated projects and must not rely on a hard-coded simulator UUID.
+利用できるシミュレーター名はXcodeのバージョンによって異なります。`xcrun simctl list devices available`で確認し、必要に応じて指定を変更してください。CIでは生成したプロジェクトのビルドとテストを必ず実行し、固定されたシミュレーターUUIDに依存してはいけません。
 
-## Architecture and naming
+## アーキテクチャと命名規則
 
-- Keep Views focused on rendering UI and forwarding user actions.
-- Put state and business logic in testable ViewModels, Models, or Services rather than Views.
-- Name SwiftUI views `SomethingView` and view models `SomethingViewModel`.
-- Prefer small types with explicit responsibilities and dependency injection over global state.
-- Do not use force unwraps (`!`) or forced tries (`try!`). Handle failures explicitly.
-- Add focused unit tests for business behavior; avoid large, meaningless scaffolding.
+- ViewはUIの表示とユーザー操作の受け渡しに集中させます。
+- 状態管理やビジネスロジックはViewへ直接記述せず、テスト可能なViewModel、Model、Serviceへ配置します。
+- SwiftUIの画面は`SomethingView`、ViewModelは`SomethingViewModel`という形式で命名します。
+- グローバルな状態よりも、責務の小さい型と依存性注入を優先します。
+- 強制アンラップ（`!`）と強制的なエラー無視（`try!`）は使用せず、失敗を明示的に処理します。
+- ビジネス上の振る舞いに対して、目的の明確なユニットテストを追加します。意味のない大規模なテスト用コードは作成しません。
 
-## Formatting and CI
+## フォーマットとCI
 
-Format Swift with the repository configuration before submitting changes:
+変更を提出する前に、リポジトリの設定を使ってSwiftコードを整形します。
 
 ```sh
 swift-format format --in-place --configuration .swift-format --recursive Sources Tests
 ```
 
-Use four-space indentation, preserve trailing newlines, and keep imports ordered. Pull requests are expected to pass the XcodeGen generation, simulator build, and unit-test steps in `.github/workflows/ios-build.yml`.
+インデントには半角スペース4つを使用し、ファイル末尾の改行を維持し、import文を並べ替えてください。Pull Requestでは、`.github/workflows/ios-build.yml`に定義されたXcodeGenによるプロジェクト生成、シミュレーター向けビルド、ユニットテストがすべて成功する必要があります。
 
-## Security
+## セキュリティ
 
-Never commit secrets, credentials, API keys, certificates, provisioning profiles, or private signing material. Keep code signing disabled for CI simulator builds.
+シークレット、認証情報、APIキー、証明書、プロビジョニングプロファイル、秘密の署名素材は絶対にコミットしないでください。CIのシミュレーター向けビルドではコード署名を無効にします。
