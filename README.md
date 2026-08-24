@@ -45,6 +45,10 @@ xcodebuild -project KASANE.xcodeproj \
 
 利用できるシミュレーター名が異なる場合は、`xcrun simctl list devices available`で確認し、`-destination`の値を変更してください。GitHub Actionsでは利用可能なiPhoneシミュレーターを動的に検出するため、固定されたシミュレーターUUIDには依存しません。
 
+## TestFlightへの手動リリース
+
+Apple Developer、App Store Connect、`main`のみに制限したGitHub Environment Secretsを準備した後、手動WorkflowからTestFlightへアップロードできます。Environmentの保護設定、必要な権限、Secret、実行方法、トラブルシューティングは[TestFlight手動リリースのセットアップ](docs/TESTFLIGHT_SETUP.md)を参照してください。
+
 ## リポジトリ構成
 
 - `Sources/App/`: アプリのエントリーポイントと依存関係の構築
