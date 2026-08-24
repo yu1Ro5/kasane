@@ -1,0 +1,57 @@
+name: KASANE
+options:
+  bundleIdPrefix: com.yu1Ro5
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "26.0"
+  generateEmptyDirectories: true
+  groupSortPosition: top
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "6.0"
+
+targets:
+  KASANE:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Sources
+        type: group
+        excludes:
+          - Assets.xcassets
+          - Info.plist
+          - PrivacyInfo.xcprivacy
+    resources:
+      - path: Sources/Assets.xcassets
+      - path: Sources/PrivacyInfo.xcprivacy
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yu1Ro5.kasane
+        PRODUCT_NAME: KASANE
+        INFOPLIST_FILE: Sources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        PRIVACY_MANIFEST_PATH: Sources/PrivacyInfo.xcprivacy
+        CODE_SIGN_STYLE: Automatic
+
+  KASANETests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Tests
+        type: group
+    dependencies:
+      - target: KASANE
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yu1Ro5.kasane.tests
+        PRODUCT_NAME: KASANETests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+        SKIP_INSTALL: YES
