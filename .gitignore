@@ -31,6 +31,13 @@ playground.xcworkspace
 
 .build/
 
+# XcodeGen output (project.yml is the source of truth)
+*.xcodeproj/
+
+# Local build output
+build/
+DerivedData/
+
 # CocoaPods
 #
 # We recommend against adding the Pods directory to your .gitignore. However
