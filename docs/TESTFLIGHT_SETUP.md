@@ -38,9 +38,13 @@ base64 -w 0 AuthKey.p8
 
 コマンド出力をIssue、Pull Request、Actionsログへ貼り付けないでください。登録後も元の秘密鍵はAppleの推奨に従って安全に保管します。
 
-## 3. GitHub Repository Secretsを登録する
+## 3. GitHub EnvironmentとSecretsを設定する
 
-GitHubリポジトリの **Settings → Secrets and variables → Actions → New repository secret** で、次の4項目を登録します。
+認証情報を信頼できないブランチから隔離するため、Repository SecretsではなくGitHub Environment Secretsを使用します。
+
+1. GitHubリポジトリの **Settings → Environments → New environment** を開き、`app-store` Environmentを作成します。
+2. `app-store`の **Deployment branches and tags** で **Selected branches and tags** を選択し、許可するbranchとして`main`だけを追加します。
+3. `app-store`の **Environment secrets → Add environment secret** で、次の4項目を登録します。
 
 | Secret | 内容 |
 | --- | --- |
@@ -49,13 +53,17 @@ GitHubリポジトリの **Settings → Secrets and variables → Actions → Ne
 | `APP_STORE_CONNECT_API_KEY_BASE64` | `.p8`をbase64化した値 |
 | `APPLE_DEVELOPMENT_TEAM_ID` | Apple Developer Membership detailsのTeam ID |
 
-未設定のSecretがある場合、WorkflowはArchive前の「Validate release secrets」で不足しているSecret名を表示して失敗します。値そのものは表示しません。
+同名の値をRepository Secretsへ登録済みの場合は、Environment Secretsで動作確認した後にRepository Secretsから4項目を削除できます。Repository Secretsには残さないことを推奨します。
+
+Workflowのリリースjob自体も`main`からの実行だけを許可しています。`main`以外のrefから手動実行した場合はjob全体がskipされ、`app-store` EnvironmentやそのSecretsへアクセスせず、checkoutやbuildも行いません。Environment側のDeployment branches制限は、Workflowファイルが悪意ある内容へ変更された場合にも認証情報を保護する追加の境界になります。
+
+未設定のEnvironment Secretがある場合、WorkflowはArchive前に不足しているSecret名を表示して失敗します。値そのものは表示しません。秘密鍵の値は復元stepだけへ渡し、job内の他のstepへは公開しません。Key ID、Issuer ID、Team IDも、それぞれ必要なstepだけへ渡します。
 
 ## 4. Workflowを手動実行する
 
 1. GitHubの **Actions** タブを開きます。
 2. **iOS TestFlight Release** を選びます。
-3. **Run workflow** で配布対象のブランチ（通常は`main`）を選択し、実行します。
+3. **Run workflow** で`main`ブランチを選択し、実行します。別のbranchを選ぶとリリースjobはskipされます。
 
 WorkflowはXcode 26を選択し、XcodeGenでプロジェクトを生成して、Release構成をgeneric iOS device向けにArchiveします。Build NumberにはWorkflow固有の`GITHUB_RUN_NUMBER`を渡すため、`project.yml`の`CURRENT_PROJECT_VERSION`を書き換えたり、Build Numberだけのcommitを作ったりしません。
 

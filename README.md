@@ -47,7 +47,7 @@ xcodebuild -project KASANE.xcodeproj \
 
 ## TestFlightへの手動リリース
 
-Apple Developer、App Store Connect、GitHub Actions Secretsを準備した後、手動WorkflowからTestFlightへアップロードできます。必要な権限、Secret、実行方法、トラブルシューティングは[TestFlight手動リリースのセットアップ](docs/TESTFLIGHT_SETUP.md)を参照してください。
+Apple Developer、App Store Connect、`main`のみに制限したGitHub Environment Secretsを準備した後、手動WorkflowからTestFlightへアップロードできます。Environmentの保護設定、必要な権限、Secret、実行方法、トラブルシューティングは[TestFlight手動リリースのセットアップ](docs/TESTFLIGHT_SETUP.md)を参照してください。
 
 ## リポジトリ構成
 
