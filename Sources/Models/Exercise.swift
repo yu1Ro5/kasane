@@ -33,4 +33,8 @@ final class Exercise {
         get { BodyPart(rawValue: primaryBodyPart) ?? .other }
         set { primaryBodyPart = newValue.rawValue }
     }
+
+    var isSelectable: Bool {
+        !isArchived
+    }
 }
