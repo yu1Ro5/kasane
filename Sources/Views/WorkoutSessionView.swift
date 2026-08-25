@@ -134,17 +134,13 @@ struct WorkoutSessionView: View {
 }
 
 private struct DraftSetRow: View {
-    @State private var weight = ""
-    @State private var reps = ""
-
     var body: some View {
         HStack(spacing: 12) {
             Text("Set 1")
-            TextField("重量 (kg)", text: $weight)
-                .keyboardType(.decimalPad)
-            TextField("回数", text: $reps)
-                .keyboardType(.numberPad)
+            Spacer()
+            Text("重量 — kg")
+            Text("回数 —")
         }
-        .textFieldStyle(.roundedBorder)
+        .foregroundStyle(.secondary)
     }
 }
