@@ -25,9 +25,19 @@ struct SetEntryDraft: Equatable {
         return (parsedWeight, parsedReps)
     }
 
-    static func savedValues(from entry: SetEntry) -> SetEntryDraft {
-        SetEntryDraft(
-            weight: entry.weightKg.formatted(.number.precision(.fractionLength(0...2))), reps: String(entry.reps))
+    static func savedValues(
+        from entry: SetEntry,
+        decimalSeparator: String = Locale.current.decimalSeparator ?? "."
+    ) -> SetEntryDraft {
+        let asciiWeight = String(
+            format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), entry.weightKg
+        )
+        .replacingOccurrences(of: #"\.?0+$"#, with: "", options: .regularExpression)
+
+        return SetEntryDraft(
+            weight: asciiWeight.replacingOccurrences(of: ".", with: decimalSeparator),
+            reps: String(entry.reps)
+        )
     }
 }
 

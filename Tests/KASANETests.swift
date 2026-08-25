@@ -328,6 +328,27 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(SetEntryDraft(weight: "7,5", reps: "8").values(decimalSeparator: ",")?.weight, 7.5)
     }
 
+    /// テスト概要: 保存済みセットを編集用Draftへ変換する。
+    /// 期待値: 桁区切りやローカライズされた数字を含まず、指定された小数点で検証可能な文字列になる。
+    func testSavedSetDraftUsesValidatorCompatibleWeightText() {
+        let exerciseEntry = ExerciseEntry(
+            workoutSession: WorkoutSession(),
+            exercise: Exercise(name: "デッドリフト", primaryBodyPart: .back),
+            order: 0
+        )
+        let setEntry = SetEntry(
+            exerciseEntry: exerciseEntry,
+            order: 0,
+            weightKg: 1_000.5,
+            reps: 8
+        )
+
+        let draft = SetEntryDraft.savedValues(from: setEntry, decimalSeparator: ",")
+
+        XCTAssertEqual(draft, SetEntryDraft(weight: "1000,5", reps: "8"))
+        XCTAssertEqual(draft.values(decimalSeparator: ",")?.weight, 1_000.5)
+    }
+
     /// テスト概要: 保存済みセットを修正する。
     /// 期待値: 重量と回数だけが更新され、orderとウォームアップ状態は維持される。
     func testUpdatingSetPreservesOrderingAndWarmupState() throws {
