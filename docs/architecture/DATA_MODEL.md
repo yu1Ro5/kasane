@@ -43,3 +43,9 @@ Stats / Replayの集計結果は保存しません。WorkoutSession、ExerciseEn
 `WorkoutSession.endedAt == nil` を進行中の唯一の永続状態として扱います。アプリ起動時に特別な画面状態を復元するのではなく、Home画面がSwiftDataから進行中セッションを取得し、ユーザーの操作によって再開します。
 
 開始・再開・破棄と明示的な保存は `WorkoutSessionService` が担当します。開始時に既存の進行中セッションを先に検索することで重複作成を避け、破棄時には既存のcascade delete ruleを利用して配下の記録も削除します。通常の戻る操作は永続データを変更しません。
+
+## 組み込み種目とセッションへの追加
+
+`ExerciseCatalogService` はアプリ利用時に組み込み種目をseedします。各種目に安定したUUIDを割り当て、存在しないIDだけを追加するため、繰り返し実行しても重複せず、既存Exerciseの名称・部位・アーカイブ状態を上書きしません。アーカイブ済みExerciseは新しいセッションの選択対象外です。
+
+`WorkoutExerciseService` はExerciseEntryの追加・削除と明示的な保存を担当します。追加時はExerciseのIDで同一セッション内の重複を拒否し、現在の末尾へorderを設定します。削除時は残ったExerciseEntryをorder順に並べ、0始まりの連番へ振り直します。入力前の空のSet 1は画面だけのDraftであり、SetEntryとして永続化しません。

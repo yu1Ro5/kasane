@@ -196,4 +196,97 @@ final class KASANETests: XCTestCase {
         XCTAssertTrue(try context.fetch(FetchDescriptor<WorkoutSession>()).isEmpty)
         XCTAssertFalse(context.hasChanges)
     }
+
+    /// テスト概要: 組み込み種目のseedを複数回実行する。
+    /// 期待値: 安定したIDにより種目は重複せず、既存種目も上書きされない。
+    func testSeedingBuiltInExercisesIsIdempotent() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let custom = Exercise(name: "カスタム", primaryBodyPart: .other)
+        context.insert(custom)
+        try context.save()
+
+        try ExerciseCatalogService(context: context).seed()
+        try ExerciseCatalogService(context: context).seed()
+
+        let exercises = try context.fetch(FetchDescriptor<Exercise>())
+        XCTAssertEqual(exercises.count, ExerciseCatalogService.builtIns.count + 1)
+        XCTAssertEqual(exercises.filter { $0.name == "ベンチプレス" }.count, 1)
+        XCTAssertEqual(exercises.first { $0.id == custom.id }?.name, "カスタム")
+    }
+
+    /// テスト概要: Exerciseをアーカイブする。
+    /// 期待値: アーカイブ済みExerciseはpickerの選択対象にならない。
+    func testArchivedExerciseIsNotSelectable() {
+        let exercise = Exercise(name: "旧種目", primaryBodyPart: .other, isArchived: true)
+
+        XCTAssertFalse(exercise.isSelectable)
+    }
+
+    /// テスト概要: セッションへ種目を順番に追加する。
+    /// 期待値: 参照・スナップショット・末尾orderが保存され、空のSetEntryは作られない。
+    func testAddingExerciseCreatesSavedEntryWithSnapshotAndOrder() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let first = Exercise(name: "スクワット", primaryBodyPart: .legs)
+        let second = Exercise(name: "ベンチプレス", primaryBodyPart: .chest)
+        context.insert(session)
+        context.insert(first)
+        context.insert(second)
+        try context.save()
+
+        _ = try WorkoutExerciseService(context: context).add(first, to: session)
+        let entry = try WorkoutExerciseService(context: context).add(second, to: session)
+
+        XCTAssertEqual(entry.exercise?.id, second.id)
+        XCTAssertEqual(entry.exerciseNameSnapshot, "ベンチプレス")
+        XCTAssertEqual(entry.bodyPartSnapshot, .chest)
+        XCTAssertEqual(entry.order, 1)
+        XCTAssertTrue(entry.setEntries.isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SetEntry>()).isEmpty)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    /// テスト概要: 同じ種目を同一セッションと別セッションへ追加する。
+    /// 期待値: 同一セッションの重複だけが拒否される。
+    func testDuplicateExerciseIsRejectedOnlyWithinSameSession() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let firstSession = WorkoutSession()
+        let secondSession = WorkoutSession()
+        let exercise = Exercise(name: "プランク", primaryBodyPart: .core)
+        context.insert(firstSession)
+        context.insert(secondSession)
+        context.insert(exercise)
+        try context.save()
+        let service = WorkoutExerciseService(context: context)
+
+        _ = try service.add(exercise, to: firstSession)
+        XCTAssertThrowsError(try service.add(exercise, to: firstSession)) { error in
+            XCTAssertEqual(error as? WorkoutExerciseError, .duplicateExercise)
+        }
+        XCTAssertNoThrow(try service.add(exercise, to: secondSession))
+    }
+
+    /// テスト概要: 中間のExerciseEntryを削除する。
+    /// 期待値: 対象が削除され、残る種目のorderが0始まりの連番になる。
+    func testDeletingExerciseEntryRenumbersRemainingEntries() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercises = (0..<3).map { Exercise(name: "種目\($0)", primaryBodyPart: .other) }
+        context.insert(session)
+        exercises.forEach(context.insert)
+        try context.save()
+        let service = WorkoutExerciseService(context: context)
+        let entries = try exercises.map { try service.add($0, to: session) }
+
+        try service.delete(entries[1], from: session)
+
+        let remaining = try context.fetch(FetchDescriptor<ExerciseEntry>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(remaining.map(\.exerciseNameSnapshot), ["種目0", "種目2"])
+        XCTAssertEqual(remaining.map(\.order), [0, 1])
+        XCTAssertFalse(context.hasChanges)
+    }
 }

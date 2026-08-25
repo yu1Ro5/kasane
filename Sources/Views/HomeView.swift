@@ -55,6 +55,9 @@ struct HomeView: View {
             } message: {
                 Text(errorMessage ?? "不明なエラーが発生しました。")
             }
+            .task {
+                seedExercises()
+            }
         }
     }
 
@@ -68,6 +71,14 @@ struct HomeView: View {
     private func openWorkout() {
         do {
             selectedSession = try WorkoutSessionService(context: modelContext).startOrResume()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func seedExercises() {
+        do {
+            try ExerciseCatalogService(context: modelContext).seed()
         } catch {
             errorMessage = error.localizedDescription
         }
