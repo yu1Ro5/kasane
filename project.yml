@@ -51,3 +51,20 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGNING_ALLOWED: NO
         SKIP_INSTALL: YES
+
+  KASANEUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: UITests
+        type: group
+    dependencies:
+      - target: KASANE
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yu1Ro5.kasane.uitests
+        PRODUCT_NAME: KASANEUITests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+        SKIP_INSTALL: YES
