@@ -73,3 +73,11 @@ struct HomeView: View {
         }
     }
 }
+
+#Preview {
+    HomeView()
+        .modelContainer(
+            for: [WorkoutSession.self, Exercise.self, ExerciseEntry.self, SetEntry.self],
+            inMemory: true
+        )
+}
