@@ -5,7 +5,7 @@ import SwiftUI
 struct KASANEApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            HomeView()
         }
         .modelContainer(for: [WorkoutSession.self, Exercise.self, ExerciseEntry.self, SetEntry.self])
     }

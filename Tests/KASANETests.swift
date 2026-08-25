@@ -120,4 +120,80 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(exerciseEntry.bodyPartSnapshot, .shoulders)
         XCTAssertEqual(exerciseEntry.exercise?.id, exercise.id)
     }
+
+    /// テスト概要: 進行中セッションがない状態でワークアウトを開始する。
+    /// 期待値: 指定した開始時刻とnilの終了日時・メモを持つセッションが即時保存される。
+    func testStartingWorkoutCreatesAndSavesActiveSession() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let expectedDate = Date(timeIntervalSince1970: 1_000)
+        let service = WorkoutSessionService(context: context, now: { expectedDate })
+
+        let session = try service.startOrResume()
+        let fetched = try XCTUnwrap(try context.fetch(FetchDescriptor<WorkoutSession>()).first)
+
+        XCTAssertEqual(session.id, fetched.id)
+        XCTAssertEqual(fetched.startedAt, expectedDate)
+        XCTAssertNil(fetched.endedAt)
+        XCTAssertNil(fetched.note)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    /// テスト概要: 進行中セッションが存在する状態で開始操作を繰り返す。
+    /// 期待値: 既存セッションが返り、新しいセッションは重複作成されない。
+    func testStartingWorkoutResumesExistingActiveSession() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let existing = WorkoutSession(startedAt: Date(timeIntervalSince1970: 100))
+        context.insert(existing)
+        try context.save()
+        let service = WorkoutSessionService(
+            context: context,
+            now: { Date(timeIntervalSince1970: 200) }
+        )
+
+        let resumed = try service.startOrResume()
+
+        XCTAssertEqual(resumed.id, existing.id)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<WorkoutSession>()).count, 1)
+    }
+
+    /// テスト概要: 保存済みの進行中セッションを新しいサービスインスタンスから取得する。
+    /// 期待値: 同じIDのセッションを再取得できる。
+    func testActiveWorkoutCanBeFetchedAfterServiceRecreation() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let saved = WorkoutSession()
+        context.insert(saved)
+        try context.save()
+
+        let fetched = try WorkoutSessionService(context: context).activeSession()
+
+        XCTAssertEqual(fetched?.id, saved.id)
+    }
+
+    /// テスト概要: 終了済みセッションのみが保存されている状態を取得する。
+    /// 期待値: 終了済みセッションは進行中として返されない。
+    func testFinishedWorkoutIsNotActive() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(WorkoutSession(endedAt: Date()))
+        try context.save()
+
+        XCTAssertNil(try WorkoutSessionService(context: context).activeSession())
+    }
+
+    /// テスト概要: 保存済みの進行中セッションを破棄する。
+    /// 期待値: セッションが削除・保存され、進行中セッションがなくなる。
+    func testDiscardingWorkoutDeletesAndSavesSession() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let service = WorkoutSessionService(context: context)
+        let session = try service.startOrResume()
+
+        try service.discard(session)
+
+        XCTAssertTrue(try context.fetch(FetchDescriptor<WorkoutSession>()).isEmpty)
+        XCTAssertFalse(context.hasChanges)
+    }
 }
