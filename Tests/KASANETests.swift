@@ -289,4 +289,97 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(remaining.map(\.order), [0, 1])
         XCTAssertFalse(context.hasChanges)
     }
+
+    /// テスト概要: 有効なDraftをセットとして追加する。
+    /// 期待値: 小数重量と回数が末尾order、非ウォームアップとして明示的に保存される。
+    func testAddingSetFromValidDraftSavesCompletedEntry() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let exerciseEntry = ExerciseEntry(
+            workoutSession: WorkoutSession(),
+            exercise: Exercise(name: "ベンチプレス", primaryBodyPart: .chest),
+            order: 0
+        )
+        context.insert(exerciseEntry)
+        try context.save()
+
+        let setEntry = try WorkoutSetService(context: context).add(
+            draft: SetEntryDraft(weight: "7.50", reps: "12"),
+            to: exerciseEntry
+        )
+
+        XCTAssertEqual(setEntry.weightKg, 7.5)
+        XCTAssertEqual(setEntry.reps, 12)
+        XCTAssertEqual(setEntry.order, 0)
+        XCTAssertFalse(setEntry.isWarmup)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 1)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    /// テスト概要: 未確定Draftおよび不正な値を検証する。
+    /// 期待値: 空欄、負数、3桁小数、0回、小数回は拒否され、0kgは許可される。
+    func testSetDraftValidationRejectsIncompleteAndInvalidValues() {
+        XCTAssertNil(SetEntryDraft().values(decimalSeparator: "."))
+        XCTAssertNil(SetEntryDraft(weight: "-1", reps: "1").values(decimalSeparator: "."))
+        XCTAssertNil(SetEntryDraft(weight: "1.234", reps: "1").values(decimalSeparator: "."))
+        XCTAssertNil(SetEntryDraft(weight: "10", reps: "0").values(decimalSeparator: "."))
+        XCTAssertNil(SetEntryDraft(weight: "10", reps: "1.5").values(decimalSeparator: "."))
+        XCTAssertEqual(SetEntryDraft(weight: "0", reps: "1").values(decimalSeparator: ".")?.weight, 0)
+        XCTAssertEqual(SetEntryDraft(weight: "7,5", reps: "8").values(decimalSeparator: ",")?.weight, 7.5)
+    }
+
+    /// テスト概要: 保存済みセットを修正する。
+    /// 期待値: 重量と回数だけが更新され、orderとウォームアップ状態は維持される。
+    func testUpdatingSetPreservesOrderingAndWarmupState() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let exerciseEntry = ExerciseEntry(
+            workoutSession: WorkoutSession(),
+            exercise: Exercise(name: "スクワット", primaryBodyPart: .legs),
+            order: 0
+        )
+        let setEntry = SetEntry(
+            exerciseEntry: exerciseEntry,
+            order: 2,
+            weightKg: 80,
+            reps: 5,
+            isWarmup: true
+        )
+        context.insert(setEntry)
+        try context.save()
+
+        try WorkoutSetService(context: context).update(
+            setEntry,
+            draft: SetEntryDraft(weight: "82.5", reps: "6")
+        )
+
+        XCTAssertEqual(setEntry.weightKg, 82.5)
+        XCTAssertEqual(setEntry.reps, 6)
+        XCTAssertEqual(setEntry.order, 2)
+        XCTAssertTrue(setEntry.isWarmup)
+    }
+
+    /// テスト概要: 中間のセットを削除する。
+    /// 期待値: 同じ種目の残存セットだけが0始まりの連番になり、別種目のセットは変化しない。
+    func testDeletingSetRenumbersOnlyItsExerciseEntry() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercise = Exercise(name: "デッドリフト", primaryBodyPart: .back)
+        let firstEntry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        let secondEntry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 1)
+        let firstSets = (0..<3).map {
+            SetEntry(exerciseEntry: firstEntry, order: $0, weightKg: Double($0), reps: 1)
+        }
+        let otherSet = SetEntry(exerciseEntry: secondEntry, order: 4, weightKg: 10, reps: 2)
+        firstSets.forEach(context.insert)
+        context.insert(otherSet)
+        try context.save()
+
+        try WorkoutSetService(context: context).delete(firstSets[1], from: firstEntry)
+
+        XCTAssertEqual(firstEntry.setEntries.sorted { $0.order < $1.order }.map(\.order), [0, 1])
+        XCTAssertEqual(secondEntry.setEntries.map(\.order), [4])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 3)
+    }
 }
