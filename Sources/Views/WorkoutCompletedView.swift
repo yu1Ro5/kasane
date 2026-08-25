@@ -4,7 +4,7 @@ import SwiftUI
 struct WorkoutCompletedView: View {
     /// 保存に成功したワークアウトの集計結果。
     let summary: WorkoutCompletionSummary
-    /// 「ホームへ」を選択したときに実行する処理。
+    /// 「完了」を選択したときに実行する処理。
     let onReturnHome: () -> Void
 
     var body: some View {
@@ -22,7 +22,7 @@ struct WorkoutCompletedView: View {
                 summaryRow("セット数", value: "\(summary.setCount)")
             }
 
-            Button("ホームへ", action: onReturnHome)
+            Button("完了", action: onReturnHome)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
             Spacer()

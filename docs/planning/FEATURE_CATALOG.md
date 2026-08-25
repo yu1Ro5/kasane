@@ -28,7 +28,7 @@
 | REC-06 | ワークアウトメモ | Workout単位でメモを残す | Candidate |
 | EXE-01 | 種目選択・検索 | トレーニング種目を選択・検索する | Implemented |
 | EXE-02 | カスタム種目管理 | 種目追加・名称変更・非表示化を行う | Candidate |
-| HIS-01 | ワークアウト履歴一覧 | 過去のWorkoutを日付順に表示する | Candidate |
+| HIS-01 | ワークアウト履歴一覧 | 過去のWorkoutを日付順に表示する | Implemented |
 | HIS-02 | ワークアウト詳細 | 種目・セットを含む過去Workoutを見る | Candidate |
 | HIS-03 | 過去記録編集・削除 | 過去Workoutを修正・削除する | Candidate |
 | HIS-04 | 前回記録表示 | 同じ種目の直近重量・回数を表示する | Candidate |

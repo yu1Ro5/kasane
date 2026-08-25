@@ -264,6 +264,54 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(summary.setCount, 2)
     }
 
+    /// テスト概要: 完了Workoutの履歴行表示を生成する。
+    /// 期待値: 種目はorder順のスナップショットから先頭2件と残数に要約され、所要時間と種目数が表示用文字列になる。
+    func testWorkoutHistoryRowContentUsesSnapshotOrderAndSummarizesExercises() throws {
+        let session = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 1_000),
+            endedAt: Date(timeIntervalSince1970: 4_120)
+        )
+        let fixtures = [
+            ("スクワット", 2),
+            ("ベンチプレス", 0),
+            ("ラットプルダウン", 1),
+        ]
+        for fixture in fixtures {
+            let exercise = Exercise(name: fixture.0, primaryBodyPart: .other)
+            let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: fixture.1)
+            session.exerciseEntries.append(entry)
+            exercise.name = "変更後の名称"
+        }
+
+        let content = try XCTUnwrap(WorkoutHistoryRowContent(session: session))
+
+        XCTAssertEqual(content.completedAt, Date(timeIntervalSince1970: 4_120))
+        XCTAssertEqual(content.durationText, "52分")
+        XCTAssertEqual(content.exerciseSummary, "ベンチプレス、ラットプルダウン、ほか1種目")
+        XCTAssertEqual(content.exerciseCountText, "3種目")
+    }
+
+    /// テスト概要: 進行中Workoutの履歴行表示を生成する。
+    /// 期待値: endedAtがないWorkoutは履歴表示の対象にならない。
+    func testWorkoutHistoryRowContentRejectsActiveSession() {
+        XCTAssertNil(WorkoutHistoryRowContent(session: WorkoutSession()))
+    }
+
+    /// テスト概要: 1時間を超える完了Workoutの所要時間表示を生成する。
+    /// 期待値: 時間と分を組み合わせた表示になる。
+    func testWorkoutHistoryDurationFormatsHoursAndMinutes() throws {
+        let session = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 1_000),
+            endedAt: Date(timeIntervalSince1970: 4_900)
+        )
+
+        let content = try XCTUnwrap(WorkoutHistoryRowContent(session: session))
+
+        XCTAssertEqual(content.durationText, "1時間5分")
+        XCTAssertEqual(content.exerciseSummary, "")
+        XCTAssertEqual(content.exerciseCountText, "0種目")
+    }
+
     /// テスト概要: 保存済みセットに対する編集Draftの変更有無を判定する。
     /// 期待値: 保存値と同じDraftは未変更、重量または回数を編集したDraftは変更ありと判定される。
     func testSetEditDraftDetectsUnsavedChanges() {

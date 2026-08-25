@@ -13,7 +13,7 @@ struct KASANEApp: App {
         WindowGroup {
             switch container {
             case .success(let container):
-                HomeView()
+                AppRootTabView()
                     .modelContainer(container)
             case .failure(let error):
                 ContentUnavailableView(
@@ -46,6 +46,8 @@ private enum AppModelContainer {
         )
         if fixtureName(in: arguments) == "workout-three-exercises" {
             try insertWorkoutFixture(into: container.mainContext)
+        } else if fixtureName(in: arguments) == "workout-history" {
+            try insertHistoryFixture(into: container.mainContext)
         }
         return container
     }
@@ -75,6 +77,26 @@ private enum AppModelContainer {
         for (order, fixture) in fixtures.enumerated() {
             guard let id = UUID(uuidString: fixture.0) else { continue }
             let exercise = Exercise(id: id, name: fixture.1, primaryBodyPart: fixture.2)
+            context.insert(exercise)
+            context.insert(ExerciseEntry(workoutSession: session, exercise: exercise, order: order))
+        }
+        try context.save()
+    }
+
+    private static func insertHistoryFixture(into context: ModelContext) throws {
+        let session = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 1_767_229_200),
+            endedAt: Date(timeIntervalSince1970: 1_767_232_320)
+        )
+        let fixtures: [(String, BodyPart)] = [
+            ("ベンチプレス", .chest),
+            ("ラットプルダウン", .back),
+            ("スクワット", .legs),
+        ]
+
+        context.insert(session)
+        for (order, fixture) in fixtures.enumerated() {
+            let exercise = Exercise(name: fixture.0, primaryBodyPart: fixture.1)
             context.insert(exercise)
             context.insert(ExerciseEntry(workoutSession: session, exercise: exercise, order: order))
         }
