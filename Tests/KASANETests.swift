@@ -18,6 +18,8 @@ final class KASANETests: XCTestCase {
         )
     }
 
+    /// テスト概要: WorkoutSessionをin-memoryストアへ保存し、再取得できることを検証する。
+    /// 期待値: 取得件数が1件で、IDとメモが保存時の値に一致する。
     func testWorkoutSessionCanBeSavedAndFetched() throws {
         let container = try makeContainer()
         let context = container.mainContext
@@ -32,6 +34,8 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(workoutSessions.first?.note, "Morning")
     }
 
+    /// テスト概要: WorkoutSessionからExerciseEntry、SetEntryまでのグラフを保存・取得する。
+    /// 期待値: Exerciseへの参照とSetEntryの重量がRelationship経由で復元される。
     func testWorkoutSessionGraphCanBeSavedAndFetched() throws {
         let container = try makeContainer()
         let context = container.mainContext
@@ -56,6 +60,8 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(fetched.exerciseEntries.first?.setEntries.first?.weightKg, 80)
     }
 
+    /// テスト概要: 同じExerciseを異なるWorkoutSessionのExerciseEntryから参照する。
+    /// 期待値: Exerciseの逆方向Relationshipに2件のExerciseEntryが含まれる。
     func testExerciseCanBeReferencedByMultipleWorkoutSessions() throws {
         let container = try makeContainer()
         let context = container.mainContext
@@ -70,6 +76,8 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(exercise.exerciseEntries.count, 2)
     }
 
+    /// テスト概要: ExerciseEntryとSetEntryを持つWorkoutSessionを削除する。
+    /// 期待値: 配下の記録はcascade削除され、共有されるExerciseマスタは残る。
     func testDeletingWorkoutSessionCascadesThroughItsGraph() throws {
         let container = try makeContainer()
         let context = container.mainContext
@@ -92,6 +100,8 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<Exercise>()).count, 1)
     }
 
+    /// テスト概要: Exerciseの名称・部位・アーカイブ状態を保存後に変更する。
+    /// 期待値: ExerciseEntryの名称・部位スナップショットとExerciseへの参照が維持される。
     func testArchivingAndRenamingExercisePreservesExerciseEntrySnapshot() throws {
         let container = try makeContainer()
         let context = container.mainContext
