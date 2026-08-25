@@ -30,21 +30,7 @@ struct WorkoutSessionView: View {
             } else {
                 List {
                     ForEach(sortedEntries) { entry in
-                        Section {
-                            DraftSetRow()
-                        } header: {
-                            HStack {
-                                Text(entry.exerciseNameSnapshot)
-                                Spacer()
-                                Menu {
-                                    Button("種目を削除", systemImage: "trash", role: .destructive) {
-                                        requestDeletion(of: entry)
-                                    }
-                                } label: {
-                                    Image(systemName: "ellipsis")
-                                }
-                            }
-                        }
+                        WorkoutExerciseSection(entry: entry, onDeleteExercise: { requestDeletion(of: entry) })
                     }
                 }
             }
@@ -133,14 +119,158 @@ struct WorkoutSessionView: View {
     }
 }
 
-private struct DraftSetRow: View {
+private struct WorkoutExerciseSection: View {
+    @Environment(\.modelContext) private var modelContext
+    @Bindable var entry: ExerciseEntry
+    let onDeleteExercise: () -> Void
+
+    @State private var draft = SetEntryDraft()
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @FocusState private var focusedField: DraftField?
+
+    private var sortedSets: [SetEntry] {
+        entry.setEntries.sorted { $0.order < $1.order }
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
-            Text("Set 1")
-            Spacer()
-            Text("重量 — kg")
-            Text("回数 —")
+        Section {
+            ForEach(sortedSets) { setEntry in
+                WorkoutSetRow(setEntry: setEntry, exerciseEntry: entry)
+            }
+            HStack {
+                Text("Set \(sortedSets.count + 1)")
+                TextField("重量 (kg)", text: $draft.weight)
+                    .keyboardType(.decimalPad)
+                    .focused($focusedField, equals: .weight)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .reps }
+                TextField("回数", text: $draft.reps)
+                    .keyboardType(.numberPad)
+                    .focused($focusedField, equals: .reps)
+            }
+            Button("セットを追加", systemImage: "plus") { addSet() }
+                .disabled(draft.values() == nil || isSaving)
+        } header: {
+            HStack {
+                Text(entry.exerciseNameSnapshot)
+                Spacer()
+                Menu {
+                    Button("種目を削除", systemImage: "trash", role: .destructive) {
+                        onDeleteExercise()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+            }
         }
-        .foregroundStyle(.secondary)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                if focusedField == .weight {
+                    Button("次へ") { focusedField = .reps }
+                }
+                Button("完了") { focusedField = nil }
+            }
+        }
+        .alert("セットを保存できませんでした", isPresented: errorIsPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "不明なエラーが発生しました。")
+        }
+    }
+
+    private var errorIsPresented: Binding<Bool> {
+        Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
+    }
+
+    private func addSet() {
+        guard !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            _ = try WorkoutSetService(context: modelContext).add(draft: draft, to: entry)
+            draft = SetEntryDraft()
+            focusedField = .weight
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private enum DraftField: Hashable {
+        case weight
+        case reps
+    }
+}
+
+private struct WorkoutSetRow: View {
+    @Environment(\.modelContext) private var modelContext
+    @Bindable var setEntry: SetEntry
+    let exerciseEntry: ExerciseEntry
+
+    @State private var editDraft: SetEntryDraft
+    @State private var errorMessage: String?
+    @FocusState private var focusedField: EditField?
+
+    init(setEntry: SetEntry, exerciseEntry: ExerciseEntry) {
+        self.setEntry = setEntry
+        self.exerciseEntry = exerciseEntry
+        _editDraft = State(initialValue: .savedValues(from: setEntry))
+    }
+
+    var body: some View {
+        HStack {
+            Text("Set \(setEntry.order + 1)")
+            TextField("重量 (kg)", text: $editDraft.weight)
+                .keyboardType(.decimalPad)
+                .focused($focusedField, equals: .weight)
+            TextField("回数", text: $editDraft.reps)
+                .keyboardType(.numberPad)
+                .focused($focusedField, equals: .reps)
+        }
+        .onChange(of: focusedField) { oldValue, newValue in
+            if oldValue != nil && newValue == nil { saveEdits() }
+        }
+        .swipeActions {
+            Button("削除", systemImage: "trash", role: .destructive) { deleteSet() }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完了") { focusedField = nil }
+            }
+        }
+        .alert("セットを更新できませんでした", isPresented: errorIsPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "不明なエラーが発生しました。")
+        }
+    }
+
+    private var errorIsPresented: Binding<Bool> {
+        Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
+    }
+
+    private func saveEdits() {
+        do {
+            try WorkoutSetService(context: modelContext).update(setEntry, draft: editDraft)
+            editDraft = .savedValues(from: setEntry)
+        } catch {
+            editDraft = .savedValues(from: setEntry)
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func deleteSet() {
+        do {
+            try WorkoutSetService(context: modelContext).delete(setEntry, from: exerciseEntry)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private enum EditField: Hashable {
+        case weight
+        case reps
     }
 }
