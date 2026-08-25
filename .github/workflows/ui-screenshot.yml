@@ -81,16 +81,25 @@ jobs:
           xcrun xcresulttool export attachments \
             --path "$RUNNER_TEMP/ui-screenshot.xcresult" \
             --output-path "$export_dir"
-          mapfile -t screenshots < <(find "$export_dir" -type f -name '*.png' -print)
-          if (( ${#screenshots[@]} != 1 )); then
-            echo "Expected exactly one PNG screenshot, found ${#screenshots[@]}." >&2
-            exit 1
-          fi
-          cp "${screenshots[0]}" "$artifact_dir/workout-weight-input.png"
           python3 - <<'PY'
           import json
           import os
+          import shutil
           from pathlib import Path
+
+          runner_temp = Path(os.environ["RUNNER_TEMP"])
+          screenshots = [
+              path
+              for path in (runner_temp / "xcresult-attachments").rglob("*.png")
+              if path.is_file()
+          ]
+          if len(screenshots) != 1:
+              raise SystemExit(
+                  f"Expected exactly one PNG screenshot, found {len(screenshots)}."
+              )
+
+          artifact_dir = runner_temp / "ui-screenshot-artifact"
+          shutil.copyfile(screenshots[0], artifact_dir / "workout-weight-input.png")
 
           metadata = {
               "pr_number": int(os.environ["PR_NUMBER"]),
@@ -101,7 +110,7 @@ jobs:
                   {"name": "Workout — Weight Input", "file": "workout-weight-input.png"}
               ],
           }
-          path = Path(os.environ["RUNNER_TEMP"]) / "ui-screenshot-artifact" / "metadata.json"
+          path = artifact_dir / "metadata.json"
           path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
           PY
 
