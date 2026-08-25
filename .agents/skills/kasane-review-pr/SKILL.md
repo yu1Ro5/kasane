@@ -19,7 +19,12 @@ Identify:
 - the changed files;
 - the commits or uncommitted changes included in the review.
 
-If no base revision is provided, use the Pull Request base branch. Use `main` only when no other base can be determined.
+Choose the comparison base for the review target:
+
+- for uncommitted changes, compare the index and worktree with `HEAD`;
+- for a single commit, compare the commit with its first parent;
+- for a Pull Request or branch diff, use the specified base revision or the Pull Request base branch;
+- use `main` for a Pull Request or branch diff only when no other base can be determined.
 
 If the diff cannot be obtained, stop and request the Pull Request, branch, commit range, or diff. Do not review only from a summary or Pull Request description.
 
