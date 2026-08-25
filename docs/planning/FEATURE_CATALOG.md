@@ -19,13 +19,14 @@
 
 | 機能ID | 機能名 | 概要 | Status |
 |---|---|---|---|
-| REC-01 | ワークアウト開始 | 新しいトレーニングを開始する | Candidate |
-| REC-02 | 種目追加・並び替え | Workout内の種目を追加・削除・並び替えする | Candidate |
-| REC-03 | セット記録 | 重量・回数を記録する | Candidate |
+| REC-01 | ワークアウト開始 | 新しいトレーニングを開始・再開・破棄する | Implemented |
+| REC-02A | 種目追加・削除 | Workout内の種目を追加・削除する | Implemented |
+| REC-02B | 種目並び替え | Workout内の種目を並び替える | Candidate |
+| REC-03 | セット記録 | 重量・回数を追加・修正・削除する | Implemented |
 | REC-04 | ウォームアップ記録 | セットをウォームアップとして区別する | Candidate |
-| REC-05 | ワークアウト終了 | 終了日時を記録してWorkoutを完了する | Candidate |
+| REC-05 | ワークアウト終了 | 終了日時を記録してWorkoutを完了する | Implemented |
 | REC-06 | ワークアウトメモ | Workout単位でメモを残す | Candidate |
-| EXE-01 | 種目選択・検索 | トレーニング種目を選択する | Candidate |
+| EXE-01 | 種目選択・検索 | トレーニング種目を選択・検索する | Implemented |
 | EXE-02 | カスタム種目管理 | 種目追加・名称変更・非表示化を行う | Candidate |
 | HIS-01 | ワークアウト履歴一覧 | 過去のWorkoutを日付順に表示する | Candidate |
 | HIS-02 | ワークアウト詳細 | 種目・セットを含む過去Workoutを見る | Candidate |
