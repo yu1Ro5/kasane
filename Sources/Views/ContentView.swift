@@ -1,21 +1,16 @@
+import SwiftData
 import SwiftUI
 
 struct ContentView: View {
-    static let title = "KASANE"
-    static let subtitle = "Training, accumulated."
-
     var body: some View {
-        VStack(spacing: 12) {
-            Text(Self.title)
-                .font(.largeTitle.bold())
-            Text(Self.subtitle)
-                .font(.headline)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
+        HomeView()
     }
 }
 
 #Preview {
     ContentView()
+        .modelContainer(
+            for: [WorkoutSession.self, Exercise.self, ExerciseEntry.self, SetEntry.self],
+            inMemory: true
+        )
 }

@@ -37,3 +37,9 @@ erDiagram
 ## Source of Truth
 
 Stats / Replayの集計結果は保存しません。WorkoutSession、ExerciseEntry、SetEntryを記録のSource of Truthとして必要時に算出し、導出値の不整合を避けます。
+
+## 進行中Workoutのライフサイクル
+
+`WorkoutSession.endedAt == nil` を進行中の唯一の永続状態として扱います。アプリ起動時に特別な画面状態を復元するのではなく、Home画面がSwiftDataから進行中セッションを取得し、ユーザーの操作によって再開します。
+
+開始・再開・破棄と明示的な保存は `WorkoutSessionService` が担当します。開始時に既存の進行中セッションを先に検索することで重複作成を避け、破棄時には既存のcascade delete ruleを利用して配下の記録も削除します。通常の戻る操作は永続データを変更しません。
