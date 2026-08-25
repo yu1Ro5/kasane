@@ -69,7 +69,9 @@ WorkflowはXcode 26を選択し、XcodeGenでプロジェクトを生成して�
 
 続いて、automatic signingとApp Store Connect API Keyを使って`xcodebuild -exportArchive`を実行します。`Configuration/TestFlightExportOptions.plist`の`destination`は`upload`なので、書き出し処理がApp Store Connectへのアップロードまで行います。
 
-成功後はApp Store ConnectのKASANEのTestFlight画面にBuildが現れ、Apple側のprocessingが始まります。processing完了後、輸出コンプライアンスなど必要な質問へ回答して内部テスターへ配布します。
+成功後はApp Store ConnectのKASANEのTestFlight画面にBuildが現れ、Apple側のprocessingが始まります。現在のアプリは非免除暗号化を使用しておらず、`Sources/Info.plist`の`ITSAppUsesNonExemptEncryption`で`false`と申告しているため、通常は輸出コンプライアンスに関する手動回答なしで、processing完了後に内部テスターへ配布できます。
+
+この申告は現在の実装と依存関係に基づくものです。独自暗号、AppleのOS外で実装された標準暗号、VPN、セキュア通信・セキュアストレージ機能、または暗号機能を含むSDKやライブラリを追加した場合は、リリース前に`ITSAppUsesNonExemptEncryption`の値、Appleの輸出コンプライアンス質問票、および必要書類を再評価してください。
 
 ## よくある失敗
 
