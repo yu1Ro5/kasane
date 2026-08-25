@@ -197,6 +197,73 @@ final class KASANETests: XCTestCase {
         XCTAssertFalse(context.hasChanges)
     }
 
+    /// テスト概要: 保存済みセットを持つセッションを終了する。
+    /// 期待値: 終了日時が保存され、完了サマリーの時間・種目数・セット数が一致する。
+    func testFinishingWorkoutSavesEndedAtAndReturnsSummary() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+        let endedAt = Date(timeIntervalSince1970: 4_900)
+        let session = WorkoutSession(startedAt: startedAt)
+        let exercise = Exercise(name: "ベンチプレス", primaryBodyPart: .chest)
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        context.insert(session)
+        context.insert(exercise)
+        context.insert(SetEntry(exerciseEntry: entry, order: 0, weightKg: 40, reps: 10))
+        context.insert(SetEntry(exerciseEntry: entry, order: 1, weightKg: 40, reps: 8))
+        try context.save()
+
+        let summary = try WorkoutSessionService(context: context, now: { endedAt }).finish(session)
+
+        XCTAssertEqual(session.endedAt, endedAt)
+        XCTAssertEqual(summary.duration, 3_900)
+        XCTAssertEqual(summary.exerciseCount, 1)
+        XCTAssertEqual(summary.setCount, 2)
+        XCTAssertFalse(context.hasChanges)
+        XCTAssertNil(try WorkoutSessionService(context: context).activeSession())
+    }
+
+    /// テスト概要: セットがないセッションをサービスから終了しようとする。
+    /// 期待値: 終了は拒否され、進行中セッションのまま保存データが維持される。
+    func testFinishingWorkoutWithoutSetsIsRejected() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        context.insert(session)
+        try context.save()
+
+        XCTAssertThrowsError(try WorkoutSessionService(context: context).finish(session)) { error in
+            XCTAssertEqual(error as? WorkoutSessionError, .noSavedSets)
+        }
+        XCTAssertNil(session.endedAt)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<WorkoutSession>()).count, 1)
+    }
+
+    /// テスト概要: 空の種目を含むセッションを終了する。
+    /// 期待値: 空の種目は削除され、保存済みセットを持つ種目だけが連番で残る。
+    func testFinishingWorkoutRemovesEmptyExercisesAndRenumbersRemainingEntries() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercises = (0..<3).map { Exercise(name: "種目\($0)", primaryBodyPart: .other) }
+        let entries = exercises.enumerated().map {
+            ExerciseEntry(workoutSession: session, exercise: $0.element, order: $0.offset)
+        }
+        context.insert(session)
+        exercises.forEach(context.insert)
+        context.insert(SetEntry(exerciseEntry: entries[0], order: 0, weightKg: 10, reps: 10))
+        context.insert(SetEntry(exerciseEntry: entries[2], order: 0, weightKg: 20, reps: 5))
+        try context.save()
+
+        let summary = try WorkoutSessionService(context: context).finish(session)
+
+        let remaining = try context.fetch(FetchDescriptor<ExerciseEntry>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(remaining.map(\.exerciseNameSnapshot), ["種目0", "種目2"])
+        XCTAssertEqual(remaining.map(\.order), [0, 1])
+        XCTAssertEqual(summary.exerciseCount, 2)
+        XCTAssertEqual(summary.setCount, 2)
+    }
+
     /// テスト概要: 組み込み種目のseedを複数回実行する。
     /// 期待値: 安定したIDにより種目は重複せず、既存種目も上書きされない。
     func testSeedingBuiltInExercisesIsIdempotent() throws {
@@ -319,6 +386,9 @@ final class KASANETests: XCTestCase {
     /// テスト概要: 未確定Draftおよび不正な値を検証する。
     /// 期待値: 空欄、負数、3桁小数、0回、小数回は拒否され、0kgは許可される。
     func testSetDraftValidationRejectsIncompleteAndInvalidValues() {
+        XCTAssertTrue(SetEntryDraft().isEmpty)
+        XCTAssertFalse(SetEntryDraft(weight: "10", reps: "").isEmpty)
+        XCTAssertFalse(SetEntryDraft(weight: "", reps: "8").isEmpty)
         XCTAssertNil(SetEntryDraft().values(decimalSeparator: "."))
         XCTAssertNil(SetEntryDraft(weight: "-1", reps: "1").values(decimalSeparator: "."))
         XCTAssertNil(SetEntryDraft(weight: "1.234", reps: "1").values(decimalSeparator: "."))

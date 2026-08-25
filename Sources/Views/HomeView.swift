@@ -48,7 +48,7 @@ struct HomeView: View {
             .padding()
             .navigationTitle("KASANE")
             .navigationDestination(item: $selectedSession) { session in
-                WorkoutSessionView(session: session)
+                WorkoutSessionView(session: session) { selectedSession = nil }
             }
             .alert("ワークアウトを開けませんでした", isPresented: errorIsPresented) {
                 Button("OK", role: .cancel) {}

@@ -5,9 +5,15 @@ struct WorkoutSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Bindable var session: WorkoutSession
+    let onReturnHome: () -> Void
 
     @State private var isShowingPicker = false
     @State private var isConfirmingDiscard = false
+    @State private var isConfirmingFinish = false
+    @State private var isConfirmingEmptyDiscard = false
+    @State private var isFinishing = false
+    @State private var completionSummary: WorkoutCompletionSummary?
+    @State private var drafts: [UUID: SetEntryDraft] = [:]
     @State private var entryPendingDeletion: ExerciseEntry?
     @State private var errorTitle = ""
     @State private var errorMessage: String?
@@ -30,7 +36,11 @@ struct WorkoutSessionView: View {
             } else {
                 List {
                     ForEach(sortedEntries) { entry in
-                        WorkoutExerciseSection(entry: entry, onDeleteExercise: { requestDeletion(of: entry) })
+                        WorkoutExerciseSection(
+                            entry: entry,
+                            draft: draftBinding(for: entry),
+                            onDeleteExercise: { requestDeletion(of: entry) }
+                        )
                     }
                 }
             }
@@ -39,6 +49,8 @@ struct WorkoutSessionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("終了") { requestFinish() }
+                    .disabled(isFinishing)
                 Button("種目を追加", systemImage: "plus") { isShowingPicker = true }
                 Menu {
                     Button("ワークアウトを破棄", systemImage: "trash", role: .destructive) {
@@ -48,6 +60,9 @@ struct WorkoutSessionView: View {
                     Label("その他", systemImage: "ellipsis.circle")
                 }
             }
+        }
+        .navigationDestination(item: $completionSummary) { summary in
+            WorkoutCompletedView(summary: summary, onReturnHome: onReturnHome)
         }
         .sheet(isPresented: $isShowingPicker) {
             ExercisePickerView(
@@ -60,6 +75,18 @@ struct WorkoutSessionView: View {
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("入力した内容はすべて削除され、元に戻せません。")
+        }
+        .confirmationDialog("ワークアウトを終了しますか？", isPresented: $isConfirmingFinish) {
+            Button("終了して保存") { finishWorkout() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("記録済み: \(completionCounts.exerciseCount)種目・\(completionCounts.setCount)セット")
+        }
+        .confirmationDialog("記録されたセットがありません", isPresented: $isConfirmingEmptyDiscard) {
+            Button("ワークアウトを破棄", role: .destructive) { discardWorkout() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("完了済みとして保存せず、このワークアウトを破棄しますか？")
         }
         .confirmationDialog(
             "この種目を削除しますか？",
@@ -86,6 +113,42 @@ struct WorkoutSessionView: View {
         Binding(get: { entryPendingDeletion != nil }, set: { if !$0 { entryPendingDeletion = nil } })
     }
 
+    private var completionCounts: (exerciseCount: Int, setCount: Int) {
+        let entries = session.exerciseEntries.filter { !$0.setEntries.isEmpty }
+        return (entries.count, entries.reduce(0) { $0 + $1.setEntries.count })
+    }
+
+    private func draftBinding(for entry: ExerciseEntry) -> Binding<SetEntryDraft> {
+        Binding(
+            get: { drafts[entry.id] ?? SetEntryDraft() },
+            set: { drafts[entry.id] = $0 }
+        )
+    }
+
+    private func requestFinish() {
+        guard !isFinishing else { return }
+        if drafts.values.contains(where: { !$0.isEmpty }) {
+            errorTitle = "未追加のセットがあります"
+            errorMessage = "「セットを追加」するか、重量と回数の入力を消してから終了してください。"
+        } else if completionCounts.setCount == 0 {
+            isConfirmingEmptyDiscard = true
+        } else {
+            isConfirmingFinish = true
+        }
+    }
+
+    private func finishWorkout() {
+        guard !isFinishing else { return }
+        isFinishing = true
+        defer { isFinishing = false }
+        do {
+            completionSummary = try WorkoutSessionService(context: modelContext).finish(session)
+        } catch {
+            errorTitle = "ワークアウトを終了できませんでした"
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func addExercise(_ exercise: Exercise) throws {
         _ = try WorkoutExerciseService(context: modelContext).add(exercise, to: session)
     }
@@ -101,6 +164,7 @@ struct WorkoutSessionView: View {
     private func deleteExercise(_ entry: ExerciseEntry) {
         do {
             try WorkoutExerciseService(context: modelContext).delete(entry, from: session)
+            drafts[entry.id] = nil
             entryPendingDeletion = nil
         } catch {
             errorTitle = "種目を削除できませんでした"
@@ -122,9 +186,9 @@ struct WorkoutSessionView: View {
 private struct WorkoutExerciseSection: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var entry: ExerciseEntry
+    @Binding var draft: SetEntryDraft
     let onDeleteExercise: () -> Void
 
-    @State private var draft = SetEntryDraft()
     @State private var isSaving = false
     @State private var errorMessage: String?
     @FocusState private var focusedField: DraftField?
