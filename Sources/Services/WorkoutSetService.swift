@@ -39,6 +39,13 @@ struct SetEntryDraft: Equatable {
             reps: String(entry.reps)
         )
     }
+
+    func hasChanges(
+        from entry: SetEntry,
+        decimalSeparator: String = Locale.current.decimalSeparator ?? "."
+    ) -> Bool {
+        self != .savedValues(from: entry, decimalSeparator: decimalSeparator)
+    }
 }
 
 /// セットの追加・修正・削除を検証し、変更を即時保存する。

@@ -264,6 +264,18 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(summary.setCount, 2)
     }
 
+    /// テスト概要: 保存済みセットに対する編集Draftの変更有無を判定する。
+    /// 期待値: 保存値と同じDraftは未変更、重量または回数を編集したDraftは変更ありと判定される。
+    func testSetEditDraftDetectsUnsavedChanges() {
+        let exercise = Exercise(name: "スクワット", primaryBodyPart: .legs)
+        let entry = ExerciseEntry(workoutSession: WorkoutSession(), exercise: exercise, order: 0)
+        let setEntry = SetEntry(exerciseEntry: entry, order: 0, weightKg: 40, reps: 10)
+
+        XCTAssertFalse(SetEntryDraft(weight: "40", reps: "10").hasChanges(from: setEntry))
+        XCTAssertTrue(SetEntryDraft(weight: "42.5", reps: "10").hasChanges(from: setEntry))
+        XCTAssertTrue(SetEntryDraft(weight: "40", reps: "8").hasChanges(from: setEntry))
+    }
+
     /// テスト概要: 組み込み種目のseedを複数回実行する。
     /// 期待値: 安定したIDにより種目は重複せず、既存種目も上書きされない。
     func testSeedingBuiltInExercisesIsIdempotent() throws {

@@ -14,6 +14,7 @@ struct WorkoutSessionView: View {
     @State private var isFinishing = false
     @State private var completionSummary: WorkoutCompletionSummary?
     @State private var drafts: [UUID: SetEntryDraft] = [:]
+    @State private var editDrafts: [UUID: SetEntryDraft] = [:]
     @State private var entryPendingDeletion: ExerciseEntry?
     @State private var errorTitle = ""
     @State private var errorMessage: String?
@@ -39,6 +40,7 @@ struct WorkoutSessionView: View {
                         WorkoutExerciseSection(
                             entry: entry,
                             draft: draftBinding(for: entry),
+                            editDraft: editDraftBinding,
                             onDeleteExercise: { requestDeletion(of: entry) }
                         )
                     }
@@ -125,9 +127,27 @@ struct WorkoutSessionView: View {
         )
     }
 
+    private func editDraftBinding(for setEntry: SetEntry) -> Binding<SetEntryDraft> {
+        Binding(
+            get: { editDrafts[setEntry.id] ?? .savedValues(from: setEntry) },
+            set: { editDrafts[setEntry.id] = $0 }
+        )
+    }
+
+    private var hasUnsavedSetEdits: Bool {
+        session.exerciseEntries
+            .flatMap(\.setEntries)
+            .contains { setEntry in
+                editDrafts[setEntry.id]?.hasChanges(from: setEntry) == true
+            }
+    }
+
     private func requestFinish() {
         guard !isFinishing else { return }
-        if drafts.values.contains(where: { !$0.isEmpty }) {
+        if hasUnsavedSetEdits {
+            errorTitle = "編集中のセットがあります"
+            errorMessage = "キーボードの「完了」を押して編集を保存してから終了してください。"
+        } else if drafts.values.contains(where: { !$0.isEmpty }) {
             errorTitle = "未追加のセットがあります"
             errorMessage = "「セットを追加」するか、重量と回数の入力を消してから終了してください。"
         } else if completionCounts.setCount == 0 {
@@ -165,6 +185,7 @@ struct WorkoutSessionView: View {
         do {
             try WorkoutExerciseService(context: modelContext).delete(entry, from: session)
             drafts[entry.id] = nil
+            entry.setEntries.forEach { editDrafts[$0.id] = nil }
             entryPendingDeletion = nil
         } catch {
             errorTitle = "種目を削除できませんでした"
@@ -187,6 +208,7 @@ private struct WorkoutExerciseSection: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var entry: ExerciseEntry
     @Binding var draft: SetEntryDraft
+    let editDraft: (SetEntry) -> Binding<SetEntryDraft>
     let onDeleteExercise: () -> Void
 
     @State private var isSaving = false
@@ -200,7 +222,11 @@ private struct WorkoutExerciseSection: View {
     var body: some View {
         Section {
             ForEach(sortedSets) { setEntry in
-                WorkoutSetRow(setEntry: setEntry, exerciseEntry: entry)
+                WorkoutSetRow(
+                    setEntry: setEntry,
+                    exerciseEntry: entry,
+                    editDraft: editDraft(setEntry)
+                )
             }
             HStack {
                 Text("Set \(sortedSets.count + 1)")
@@ -272,15 +298,9 @@ private struct WorkoutSetRow: View {
     @Bindable var setEntry: SetEntry
     let exerciseEntry: ExerciseEntry
 
-    @State private var editDraft: SetEntryDraft
+    @Binding var editDraft: SetEntryDraft
     @State private var errorMessage: String?
     @FocusState private var focusedField: EditField?
-
-    init(setEntry: SetEntry, exerciseEntry: ExerciseEntry) {
-        self.setEntry = setEntry
-        self.exerciseEntry = exerciseEntry
-        _editDraft = State(initialValue: .savedValues(from: setEntry))
-    }
 
     var body: some View {
         HStack {
