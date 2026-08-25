@@ -231,11 +231,13 @@ private struct WorkoutExerciseSection: View {
             HStack {
                 Text("Set \(sortedSets.count + 1)")
                 TextField("重量 (kg)", text: $draft.weight)
+                    .accessibilityIdentifier("draft-weight-input")
                     .keyboardType(.decimalPad)
                     .focused($focusedField, equals: .weight)
                     .submitLabel(.next)
                     .onSubmit { focusedField = .reps }
                 TextField("回数", text: $draft.reps)
+                    .accessibilityIdentifier("draft-reps-input")
                     .keyboardType(.numberPad)
                     .focused($focusedField, equals: .reps)
             }

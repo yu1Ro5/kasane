@@ -41,6 +41,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .accessibilityIdentifier("workout-resume-button")
 
                 Spacer()
             }

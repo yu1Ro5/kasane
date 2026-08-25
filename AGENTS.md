@@ -142,3 +142,11 @@ swift-format format --in-place --configuration .swift-format --recursive Sources
 ## セキュリティ
 
 シークレット、認証情報、APIキー、証明書、プロビジョニングプロファイル、秘密の署名素材は絶対にコミットしないでください。CIのシミュレーター向けビルドではコード署名を無効にします。
+
+## UI Screenshotレビュー
+
+- UI表示を変更するIssueでは、既存のScreenshot scenarioで対象状態を再現できる場合、その結果をPull Request上で確認してください。
+- 既存scenarioで必要な状態を再現できない場合に限り、目的を限定したScreenshot scenarioを追加してください。
+- Screenshotは自動的な正しさの証明ではなく、人間によるUIレビュー資料として扱ってください。
+- Codex CloudではiOS Simulatorを利用できないため、Simulatorで確認済みと報告しないでください。
+- Repository visibilityが変更された場合は、Screenshotのinline表示方式がそのvisibilityに適しているか再確認してください。

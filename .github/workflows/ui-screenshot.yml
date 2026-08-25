@@ -1,0 +1,131 @@
+name: UI Screenshot
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  capture-screenshot:
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode_path="$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' | sort | tail -1)"
+          test -n "$xcode_path"
+          sudo xcode-select --switch "$xcode_path"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Select available iPhone simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          simulator="$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          for runtime in sorted(devices, reverse=True):
+              if "iOS-26" not in runtime:
+                  continue
+              for device in devices[runtime]:
+                  if device["isAvailable"] and device["name"].startswith("iPhone"):
+                      print(device["udid"])
+                      print(device["name"], file=sys.stderr)
+                      raise SystemExit
+          raise SystemExit("No available iOS 26 iPhone simulator found")
+          ')"
+          echo "id=$simulator" >> "$GITHUB_OUTPUT"
+          echo "name=$(xcrun simctl list devices --json | python3 -c 'import json,sys; target=sys.argv[1]; print(next(d["name"] for values in json.load(sys.stdin)["devices"].values() for d in values if d["udid"] == target))' "$simulator")" >> "$GITHUB_OUTPUT"
+
+      - name: Run UI screenshot test
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -project KASANE.xcodeproj \
+            -scheme KASANE \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutWeightInputScreenshot \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
+            -derivedDataPath build \
+            -resultBundlePath "$RUNNER_TEMP/ui-screenshot.xcresult" \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
+      - name: Extract screenshot and metadata
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SIMULATOR_NAME: ${{ steps.simulator.outputs.name }}
+        run: |
+          set -euo pipefail
+          export_dir="$RUNNER_TEMP/xcresult-attachments"
+          artifact_dir="$RUNNER_TEMP/ui-screenshot-artifact"
+          mkdir -p "$export_dir" "$artifact_dir"
+          xcrun xcresulttool export attachments \
+            --path "$RUNNER_TEMP/ui-screenshot.xcresult" \
+            --output-path "$export_dir"
+          python3 - <<'PY'
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+
+          runner_temp = Path(os.environ["RUNNER_TEMP"])
+          screenshots = [
+              path
+              for path in (runner_temp / "xcresult-attachments").rglob("*.png")
+              if path.is_file()
+          ]
+          if len(screenshots) != 1:
+              raise SystemExit(
+                  f"Expected exactly one PNG screenshot, found {len(screenshots)}."
+              )
+
+          artifact_dir = runner_temp / "ui-screenshot-artifact"
+          shutil.copyfile(screenshots[0], artifact_dir / "workout-weight-input.png")
+
+          metadata = {
+              "pr_number": int(os.environ["PR_NUMBER"]),
+              "head_sha": os.environ["HEAD_SHA"],
+              "simulator": os.environ["SIMULATOR_NAME"],
+              "ios": "26.x",
+              "screenshots": [
+                  {"name": "Workout — Weight Input", "file": "workout-weight-input.png"}
+              ],
+          }
+          path = artifact_dir / "metadata.json"
+          path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
+          PY
+
+      - name: Upload xcresult
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshot-xcresult
+          path: ${{ runner.temp }}/ui-screenshot.xcresult
+          retention-days: 7
+
+      - name: Upload UI screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshot-review
+          path: ${{ runner.temp }}/ui-screenshot-artifact
+          if-no-files-found: error
+          retention-days: 7
