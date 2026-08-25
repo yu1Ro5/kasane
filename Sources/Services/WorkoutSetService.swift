@@ -59,6 +59,18 @@ struct WorkoutSetService {
 
     @discardableResult
     func add(draft: SetEntryDraft, to exerciseEntry: ExerciseEntry) throws -> SetEntry {
+        let setEntry = try insert(draft: draft, to: exerciseEntry)
+        do {
+            try context.save()
+            return setEntry
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
+    /// 検証済みDraftからSetEntryを生成してコンテキストへ追加する。保存は呼び出し側が行う。
+    func insert(draft: SetEntryDraft, to exerciseEntry: ExerciseEntry) throws -> SetEntry {
         guard let values = draft.values() else { throw WorkoutSetError.invalidValues }
         let order = (exerciseEntry.setEntries.map(\.order).max() ?? -1) + 1
         let setEntry = SetEntry(
@@ -69,13 +81,7 @@ struct WorkoutSetService {
             isWarmup: false
         )
         context.insert(setEntry)
-        do {
-            try context.save()
-            return setEntry
-        } catch {
-            context.rollback()
-            throw error
-        }
+        return setEntry
     }
 
     func update(_ setEntry: SetEntry, draft: SetEntryDraft) throws {
@@ -105,7 +111,7 @@ struct WorkoutSetService {
     }
 }
 
-enum WorkoutSetError: LocalizedError {
+enum WorkoutSetError: LocalizedError, Equatable {
     case invalidValues
 
     var errorDescription: String? {
