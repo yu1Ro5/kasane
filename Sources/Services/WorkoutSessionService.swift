@@ -110,6 +110,9 @@ struct WorkoutSessionService {
             try save()
         } catch {
             context.rollback()
+            // SwiftDataのrollback後も、呼び出し元が保持するモデルには代入値が残る場合がある。
+            // 保存に失敗したWorkoutを進行中として扱えるよう、終了日時を明示的に戻す。
+            session.endedAt = nil
             throw error
         }
 

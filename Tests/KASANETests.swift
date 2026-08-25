@@ -468,6 +468,7 @@ final class KASANETests: XCTestCase {
         XCTAssertNil(session.endedAt)
         XCTAssertEqual(draft, SetEntryDraft(weight: "30", reps: "8"))
         XCTAssertTrue(try context.fetch(FetchDescriptor<SetEntry>()).isEmpty)
+        XCTAssertEqual(try WorkoutSessionService(context: context).activeSession()?.id, session.id)
     }
 
     /// テスト概要: 同じDraftを渡して終了操作を繰り返す。
