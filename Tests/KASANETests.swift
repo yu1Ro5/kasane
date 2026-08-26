@@ -159,25 +159,25 @@ final class KASANETests: XCTestCase {
     }
 
     /// テスト概要: Homeから新しいWorkoutの開始に成功する。
-    /// 期待値: 保存済みセッションが遷移先になり、遷移中もHomeの開始表示が維持される。
-    func testWorkoutRootNavigatesAfterStartingSavedSession() throws {
+    /// 期待値: 保存済みセッションだけが遷移先になり、Homeの表示状態は遷移中に変更されない。
+    func testWorkoutRootNavigatesToSavedSessionWithoutChangingHomeState() throws {
         let container = try makeContainer()
         let context = container.mainContext
         let viewModel = WorkoutRootViewModel()
 
-        viewModel.openWorkout(activeSession: nil) {
+        viewModel.openWorkout {
             try WorkoutSessionService(context: context).startOrResume()
         }
 
-        let selectedSession = try XCTUnwrap(viewModel.selectedSession)
-        let savedSession = try XCTUnwrap(try context.fetch(FetchDescriptor<WorkoutSession>()).first)
-        XCTAssertEqual(selectedSession.id, savedSession.id)
-        XCTAssertTrue(viewModel.isStartingNewWorkout)
+        let selected = try XCTUnwrap(viewModel.selectedSession)
+        let saved = try XCTUnwrap(try context.fetch(FetchDescriptor<WorkoutSession>()).first)
+        XCTAssertEqual(selected.id, saved.id)
+        XCTAssertNil(viewModel.activeSession)
         XCTAssertFalse(context.hasChanges)
     }
 
     /// テスト概要: HomeからWorkoutを開始した際の保存が失敗する。
-    /// 期待値: 遷移先を設定せず、開始表示の固定を解除してエラーを保持する。
+    /// 期待値: 遷移先を設定せず、作成途中のセッションを残さない。
     func testWorkoutRootDoesNotNavigateWhenStartingSessionFailsToSave() throws {
         struct SaveError: LocalizedError {
             var errorDescription: String? { "保存できませんでした" }
@@ -187,30 +187,47 @@ final class KASANETests: XCTestCase {
         let context = container.mainContext
         let viewModel = WorkoutRootViewModel()
 
-        viewModel.openWorkout(activeSession: nil) {
+        viewModel.openWorkout {
             try WorkoutSessionService(context: context, save: { throw SaveError() }).startOrResume()
         }
 
         XCTAssertNil(viewModel.selectedSession)
-        XCTAssertFalse(viewModel.isStartingNewWorkout)
         XCTAssertEqual(viewModel.errorMessage, "保存できませんでした")
         XCTAssertTrue(try context.fetch(FetchDescriptor<WorkoutSession>()).isEmpty)
     }
 
-    /// テスト概要: Workout画面からHomeへ戻る。
-    /// 期待値: 遷移状態と開始表示の固定が解除され、Queryの進行中状態を表示できる。
-    func testWorkoutRootClearsStartingStateWhenWorkoutCloses() throws {
+    /// テスト概要: Homeの表示状態を保存済みの進行中Workoutから更新する。
+    /// 期待値: 画面へ戻った場合やアプリ再起動後に、保存済みセッションを再開対象として表示できる。
+    func testWorkoutRootRefreshesSavedActiveSession() throws {
         let container = try makeContainer()
         let context = container.mainContext
+        let saved = try WorkoutSessionService(context: context).startOrResume()
         let viewModel = WorkoutRootViewModel()
-        viewModel.openWorkout(activeSession: nil) {
+
+        viewModel.refreshActiveSession {
+            try WorkoutSessionService(context: context).activeSession()
+        }
+
+        XCTAssertEqual(viewModel.activeSession?.id, saved.id)
+    }
+
+    /// テスト概要: 進行中WorkoutがあるHomeから開始操作を行う。
+    /// 期待値: 既存セッションへ遷移し、新しいセッションを作成しない。
+    func testWorkoutRootResumesWithoutCreatingDuplicateActiveSession() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let existing = try WorkoutSessionService(context: context).startOrResume()
+        let viewModel = WorkoutRootViewModel()
+        viewModel.refreshActiveSession {
+            try WorkoutSessionService(context: context).activeSession()
+        }
+
+        viewModel.openWorkout {
             try WorkoutSessionService(context: context).startOrResume()
         }
 
-        viewModel.closeWorkout()
-
-        XCTAssertNil(viewModel.selectedSession)
-        XCTAssertFalse(viewModel.isStartingNewWorkout)
+        XCTAssertEqual(viewModel.selectedSession?.id, existing.id)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<WorkoutSession>()).count, 1)
     }
 
     /// テスト概要: 保存済みの進行中セッションを新しいサービスインスタンスから取得する。

@@ -4,26 +4,27 @@ import Observation
 @MainActor
 @Observable
 final class WorkoutRootViewModel {
+    private(set) var activeSession: WorkoutSession?
     private(set) var selectedSession: WorkoutSession?
-    private(set) var isStartingNewWorkout = false
     var errorMessage: String?
 
-    func openWorkout(
-        activeSession: WorkoutSession?,
-        startOrResume: () throws -> WorkoutSession
-    ) {
-        isStartingNewWorkout = activeSession == nil
+    func refreshActiveSession(fetch: () throws -> WorkoutSession?) {
+        do {
+            activeSession = try fetch()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 
+    func openWorkout(startOrResume: () throws -> WorkoutSession) {
         do {
             selectedSession = try startOrResume()
         } catch {
-            isStartingNewWorkout = false
             errorMessage = error.localizedDescription
         }
     }
 
     func closeWorkout() {
         selectedSession = nil
-        isStartingNewWorkout = false
     }
 }

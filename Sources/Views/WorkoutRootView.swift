@@ -3,43 +3,30 @@ import SwiftUI
 
 struct WorkoutRootView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(
-        filter: #Predicate<WorkoutSession> { $0.endedAt == nil },
-        sort: \WorkoutSession.startedAt
-    ) private var activeSessions: [WorkoutSession]
-
     @State private var viewModel = WorkoutRootViewModel()
-
-    private var activeSession: WorkoutSession? {
-        activeSessions.first
-    }
-
-    private var displayedActiveSession: WorkoutSession? {
-        viewModel.isStartingNewWorkout ? nil : activeSession
-    }
 
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
 
             Image(
-                systemName: displayedActiveSession == nil
+                systemName: viewModel.activeSession == nil
                     ? "figure.strengthtraining.traditional" : "clock.arrow.circlepath"
             )
             .font(.system(size: 52))
             .foregroundStyle(.tint)
 
             VStack(spacing: 8) {
-                Text(displayedActiveSession == nil ? "ワークアウトを始めましょう" : "進行中のワークアウト")
+                Text(viewModel.activeSession == nil ? "ワークアウトを始めましょう" : "進行中のワークアウト")
                     .font(.title2.bold())
 
-                if let displayedActiveSession {
-                    Text(displayedActiveSession.startedAt, format: .dateTime.year().month().day().hour().minute())
+                if let activeSession = viewModel.activeSession {
+                    Text(activeSession.startedAt, format: .dateTime.year().month().day().hour().minute())
                         .foregroundStyle(.secondary)
                 }
             }
 
-            Button(displayedActiveSession == nil ? "ワークアウトを開始" : "ワークアウトを再開") {
+            Button(viewModel.activeSession == nil ? "ワークアウトを開始" : "ワークアウトを再開") {
                 openWorkout()
             }
             .buttonStyle(.borderedProminent)
@@ -52,7 +39,7 @@ struct WorkoutRootView: View {
         .padding()
         .navigationTitle("KASANE")
         .navigationDestination(item: selectedSession) { session in
-            WorkoutSessionView(session: session) { viewModel.closeWorkout() }
+            WorkoutSessionView(session: session) { closeWorkout() }
         }
         .alert("ワークアウトを開けませんでした", isPresented: errorIsPresented) {
             Button("OK", role: .cancel) {}
@@ -61,6 +48,7 @@ struct WorkoutRootView: View {
         }
         .task {
             seedExercises()
+            refreshActiveSession()
         }
     }
 
@@ -74,13 +62,24 @@ struct WorkoutRootView: View {
     private var selectedSession: Binding<WorkoutSession?> {
         Binding(
             get: { viewModel.selectedSession },
-            set: { if $0 == nil { viewModel.closeWorkout() } }
+            set: { if $0 == nil { closeWorkout() } }
         )
     }
 
     private func openWorkout() {
-        viewModel.openWorkout(activeSession: activeSession) {
+        viewModel.openWorkout {
             try WorkoutSessionService(context: modelContext).startOrResume()
+        }
+    }
+
+    private func closeWorkout() {
+        viewModel.closeWorkout()
+        refreshActiveSession()
+    }
+
+    private func refreshActiveSession() {
+        viewModel.refreshActiveSession {
+            try WorkoutSessionService(context: modelContext).activeSession()
         }
     }
 
