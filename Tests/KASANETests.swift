@@ -158,6 +158,61 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<WorkoutSession>()).count, 1)
     }
 
+    /// テスト概要: Homeから新しいWorkoutの開始に成功する。
+    /// 期待値: 保存済みセッションが遷移先になり、遷移中もHomeの開始表示が維持される。
+    func testWorkoutRootNavigatesAfterStartingSavedSession() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let viewModel = WorkoutRootViewModel()
+
+        viewModel.openWorkout(activeSession: nil) {
+            try WorkoutSessionService(context: context).startOrResume()
+        }
+
+        let selectedSession = try XCTUnwrap(viewModel.selectedSession)
+        let savedSession = try XCTUnwrap(try context.fetch(FetchDescriptor<WorkoutSession>()).first)
+        XCTAssertEqual(selectedSession.id, savedSession.id)
+        XCTAssertTrue(viewModel.isStartingNewWorkout)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    /// テスト概要: HomeからWorkoutを開始した際の保存が失敗する。
+    /// 期待値: 遷移先を設定せず、開始表示の固定を解除してエラーを保持する。
+    func testWorkoutRootDoesNotNavigateWhenStartingSessionFailsToSave() throws {
+        struct SaveError: LocalizedError {
+            var errorDescription: String? { "保存できませんでした" }
+        }
+
+        let container = try makeContainer()
+        let context = container.mainContext
+        let viewModel = WorkoutRootViewModel()
+
+        viewModel.openWorkout(activeSession: nil) {
+            try WorkoutSessionService(context: context, save: { throw SaveError() }).startOrResume()
+        }
+
+        XCTAssertNil(viewModel.selectedSession)
+        XCTAssertFalse(viewModel.isStartingNewWorkout)
+        XCTAssertEqual(viewModel.errorMessage, "保存できませんでした")
+        XCTAssertTrue(try context.fetch(FetchDescriptor<WorkoutSession>()).isEmpty)
+    }
+
+    /// テスト概要: Workout画面からHomeへ戻る。
+    /// 期待値: 遷移状態と開始表示の固定が解除され、Queryの進行中状態を表示できる。
+    func testWorkoutRootClearsStartingStateWhenWorkoutCloses() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let viewModel = WorkoutRootViewModel()
+        viewModel.openWorkout(activeSession: nil) {
+            try WorkoutSessionService(context: context).startOrResume()
+        }
+
+        viewModel.closeWorkout()
+
+        XCTAssertNil(viewModel.selectedSession)
+        XCTAssertFalse(viewModel.isStartingNewWorkout)
+    }
+
     /// テスト概要: 保存済みの進行中セッションを新しいサービスインスタンスから取得する。
     /// 期待値: 同じIDのセッションを再取得できる。
     func testActiveWorkoutCanBeFetchedAfterServiceRecreation() throws {
