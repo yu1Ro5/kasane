@@ -116,8 +116,13 @@ struct WorkoutSessionView: View {
     }
 
     private var completionCounts: (exerciseCount: Int, setCount: Int) {
-        let entries = session.exerciseEntries.filter { !$0.setEntries.isEmpty }
-        return (entries.count, entries.reduce(0) { $0 + $1.setEntries.count })
+        let entries = session.exerciseEntries.filter {
+            !$0.setEntries.isEmpty || drafts[$0.id]?.values() != nil
+        }
+        return (
+            entries.count,
+            entries.reduce(0) { $0 + $1.setEntries.count + (drafts[$1.id]?.values() == nil ? 0 : 1) }
+        )
     }
 
     private func draftBinding(for entry: ExerciseEntry) -> Binding<SetEntryDraft> {
@@ -147,9 +152,9 @@ struct WorkoutSessionView: View {
         if hasUnsavedSetEdits {
             errorTitle = "編集中のセットがあります"
             errorMessage = "キーボードの「完了」を押して編集を保存してから終了してください。"
-        } else if drafts.values.contains(where: { !$0.isEmpty }) {
+        } else if drafts.values.contains(where: { !$0.isEmpty && $0.values() == nil }) {
             errorTitle = "未追加のセットがあります"
-            errorMessage = "「セットを追加」するか、重量と回数の入力を消してから終了してください。"
+            errorMessage = "重量と回数を正しく入力するか、入力を消してから終了してください。"
         } else if completionCounts.setCount == 0 {
             isConfirmingEmptyDiscard = true
         } else {
@@ -162,7 +167,11 @@ struct WorkoutSessionView: View {
         isFinishing = true
         defer { isFinishing = false }
         do {
-            completionSummary = try WorkoutSessionService(context: modelContext).finish(session)
+            completionSummary = try WorkoutSessionService(context: modelContext).finish(
+                session,
+                drafts: drafts
+            )
+            drafts.removeAll()
         } catch {
             errorTitle = "ワークアウトを終了できませんでした"
             errorMessage = error.localizedDescription
