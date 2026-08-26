@@ -23,11 +23,17 @@ struct WorkoutCompletionSummary: Equatable, Hashable {
 struct WorkoutSessionService {
     private let context: ModelContext
     private let now: () -> Date
+    private let save: () throws -> Void
 
     /// 永続化コンテキストと終了日時を供給するクロージャーからサービスを生成する。
-    init(context: ModelContext, now: @escaping () -> Date = Date.init) {
+    init(
+        context: ModelContext,
+        now: @escaping () -> Date = Date.init,
+        save: (() throws -> Void)? = nil
+    ) {
         self.context = context
         self.now = now
+        self.save = save ?? { try context.save() }
     }
 
     /// 保存済みの進行中セッションを返す。複数存在する場合は最も古い1件を採用する。
@@ -49,7 +55,7 @@ struct WorkoutSessionService {
         let session = WorkoutSession(startedAt: now(), endedAt: nil, note: nil)
         context.insert(session)
         do {
-            try context.save()
+            try save()
             return session
         } catch {
             context.rollback()
@@ -61,7 +67,7 @@ struct WorkoutSessionService {
     func discard(_ session: WorkoutSession) throws {
         context.delete(session)
         do {
-            try context.save()
+            try save()
         } catch {
             context.rollback()
             throw error
@@ -69,7 +75,23 @@ struct WorkoutSessionService {
     }
 
     /// 保存済みセットを持つ種目だけを残し、セッションを終了して即時保存する。
-    func finish(_ session: WorkoutSession) throws -> WorkoutCompletionSummary {
+    func finish(
+        _ session: WorkoutSession,
+        drafts: [UUID: SetEntryDraft] = [:]
+    ) throws -> WorkoutCompletionSummary {
+        guard session.endedAt == nil else { throw WorkoutSessionError.alreadyFinished }
+
+        let setService = WorkoutSetService(context: context)
+        do {
+            for entry in session.exerciseEntries.sorted(by: { $0.order < $1.order }) {
+                guard let draft = drafts[entry.id], !draft.isEmpty else { continue }
+                _ = try setService.insert(draft: draft, to: entry)
+            }
+        } catch {
+            context.rollback()
+            throw error
+        }
+
         let completedAt = now()
         let completedEntries = session.exerciseEntries
             .filter { !$0.setEntries.isEmpty }
@@ -85,9 +107,12 @@ struct WorkoutSessionService {
         session.endedAt = completedAt
 
         do {
-            try context.save()
+            try save()
         } catch {
             context.rollback()
+            // SwiftDataのrollback後も、呼び出し元が保持するモデルには代入値が残る場合がある。
+            // 保存に失敗したWorkoutを進行中として扱えるよう、終了日時を明示的に戻す。
+            session.endedAt = nil
             throw error
         }
 
@@ -104,9 +129,16 @@ struct WorkoutSessionService {
 enum WorkoutSessionError: LocalizedError, Equatable {
     /// 保存済みセットがなく、完了済みセッションとして保存できない。
     case noSavedSets
+    /// すでに終了済みのセッションに対する重複終了操作。
+    case alreadyFinished
 
     /// ユーザーへ表示するエラー内容。
     var errorDescription: String? {
-        "記録されたセットがありません。"
+        switch self {
+        case .noSavedSets:
+            "記録されたセットがありません。"
+        case .alreadyFinished:
+            "このワークアウトはすでに終了しています。"
+        }
     }
 }
