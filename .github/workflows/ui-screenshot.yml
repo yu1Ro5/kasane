@@ -73,6 +73,7 @@ jobs:
 
           run_screenshot_test testWorkoutWeightInputScreenshot workout-weight-input
           run_screenshot_test testWorkoutHistoryScreenshot workout-history
+          run_screenshot_test testWorkoutDetailScreenshot workout-detail
 
       - name: Extract screenshot and metadata
         shell: bash
@@ -84,7 +85,7 @@ jobs:
           set -euo pipefail
           artifact_dir="$RUNNER_TEMP/ui-screenshot-artifact"
           mkdir -p "$artifact_dir"
-          for result_name in workout-weight-input workout-history; do
+          for result_name in workout-weight-input workout-history workout-detail; do
             export_dir="$RUNNER_TEMP/$result_name-attachments"
             mkdir -p "$export_dir"
             xcrun xcresulttool export attachments \
@@ -101,6 +102,7 @@ jobs:
           scenarios = [
               ("workout-weight-input", "Workout — Weight Input"),
               ("workout-history", "Workout — History"),
+              ("workout-detail", "Workout — Detail"),
           ]
           artifact_dir = runner_temp / "ui-screenshot-artifact"
           metadata_screenshots = []

@@ -38,4 +38,31 @@ final class KASANEUIScreenshotTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+
+    @MainActor
+    func testWorkoutDetailScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "workout-history"]
+        app.launch()
+
+        let historyTab = app.tabBars.buttons["履歴"]
+        XCTAssertTrue(historyTab.waitForExistence(timeout: 10))
+        historyTab.tap()
+
+        let historyRow = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
+        ).firstMatch
+        XCTAssertTrue(historyRow.waitForExistence(timeout: 10))
+        historyRow.tap()
+
+        let detailView = app.descendants(matching: .any)["workout-detail-view"]
+        XCTAssertTrue(detailView.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["ワークアウト詳細"].exists)
+        XCTAssertTrue(app.tabBars.buttons["履歴"].exists)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "workout-detail"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
 }
