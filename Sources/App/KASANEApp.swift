@@ -98,7 +98,22 @@ private enum AppModelContainer {
         for (order, fixture) in fixtures.enumerated() {
             let exercise = Exercise(name: fixture.0, primaryBodyPart: fixture.1)
             context.insert(exercise)
-            context.insert(ExerciseEntry(workoutSession: session, exercise: exercise, order: order))
+            let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: order)
+            context.insert(entry)
+            let setFixtures: [(Double, Int)] =
+                order == 0
+                ? [(40, 10), (42.5, 8)]
+                : order == 1 ? [(0, 12), (22.5, 8)] : [(60, 10)]
+            for (setOrder, setFixture) in setFixtures.enumerated() {
+                context.insert(
+                    SetEntry(
+                        exerciseEntry: entry,
+                        order: setOrder,
+                        weightKg: setFixture.0,
+                        reps: setFixture.1
+                    )
+                )
+            }
         }
         try context.save()
     }

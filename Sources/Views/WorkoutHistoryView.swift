@@ -19,7 +19,12 @@ struct WorkoutHistoryView: View {
             } else {
                 List(completedSessions) { session in
                     if let content = WorkoutHistoryRowContent(session: session) {
-                        WorkoutHistoryRow(content: content)
+                        NavigationLink {
+                            WorkoutDetailView(session: session)
+                        } label: {
+                            WorkoutHistoryRow(content: content)
+                        }
+                        .accessibilityIdentifier("workout-history-row-\(session.id.uuidString)")
                     }
                 }
             }

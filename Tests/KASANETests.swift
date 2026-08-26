@@ -312,6 +312,79 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(content.exerciseCountText, "0種目")
     }
 
+    /// テスト概要: 完了Workoutの詳細表示内容を順不同の種目・セットから生成する。
+    /// 期待値: 種目とセットがorder順になり、変更前の種目名スナップショットと期間が使われる。
+    func testWorkoutDetailContentUsesDurationSnapshotAndEntryOrder() throws {
+        let session = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 1_000),
+            endedAt: Date(timeIntervalSince1970: 4_120)
+        )
+        let laterExercise = Exercise(name: "スクワット", primaryBodyPart: .legs)
+        let firstExercise = Exercise(name: "ベンチプレス", primaryBodyPart: .chest)
+        let laterEntry = ExerciseEntry(
+            workoutSession: session,
+            exercise: laterExercise,
+            order: 1
+        )
+        let firstEntry = ExerciseEntry(
+            workoutSession: session,
+            exercise: firstExercise,
+            order: 0
+        )
+        firstEntry.setEntries = [
+            SetEntry(exerciseEntry: firstEntry, order: 1, weightKg: 42.5, reps: 8),
+            SetEntry(exerciseEntry: firstEntry, order: 0, weightKg: 40, reps: 10),
+        ]
+        session.exerciseEntries = [laterEntry, firstEntry]
+        firstExercise.name = "変更後の名称"
+
+        let content = WorkoutDetailContent(session: session)
+
+        XCTAssertEqual(content.duration, 3_120)
+        XCTAssertEqual(content.durationText, "52分")
+        XCTAssertEqual(content.exercises.map(\.name), ["ベンチプレス", "スクワット"])
+        XCTAssertEqual(content.exercises.first?.sets.map(\.number), [1, 2])
+        XCTAssertEqual(content.exercises.first?.sets.map(\.weightText), ["40", "42.5"])
+        XCTAssertEqual(content.exercises.first?.sets.map(\.reps), [10, 8])
+    }
+
+    /// テスト概要: 整数、小数、0の保存重量を詳細表示内容へ変換する。
+    /// 期待値: 不要な末尾ゼロを付けず、0も省略せずに表示される。
+    func testWorkoutDetailContentFormatsSavedWeightsWithoutTrailingZeros() throws {
+        let session = WorkoutSession(endedAt: Date())
+        let exercise = Exercise(name: "テスト種目", primaryBodyPart: .other)
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        entry.setEntries = [
+            SetEntry(exerciseEntry: entry, order: 0, weightKg: 40, reps: 1),
+            SetEntry(exerciseEntry: entry, order: 1, weightKg: 7.5, reps: 1),
+            SetEntry(exerciseEntry: entry, order: 2, weightKg: 22.5, reps: 1),
+            SetEntry(exerciseEntry: entry, order: 3, weightKg: 0, reps: 1),
+        ]
+        session.exerciseEntries = [entry]
+
+        let content = WorkoutDetailContent(session: session)
+
+        XCTAssertEqual(content.exercises.first?.sets.map(\.weightText), ["40", "7.5", "22.5", "0"])
+    }
+
+    /// テスト概要: 終了日時とExercise参照が欠けたWorkoutから詳細表示内容を生成する。
+    /// 期待値: 強制アンラップせず、期間はプレースホルダー、種目名はスナップショットになる。
+    func testWorkoutDetailContentSafelyHandlesMissingOptionalRelationshipsAndEndDate() throws {
+        let session = WorkoutSession(startedAt: Date(timeIntervalSince1970: 1_000))
+        let exercise = Exercise(name: "保存時の種目名", primaryBodyPart: .other)
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        entry.exercise = nil
+        session.exerciseEntries = [entry]
+
+        let content = WorkoutDetailContent(session: session)
+
+        XCTAssertNil(content.endedAt)
+        XCTAssertNil(content.duration)
+        XCTAssertEqual(content.durationText, "--")
+        XCTAssertEqual(content.exercises.first?.name, "保存時の種目名")
+        XCTAssertTrue(content.exercises.first?.sets.isEmpty == true)
+    }
+
     /// テスト概要: 保存済みセットに対する編集Draftの変更有無を判定する。
     /// 期待値: 保存値と同じDraftは未変更、重量または回数を編集したDraftは変更ありと判定される。
     func testSetEditDraftDetectsUnsavedChanges() {
