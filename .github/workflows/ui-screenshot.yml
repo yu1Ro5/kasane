@@ -52,20 +52,27 @@ jobs:
           echo "id=$simulator" >> "$GITHUB_OUTPUT"
           echo "name=$(xcrun simctl list devices --json | python3 -c 'import json,sys; target=sys.argv[1]; print(next(d["name"] for values in json.load(sys.stdin)["devices"].values() for d in values if d["udid"] == target))' "$simulator")" >> "$GITHUB_OUTPUT"
 
-      - name: Run UI screenshot test
+      - name: Run UI screenshot tests
         shell: bash
         run: |
-          set -o pipefail
-          xcodebuild -project KASANE.xcodeproj \
-            -scheme KASANE \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutWeightInputScreenshot \
-            -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
-            -derivedDataPath build \
-            -resultBundlePath "$RUNNER_TEMP/ui-screenshot.xcresult" \
-            -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO \
-            test
+          set -euo pipefail
+          run_screenshot_test() {
+            local test_name="$1"
+            local result_name="$2"
+            xcodebuild -project KASANE.xcodeproj \
+              -scheme KASANE \
+              -only-testing:"KASANEUITests/KASANEUIScreenshotTests/$test_name" \
+              -sdk iphonesimulator \
+              -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
+              -derivedDataPath build \
+              -resultBundlePath "$RUNNER_TEMP/$result_name.xcresult" \
+              -configuration Debug \
+              CODE_SIGNING_ALLOWED=NO \
+              test
+          }
+
+          run_screenshot_test testWorkoutWeightInputScreenshot workout-weight-input
+          run_screenshot_test testWorkoutHistoryScreenshot workout-history
 
       - name: Extract screenshot and metadata
         shell: bash
@@ -75,12 +82,15 @@ jobs:
           SIMULATOR_NAME: ${{ steps.simulator.outputs.name }}
         run: |
           set -euo pipefail
-          export_dir="$RUNNER_TEMP/xcresult-attachments"
           artifact_dir="$RUNNER_TEMP/ui-screenshot-artifact"
-          mkdir -p "$export_dir" "$artifact_dir"
-          xcrun xcresulttool export attachments \
-            --path "$RUNNER_TEMP/ui-screenshot.xcresult" \
-            --output-path "$export_dir"
+          mkdir -p "$artifact_dir"
+          for result_name in workout-weight-input workout-history; do
+            export_dir="$RUNNER_TEMP/$result_name-attachments"
+            mkdir -p "$export_dir"
+            xcrun xcresulttool export attachments \
+              --path "$RUNNER_TEMP/$result_name.xcresult" \
+              --output-path "$export_dir"
+          done
           python3 - <<'PY'
           import json
           import os
@@ -88,27 +98,33 @@ jobs:
           from pathlib import Path
 
           runner_temp = Path(os.environ["RUNNER_TEMP"])
-          screenshots = [
-              path
-              for path in (runner_temp / "xcresult-attachments").rglob("*.png")
-              if path.is_file()
+          scenarios = [
+              ("workout-weight-input", "Workout — Weight Input"),
+              ("workout-history", "Workout — History"),
           ]
-          if len(screenshots) != 1:
-              raise SystemExit(
-                  f"Expected exactly one PNG screenshot, found {len(screenshots)}."
-              )
-
           artifact_dir = runner_temp / "ui-screenshot-artifact"
-          shutil.copyfile(screenshots[0], artifact_dir / "workout-weight-input.png")
+          metadata_screenshots = []
+          for result_name, display_name in scenarios:
+              screenshots = [
+                  path
+                  for path in (runner_temp / f"{result_name}-attachments").rglob("*.png")
+                  if path.is_file()
+              ]
+              if len(screenshots) != 1:
+                  raise SystemExit(
+                      f"Expected exactly one PNG screenshot for {result_name}, "
+                      f"found {len(screenshots)}."
+                  )
+              filename = f"{result_name}.png"
+              shutil.copyfile(screenshots[0], artifact_dir / filename)
+              metadata_screenshots.append({"name": display_name, "file": filename})
 
           metadata = {
               "pr_number": int(os.environ["PR_NUMBER"]),
               "head_sha": os.environ["HEAD_SHA"],
               "simulator": os.environ["SIMULATOR_NAME"],
               "ios": "26.x",
-              "screenshots": [
-                  {"name": "Workout — Weight Input", "file": "workout-weight-input.png"}
-              ],
+              "screenshots": metadata_screenshots,
           }
           path = artifact_dir / "metadata.json"
           path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
@@ -119,7 +135,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ui-screenshot-xcresult
-          path: ${{ runner.temp }}/ui-screenshot.xcresult
+          path: ${{ runner.temp }}/*.xcresult
           retention-days: 7
 
       - name: Upload UI screenshot
