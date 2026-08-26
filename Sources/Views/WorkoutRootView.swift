@@ -3,39 +3,30 @@ import SwiftUI
 
 struct WorkoutRootView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(
-        filter: #Predicate<WorkoutSession> { $0.endedAt == nil },
-        sort: \WorkoutSession.startedAt
-    ) private var activeSessions: [WorkoutSession]
-
-    @State private var selectedSession: WorkoutSession?
-    @State private var errorMessage: String?
-
-    private var activeSession: WorkoutSession? {
-        activeSessions.first
-    }
+    @State private var viewModel = WorkoutRootViewModel()
 
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
 
             Image(
-                systemName: activeSession == nil ? "figure.strengthtraining.traditional" : "clock.arrow.circlepath"
+                systemName: viewModel.activeSession == nil
+                    ? "figure.strengthtraining.traditional" : "clock.arrow.circlepath"
             )
             .font(.system(size: 52))
             .foregroundStyle(.tint)
 
             VStack(spacing: 8) {
-                Text(activeSession == nil ? "ワークアウトを始めましょう" : "進行中のワークアウト")
+                Text(viewModel.activeSession == nil ? "ワークアウトを始めましょう" : "進行中のワークアウト")
                     .font(.title2.bold())
 
-                if let activeSession {
+                if let activeSession = viewModel.activeSession {
                     Text(activeSession.startedAt, format: .dateTime.year().month().day().hour().minute())
                         .foregroundStyle(.secondary)
                 }
             }
 
-            Button(activeSession == nil ? "ワークアウトを開始" : "ワークアウトを再開") {
+            Button(viewModel.activeSession == nil ? "ワークアウトを開始" : "ワークアウトを再開") {
                 openWorkout()
             }
             .buttonStyle(.borderedProminent)
@@ -47,31 +38,48 @@ struct WorkoutRootView: View {
         .frame(maxWidth: .infinity)
         .padding()
         .navigationTitle("KASANE")
-        .navigationDestination(item: $selectedSession) { session in
-            WorkoutSessionView(session: session) { selectedSession = nil }
+        .navigationDestination(item: selectedSession) { session in
+            WorkoutSessionView(session: session) { closeWorkout() }
         }
         .alert("ワークアウトを開けませんでした", isPresented: errorIsPresented) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(errorMessage ?? "不明なエラーが発生しました。")
+            Text(viewModel.errorMessage ?? "不明なエラーが発生しました。")
         }
         .task {
             seedExercises()
+            refreshActiveSession()
         }
     }
 
     private var errorIsPresented: Binding<Bool> {
         Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
+            get: { viewModel.errorMessage != nil },
+            set: { if !$0 { viewModel.errorMessage = nil } }
+        )
+    }
+
+    private var selectedSession: Binding<WorkoutSession?> {
+        Binding(
+            get: { viewModel.selectedSession },
+            set: { if $0 == nil { closeWorkout() } }
         )
     }
 
     private func openWorkout() {
-        do {
-            selectedSession = try WorkoutSessionService(context: modelContext).startOrResume()
-        } catch {
-            errorMessage = error.localizedDescription
+        viewModel.openWorkout {
+            try WorkoutSessionService(context: modelContext).startOrResume()
+        }
+    }
+
+    private func closeWorkout() {
+        viewModel.closeWorkout()
+        refreshActiveSession()
+    }
+
+    private func refreshActiveSession() {
+        viewModel.refreshActiveSession {
+            try WorkoutSessionService(context: modelContext).activeSession()
         }
     }
 
@@ -79,7 +87,7 @@ struct WorkoutRootView: View {
         do {
             try ExerciseCatalogService(context: modelContext).seed()
         } catch {
-            errorMessage = error.localizedDescription
+            viewModel.errorMessage = error.localizedDescription
         }
     }
 }
