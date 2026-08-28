@@ -5,6 +5,7 @@ struct WorkoutSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Bindable var session: WorkoutSession
+    @Query private var exerciseEntries: [ExerciseEntry]
     let onReturnHome: () -> Void
 
     @State private var isShowingPicker = false
@@ -20,13 +21,21 @@ struct WorkoutSessionView: View {
     @State private var errorMessage: String?
     @FocusState private var focusedInput: WorkoutInputFocus?
 
-    private var sortedEntries: [ExerciseEntry] {
-        session.exerciseEntries.sorted { $0.order < $1.order }
+    init(session: WorkoutSession, onReturnHome: @escaping () -> Void) {
+        self.session = session
+        self.onReturnHome = onReturnHome
+        let sessionID = session.id
+        _exerciseEntries = Query(
+            filter: #Predicate<ExerciseEntry> { entry in
+                entry.workoutSession?.id == sessionID
+            },
+            sort: \ExerciseEntry.order
+        )
     }
 
     var body: some View {
         Group {
-            if sortedEntries.isEmpty {
+            if exerciseEntries.isEmpty {
                 ContentUnavailableView {
                     Label("種目がありません", systemImage: "dumbbell")
                 } description: {
@@ -37,7 +46,7 @@ struct WorkoutSessionView: View {
                 }
             } else {
                 List {
-                    ForEach(sortedEntries) { entry in
+                    ForEach(exerciseEntries) { entry in
                         WorkoutExerciseSection(
                             entry: entry,
                             draft: draftBinding(for: entry),
@@ -77,7 +86,7 @@ struct WorkoutSessionView: View {
         }
         .sheet(isPresented: $isShowingPicker) {
             ExercisePickerView(
-                selectedExerciseIDs: Set(session.exerciseEntries.compactMap { $0.exercise?.id }),
+                selectedExerciseIDs: Set(exerciseEntries.compactMap { $0.exercise?.id }),
                 onSelect: addExercise
             )
         }
@@ -125,7 +134,7 @@ struct WorkoutSessionView: View {
     }
 
     private var completionCounts: (exerciseCount: Int, setCount: Int) {
-        let entries = session.exerciseEntries.filter {
+        let entries = exerciseEntries.filter {
             !$0.setEntries.isEmpty || drafts[$0.id]?.values() != nil
         }
         return (
@@ -149,7 +158,7 @@ struct WorkoutSessionView: View {
     }
 
     private var hasUnsavedSetEdits: Bool {
-        session.exerciseEntries
+        exerciseEntries
             .flatMap(\.setEntries)
             .contains { setEntry in
                 editDrafts[setEntry.id]?.hasChanges(from: setEntry) == true
@@ -226,6 +235,7 @@ struct WorkoutSessionView: View {
 private struct WorkoutExerciseSection: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var entry: ExerciseEntry
+    @Query private var setEntries: [SetEntry]
     @Binding var draft: SetEntryDraft
     let editDraft: (SetEntry) -> Binding<SetEntryDraft>
     var focusedInput: FocusState<WorkoutInputFocus?>.Binding
@@ -234,13 +244,28 @@ private struct WorkoutExerciseSection: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
 
-    private var sortedSets: [SetEntry] {
-        entry.setEntries.sorted { $0.order < $1.order }
+    init(
+        entry: ExerciseEntry,
+        draft: Binding<SetEntryDraft>,
+        editDraft: @escaping (SetEntry) -> Binding<SetEntryDraft>,
+        onDeleteExercise: @escaping () -> Void
+    ) {
+        self.entry = entry
+        _draft = draft
+        self.editDraft = editDraft
+        self.onDeleteExercise = onDeleteExercise
+        let entryID = entry.id
+        _setEntries = Query(
+            filter: #Predicate<SetEntry> { setEntry in
+                setEntry.exerciseEntry?.id == entryID
+            },
+            sort: \SetEntry.order
+        )
     }
 
     var body: some View {
         Section {
-            ForEach(sortedSets) { setEntry in
+            ForEach(setEntries) { setEntry in
                 WorkoutSetRow(
                     setEntry: setEntry,
                     exerciseEntry: entry,
@@ -249,7 +274,7 @@ private struct WorkoutExerciseSection: View {
                 )
             }
             HStack {
-                Text("Set \(sortedSets.count + 1)")
+                Text("Set \(setEntries.count + 1)")
                 TextField("重量 (kg)", text: $draft.weight)
                     .accessibilityIdentifier("draft-weight-input")
                     .keyboardType(.decimalPad)
