@@ -15,6 +15,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
         weightInput.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 1)
+        XCTAssertEqual(app.buttons.matching(identifier: "完了").count, 1)
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "workout-weight-input"

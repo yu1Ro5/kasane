@@ -700,6 +700,42 @@ final class KASANETests: XCTestCase {
         XCTAssertTrue(SetEntryDraft(weight: "40", reps: "8").hasChanges(from: setEntry))
     }
 
+    /// テスト概要: 複数種目がある状態でDraft重量欄の次フォーカスを求める。
+    /// 期待値: 選択中のExerciseEntry IDを維持したDraft回数欄だけが返される。
+    func testWorkoutDraftWeightNextInputKeepsExerciseIdentity() {
+        let focusedExerciseID = UUID()
+        let otherExerciseID = UUID()
+
+        let nextInput = WorkoutInputFocus.draftWeight(exerciseID: focusedExerciseID).nextInput
+
+        XCTAssertEqual(nextInput, .draftReps(exerciseID: focusedExerciseID))
+        XCTAssertNotEqual(nextInput, .draftReps(exerciseID: otherExerciseID))
+    }
+
+    /// テスト概要: Draft回数欄と保存済みセット欄の次フォーカスを求める。
+    /// 期待値: 「次へ」を表示しない入力欄では次フォーカスが返されない。
+    func testWorkoutInputWithoutNextActionReturnsNoNextInput() {
+        let exerciseID = UUID()
+        let setID = UUID()
+
+        XCTAssertNil(WorkoutInputFocus.draftReps(exerciseID: exerciseID).nextInput)
+        XCTAssertNil(WorkoutInputFocus.savedWeight(exerciseID: exerciseID, setID: setID).nextInput)
+        XCTAssertNil(WorkoutInputFocus.savedReps(exerciseID: exerciseID, setID: setID).nextInput)
+    }
+
+    /// テスト概要: 保存済みセットのフォーカス識別情報を複数種目間で比較する。
+    /// 期待値: SetEntry IDだけでなくExerciseEntry IDも含めて編集対象を区別できる。
+    func testSavedSetFocusIdentityIncludesExerciseAndSetIDs() {
+        let firstExerciseID = UUID()
+        let secondExerciseID = UUID()
+        let setID = UUID()
+
+        let first = WorkoutInputFocus.savedWeight(exerciseID: firstExerciseID, setID: setID)
+        let second = WorkoutInputFocus.savedReps(exerciseID: secondExerciseID, setID: setID)
+
+        XCTAssertNotEqual(first.savedSetIdentity, second.savedSetIdentity)
+    }
+
     /// テスト概要: 組み込み種目のseedを複数回実行する。
     /// 期待値: 安定したIDにより種目は重複せず、既存種目も上書きされない。
     func testSeedingBuiltInExercisesIsIdempotent() throws {
