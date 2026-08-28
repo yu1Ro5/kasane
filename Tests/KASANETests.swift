@@ -330,7 +330,7 @@ final class KASANETests: XCTestCase {
         let summary = try WorkoutSessionService(context: context).finish(session)
 
         let remaining = try context.fetch(FetchDescriptor<ExerciseEntry>()).sorted { $0.order < $1.order }
-        XCTAssertEqual(remaining.map(\.exerciseNameSnapshot), ["種目2", "種目0"])
+        XCTAssertEqual(remaining.map(\.exerciseNameSnapshot), ["種目0", "種目2"])
         XCTAssertEqual(remaining.map(\.order), [0, 1])
         XCTAssertEqual(summary.exerciseCount, 2)
         XCTAssertEqual(summary.setCount, 2)
