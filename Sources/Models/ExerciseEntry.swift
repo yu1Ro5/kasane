@@ -22,7 +22,7 @@ final class ExerciseEntry {
 
     init(
         id: UUID = UUID(),
-        workoutSession: WorkoutSession,
+        workoutSession: WorkoutSession?,
         exercise: Exercise,
         order: Int
     ) {

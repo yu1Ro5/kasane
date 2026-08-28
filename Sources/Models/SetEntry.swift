@@ -18,7 +18,7 @@ final class SetEntry {
 
     init(
         id: UUID = UUID(),
-        exerciseEntry: ExerciseEntry,
+        exerciseEntry: ExerciseEntry?,
         order: Int,
         weightKg: Double,
         reps: Int,
