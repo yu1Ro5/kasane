@@ -762,28 +762,49 @@ final class KASANETests: XCTestCase {
         XCTAssertFalse(exercise.isSelectable)
     }
 
-    /// テスト概要: セッションへ種目を順番に追加する。
-    /// 期待値: 参照・スナップショット・末尾orderが保存され、空のSetEntryは作られない。
-    func testAddingExerciseCreatesSavedEntryWithSnapshotAndOrder() throws {
+    /// テスト概要: 空のセッションへ最初の種目を追加する。
+    /// 期待値: 参照・スナップショット・先頭orderが保存され、空のSetEntryは作られない。
+    func testAddingFirstExerciseCreatesSavedEntryAtOrderZero() throws {
         let container = try makeContainer()
         let context = container.mainContext
         let session = WorkoutSession()
         let first = Exercise(name: "スクワット", primaryBodyPart: .legs)
-        let second = Exercise(name: "ベンチプレス", primaryBodyPart: .chest)
         context.insert(session)
         context.insert(first)
-        context.insert(second)
         try context.save()
 
-        _ = try WorkoutExerciseService(context: context).add(first, to: session)
-        let entry = try WorkoutExerciseService(context: context).add(second, to: session)
+        let entry = try WorkoutExerciseService(context: context).add(first, to: session)
 
-        XCTAssertEqual(entry.exercise?.id, second.id)
-        XCTAssertEqual(entry.exerciseNameSnapshot, "ベンチプレス")
-        XCTAssertEqual(entry.bodyPartSnapshot, .chest)
-        XCTAssertEqual(entry.order, 1)
+        XCTAssertEqual(entry.exercise?.id, first.id)
+        XCTAssertEqual(entry.exerciseNameSnapshot, "スクワット")
+        XCTAssertEqual(entry.bodyPartSnapshot, .legs)
+        XCTAssertEqual(entry.order, 0)
         XCTAssertTrue(entry.setEntries.isEmpty)
         XCTAssertTrue(try context.fetch(FetchDescriptor<SetEntry>()).isEmpty)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    /// テスト概要: 複数の種目を同じセッションへ順番に追加し、保存後に再取得する。
+    /// 期待値: 最後に追加した種目が常に先頭になり、既存種目の相対順を保った連番が永続化される。
+    func testAddingExercisesPrependsAndPersistsContiguousOrder() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercises = (0..<4).map { Exercise(name: "種目\($0)", primaryBodyPart: .other) }
+        context.insert(session)
+        exercises.forEach(context.insert)
+        try context.save()
+        let service = WorkoutExerciseService(context: context)
+
+        for exercise in exercises {
+            _ = try service.add(exercise, to: session)
+        }
+
+        let fetchedContext = ModelContext(container)
+        let fetched = try fetchedContext.fetch(FetchDescriptor<ExerciseEntry>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(fetched.map(\.exerciseNameSnapshot), ["種目3", "種目2", "種目1", "種目0"])
+        XCTAssertEqual(fetched.map(\.order), [0, 1, 2, 3])
+        XCTAssertEqual(Set(fetched.map(\.order)).count, fetched.count)
         XCTAssertFalse(context.hasChanges)
     }
 
@@ -824,7 +845,7 @@ final class KASANETests: XCTestCase {
         try service.delete(entries[1], from: session)
 
         let remaining = try context.fetch(FetchDescriptor<ExerciseEntry>()).sorted { $0.order < $1.order }
-        XCTAssertEqual(remaining.map(\.exerciseNameSnapshot), ["種目0", "種目2"])
+        XCTAssertEqual(remaining.map(\.exerciseNameSnapshot), ["種目2", "種目0"])
         XCTAssertEqual(remaining.map(\.order), [0, 1])
         XCTAssertFalse(context.hasChanges)
     }

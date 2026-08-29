@@ -24,8 +24,17 @@ struct WorkoutExerciseService {
             throw WorkoutExerciseError.duplicateExercise
         }
 
-        let order = (session.exerciseEntries.map(\.order).max() ?? -1) + 1
-        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: order)
+        let existingEntries = session.exerciseEntries.sorted { $0.order < $1.order }
+        // Assign unique temporary values before normalizing so no two persisted entries
+        // share an order while the existing entries are shifted back.
+        for (index, entry) in existingEntries.enumerated() {
+            entry.order = -(index + 1)
+        }
+        for (index, entry) in existingEntries.enumerated() {
+            entry.order = index + 1
+        }
+
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
         context.insert(entry)
         do {
             try context.save()
