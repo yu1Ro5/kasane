@@ -60,6 +60,8 @@ struct WorkoutSetService {
     @discardableResult
     func add(draft: SetEntryDraft, to exerciseEntry: ExerciseEntry) throws -> SetEntry {
         let setEntry = try insert(draft: draft, to: exerciseEntry)
+        exerciseEntry.draftWeight = nil
+        exerciseEntry.draftReps = nil
         do {
             try context.save()
             return setEntry

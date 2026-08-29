@@ -17,7 +17,7 @@ erDiagram
 
 - `WorkoutSession`: 1回のトレーニング。開始・終了日時と任意のメモを保持する。
 - `Exercise`: 現在の種目マスター。名称、主要部位、アーカイブ状態を保持する。
-- `ExerciseEntry`: 特定のWorkoutSessionで行った種目。表示順と実施時点の名称・主要部位を保持する。
+- `ExerciseEntry`: 特定のWorkoutSessionで行った種目。表示順、実施時点の名称・主要部位、入力途中の未確定Draftを保持する。
 - `SetEntry`: 1セットの実績。順序、kg基準の重量、回数、ウォームアップ状態を保持する。
 
 各モデルは永続的な識別子として `UUID` の `id` を持ちます。主要部位は、保存・検索が単純な文字列として永続化し、アプリ内では `BodyPart` に変換します。
@@ -49,3 +49,5 @@ Stats / Replayの集計結果は保存しません。WorkoutSession、ExerciseEn
 `ExerciseCatalogService` はアプリ利用時に組み込み種目をseedします。各種目に安定したUUIDを割り当て、存在しないIDだけを追加するため、繰り返し実行しても重複せず、既存Exerciseの名称・部位・アーカイブ状態を上書きしません。アーカイブ済みExerciseは新しいセッションの選択対象外です。
 
 `WorkoutExerciseService` はExerciseEntryの追加・削除と明示的な保存を担当します。追加時はExerciseのIDで同一セッション内の重複を拒否し、現在の末尾へorderを設定します。削除時は残ったExerciseEntryをorder順に並べ、0始まりの連番へ振り直します。入力前の空のSet 1は画面だけのDraftであり、SetEntryとして永続化しません。
+
+`WorkoutDraftService` は未確定Draftの重量と回数をExerciseEntryごとに入力文字列のまま保存します。どちらか一方だけの入力も保持し、両方が空になった時点で保持状態を消去します。DraftをSetEntryとして追加する場合とWorkoutを正常終了する場合は、実績の保存とDraftの消去を同じ保存操作で確定します。

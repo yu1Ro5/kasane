@@ -84,8 +84,11 @@ struct WorkoutSessionService {
         let setService = WorkoutSetService(context: context)
         do {
             for entry in session.exerciseEntries.sorted(by: { $0.order < $1.order }) {
-                guard let draft = drafts[entry.id], !draft.isEmpty else { continue }
-                _ = try setService.insert(draft: draft, to: entry)
+                if let draft = drafts[entry.id], !draft.isEmpty {
+                    _ = try setService.insert(draft: draft, to: entry)
+                }
+                entry.draftWeight = nil
+                entry.draftReps = nil
             }
         } catch {
             context.rollback()

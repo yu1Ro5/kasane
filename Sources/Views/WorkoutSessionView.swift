@@ -114,6 +114,7 @@ struct WorkoutSessionView: View {
         } message: {
             Text(errorMessage ?? "不明なエラーが発生しました。")
         }
+        .onAppear(perform: restoreDrafts)
     }
 
     private var errorIsPresented: Binding<Bool> {
@@ -136,9 +137,26 @@ struct WorkoutSessionView: View {
 
     private func draftBinding(for entry: ExerciseEntry) -> Binding<SetEntryDraft> {
         Binding(
-            get: { drafts[entry.id] ?? SetEntryDraft() },
-            set: { drafts[entry.id] = $0 }
+            get: { drafts[entry.id] ?? WorkoutSessionContent.draft(for: entry) },
+            set: { persistDraft($0, for: entry) }
         )
+    }
+
+    private func restoreDrafts() {
+        for entry in sortedEntries where drafts[entry.id] == nil {
+            let draft = WorkoutSessionContent.draft(for: entry)
+            if !draft.isEmpty { drafts[entry.id] = draft }
+        }
+    }
+
+    private func persistDraft(_ draft: SetEntryDraft, for entry: ExerciseEntry) {
+        drafts[entry.id] = draft
+        do {
+            try WorkoutDraftService(context: modelContext).save(draft, to: entry)
+        } catch {
+            errorTitle = "入力途中のセットを保存できませんでした"
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func editDraftBinding(for setEntry: SetEntry) -> Binding<SetEntryDraft> {
