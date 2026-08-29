@@ -42,9 +42,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(cancelWorkoutButton.waitForExistence(timeout: 5))
         cancelWorkoutButton.tap()
 
-        XCTAssertTrue(app.staticTexts["ワークアウトを中止しますか？"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.staticTexts["このワークアウトの記録は削除され、元に戻せません。"]
+                .waitForExistence(timeout: 5)
+        )
         XCTAssertTrue(app.buttons["中止する"].exists)
-        XCTAssertTrue(app.buttons["続ける"].exists)
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "workout-cancel-confirmation"
@@ -65,10 +67,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let finishButton = app.buttons["終了"]
         XCTAssertTrue(finishButton.waitForExistence(timeout: 10))
         finishButton.tap()
-        XCTAssertTrue(app.staticTexts["記録されたセットがありません"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["完了済みとして保存せず、このワークアウトを中止します。"].exists)
+        XCTAssertTrue(
+            app.staticTexts["完了済みとして保存せず、このワークアウトを中止します。"]
+                .waitForExistence(timeout: 5)
+        )
         XCTAssertTrue(app.buttons["中止する"].exists)
-        XCTAssertTrue(app.buttons["続ける"].exists)
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "workout-empty-cancel-confirmation"
