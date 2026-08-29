@@ -67,6 +67,7 @@ jobs:
           set -o pipefail
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANE \
+            -only-testing:KASANETests \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -derivedDataPath build \
