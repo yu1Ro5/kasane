@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -56,26 +60,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run_screenshot_test() {
-            local test_name="$1"
-            local result_name="$2"
-            xcodebuild -project KASANE.xcodeproj \
-              -scheme KASANE \
-              -only-testing:"KASANEUITests/KASANEUIScreenshotTests/$test_name" \
-              -sdk iphonesimulator \
-              -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
-              -derivedDataPath build \
-              -resultBundlePath "$RUNNER_TEMP/$result_name.xcresult" \
-              -configuration Debug \
-              CODE_SIGNING_ALLOWED=NO \
-              test
-          }
-
-          run_screenshot_test testWorkoutWeightInputScreenshot workout-weight-input
-          run_screenshot_test testWorkoutCancelConfirmationScreenshot workout-cancel-confirmation
-          run_screenshot_test testWorkoutEmptyCancelConfirmationScreenshot workout-empty-cancel-confirmation
-          run_screenshot_test testWorkoutHistoryScreenshot workout-history
-          run_screenshot_test testWorkoutDetailScreenshot workout-detail
+          xcodebuild -project KASANE.xcodeproj \
+            -scheme KASANE \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutWeightInputScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutCancelConfirmationScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutEmptyCancelConfirmationScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDetailScreenshot \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
+            -derivedDataPath build \
+            -resultBundlePath "$RUNNER_TEMP/ui-screenshots.xcresult" \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            test
 
       - name: Extract screenshot and metadata
         shell: bash
@@ -86,14 +84,12 @@ jobs:
         run: |
           set -euo pipefail
           artifact_dir="$RUNNER_TEMP/ui-screenshot-artifact"
+          export_dir="$RUNNER_TEMP/ui-screenshot-attachments"
           mkdir -p "$artifact_dir"
-          for result_name in workout-weight-input workout-cancel-confirmation workout-empty-cancel-confirmation workout-history workout-detail; do
-            export_dir="$RUNNER_TEMP/$result_name-attachments"
-            mkdir -p "$export_dir"
-            xcrun xcresulttool export attachments \
-              --path "$RUNNER_TEMP/$result_name.xcresult" \
-              --output-path "$export_dir"
-          done
+          mkdir -p "$export_dir"
+          xcrun xcresulttool export attachments \
+            --path "$RUNNER_TEMP/ui-screenshots.xcresult" \
+            --output-path "$export_dir"
           python3 - <<'PY'
           import json
           import os
@@ -101,6 +97,7 @@ jobs:
           from pathlib import Path
 
           runner_temp = Path(os.environ["RUNNER_TEMP"])
+          export_dir = runner_temp / "ui-screenshot-attachments"
           scenarios = [
               ("workout-weight-input", "Workout — Weight Input"),
               ("workout-cancel-confirmation", "Workout — Cancel Confirmation"),
@@ -109,20 +106,34 @@ jobs:
               ("workout-detail", "Workout — Detail"),
           ]
           artifact_dir = runner_temp / "ui-screenshot-artifact"
+          manifest = json.loads((export_dir / "manifest.json").read_text())
+          attachments = [
+              attachment
+              for test in manifest
+              for attachment in test.get("attachments", [])
+          ]
           metadata_screenshots = []
           for result_name, display_name in scenarios:
-              screenshots = [
-                  path
-                  for path in (runner_temp / f"{result_name}-attachments").rglob("*.png")
-                  if path.is_file()
+              matches = [
+                  attachment
+                  for attachment in attachments
+                  if isinstance(attachment.get("suggestedHumanReadableName"), str)
+                  and attachment["suggestedHumanReadableName"].startswith(f"{result_name}_")
+                  and attachment["suggestedHumanReadableName"].endswith(".png")
               ]
-              if len(screenshots) != 1:
+              if len(matches) != 1:
                   raise SystemExit(
-                      f"Expected exactly one PNG screenshot for {result_name}, "
-                      f"found {len(screenshots)}."
+                      f"Expected exactly one PNG attachment for {result_name}, "
+                      f"found {len(matches)}."
                   )
+              exported_file = matches[0].get("exportedFileName")
+              if not isinstance(exported_file, str) or Path(exported_file).name != exported_file:
+                  raise SystemExit(f"Invalid exported attachment path for {result_name}.")
+              source = (export_dir / exported_file).resolve()
+              if source.parent != export_dir.resolve() or not source.is_file():
+                  raise SystemExit(f"Exported attachment is missing for {result_name}.")
               filename = f"{result_name}.png"
-              shutil.copyfile(screenshots[0], artifact_dir / filename)
+              shutil.copyfile(source, artifact_dir / filename)
               metadata_screenshots.append({"name": display_name, "file": filename})
 
           metadata = {
