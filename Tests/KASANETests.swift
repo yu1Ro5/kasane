@@ -930,6 +930,8 @@ final class KASANETests: XCTestCase {
 
         wait(for: [relationshipDidChange], timeout: 0)
         XCTAssertEqual(exerciseEntry.setEntries.count, 1)
+    }
+
     /// テスト概要: 保存済みセットがない種目の表示内容を、再開相当として繰り返し生成する。
     /// 期待値: 初回も再生成後もSet 1に相当する未確定Draft位置だけが返り、永続セットは増えない。
     func testWorkoutContentInitializationIsIdempotentWithoutSavedSets() {
