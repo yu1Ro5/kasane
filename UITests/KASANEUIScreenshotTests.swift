@@ -25,6 +25,42 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutCancelConfirmationScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "workout-three-exercises"]
+        app.launch()
+
+        let resumeButton = app.buttons["workout-resume-button"]
+        XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
+        resumeButton.tap()
+
+        let moreButton = app.buttons["その他"]
+        XCTAssertTrue(moreButton.waitForExistence(timeout: 10))
+        moreButton.tap()
+
+        let cancelWorkoutButton = app.buttons["ワークアウトを中止"]
+        XCTAssertTrue(cancelWorkoutButton.waitForExistence(timeout: 5))
+        cancelWorkoutButton.tap()
+
+        XCTAssertTrue(app.staticTexts["ワークアウトを中止しますか？"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["中止する"].exists)
+        XCTAssertTrue(app.buttons["続ける"].exists)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "workout-cancel-confirmation"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["続ける"].tap()
+        let finishButton = app.buttons["終了"]
+        XCTAssertTrue(finishButton.waitForExistence(timeout: 5))
+        finishButton.tap()
+        XCTAssertTrue(app.staticTexts["記録されたセットがありません"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["中止する"].exists)
+        XCTAssertTrue(app.buttons["続ける"].exists)
+    }
+
+    @MainActor
     func testWorkoutHistoryScreenshot() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--fixture", "workout-history"]
