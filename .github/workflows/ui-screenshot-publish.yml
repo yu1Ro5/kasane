@@ -166,7 +166,7 @@ jobs:
               '',
               `Generated from \`${headSha.slice(0, 7)}\``,
               '',
-              ...sections,
+              sections.join('\n\n'),
               '',
               `- Simulator: ${metadata.simulator}`,
               `- iOS: ${metadata.ios}`,
