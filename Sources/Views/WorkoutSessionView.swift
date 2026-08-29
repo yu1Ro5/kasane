@@ -57,7 +57,7 @@ struct WorkoutSessionView: View {
                     .disabled(isFinishing)
                 Button("種目を追加", systemImage: "plus") { isShowingPicker = true }
                 Menu {
-                    Button("ワークアウトを破棄", systemImage: "trash", role: .destructive) {
+                    Button("ワークアウトを中止", systemImage: "trash", role: .destructive) {
                         isConfirmingDiscard = true
                     }
                 } label: {
@@ -81,11 +81,11 @@ struct WorkoutSessionView: View {
                 onSelect: addExercise
             )
         }
-        .confirmationDialog("このワークアウトを破棄しますか？", isPresented: $isConfirmingDiscard) {
-            Button("ワークアウトを破棄", role: .destructive) { discardWorkout() }
-            Button("キャンセル", role: .cancel) {}
+        .confirmationDialog("ワークアウトを中止しますか？", isPresented: $isConfirmingDiscard) {
+            Button("中止する", role: .destructive) { discardWorkout() }
+            Button("続ける", role: .cancel) {}
         } message: {
-            Text("入力した内容はすべて削除され、元に戻せません。")
+            Text("このワークアウトの記録は削除され、元に戻せません。")
         }
         .confirmationDialog("ワークアウトを終了しますか？", isPresented: $isConfirmingFinish) {
             Button("終了して保存") { finishWorkout() }
@@ -94,10 +94,10 @@ struct WorkoutSessionView: View {
             Text("記録済み: \(completionCounts.exerciseCount)種目・\(completionCounts.setCount)セット")
         }
         .confirmationDialog("記録されたセットがありません", isPresented: $isConfirmingEmptyDiscard) {
-            Button("ワークアウトを破棄", role: .destructive) { discardWorkout() }
-            Button("キャンセル", role: .cancel) {}
+            Button("中止する", role: .destructive) { discardWorkout() }
+            Button("続ける", role: .cancel) {}
         } message: {
-            Text("完了済みとして保存せず、このワークアウトを破棄しますか？")
+            Text("完了済みとして保存せず、このワークアウトを中止します。")
         }
         .confirmationDialog(
             "この種目を削除しますか？",
@@ -217,7 +217,7 @@ struct WorkoutSessionView: View {
             try WorkoutSessionService(context: modelContext).discard(session)
             dismiss()
         } catch {
-            errorTitle = "ワークアウトを破棄できませんでした"
+            errorTitle = "ワークアウトを中止できませんでした"
             errorMessage = error.localizedDescription
         }
     }

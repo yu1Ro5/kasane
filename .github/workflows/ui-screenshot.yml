@@ -72,6 +72,8 @@ jobs:
           }
 
           run_screenshot_test testWorkoutWeightInputScreenshot workout-weight-input
+          run_screenshot_test testWorkoutCancelConfirmationScreenshot workout-cancel-confirmation
+          run_screenshot_test testWorkoutEmptyCancelConfirmationScreenshot workout-empty-cancel-confirmation
           run_screenshot_test testWorkoutHistoryScreenshot workout-history
           run_screenshot_test testWorkoutDetailScreenshot workout-detail
 
@@ -85,7 +87,7 @@ jobs:
           set -euo pipefail
           artifact_dir="$RUNNER_TEMP/ui-screenshot-artifact"
           mkdir -p "$artifact_dir"
-          for result_name in workout-weight-input workout-history workout-detail; do
+          for result_name in workout-weight-input workout-cancel-confirmation workout-empty-cancel-confirmation workout-history workout-detail; do
             export_dir="$RUNNER_TEMP/$result_name-attachments"
             mkdir -p "$export_dir"
             xcrun xcresulttool export attachments \
@@ -101,6 +103,8 @@ jobs:
           runner_temp = Path(os.environ["RUNNER_TEMP"])
           scenarios = [
               ("workout-weight-input", "Workout — Weight Input"),
+              ("workout-cancel-confirmation", "Workout — Cancel Confirmation"),
+              ("workout-empty-cancel-confirmation", "Workout — Empty Cancel Confirmation"),
               ("workout-history", "Workout — History"),
               ("workout-detail", "Workout — Detail"),
           ]
