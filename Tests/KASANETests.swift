@@ -897,6 +897,8 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(setEntry.reps, 12)
         XCTAssertEqual(setEntry.order, 0)
         XCTAssertFalse(setEntry.isWarmup)
+        XCTAssertEqual(WorkoutSessionContent.setEntries(for: exerciseEntry).count, 1)
+        XCTAssertEqual(WorkoutSessionContent.draftOrder(for: exerciseEntry), 1)
         XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 1)
         XCTAssertFalse(context.hasChanges)
     }
@@ -928,6 +930,58 @@ final class KASANETests: XCTestCase {
 
         wait(for: [relationshipDidChange], timeout: 0)
         XCTAssertEqual(exerciseEntry.setEntries.count, 1)
+    /// テスト概要: 保存済みセットがない種目の表示内容を、再開相当として繰り返し生成する。
+    /// 期待値: 初回も再生成後もSet 1に相当する未確定Draft位置だけが返り、永続セットは増えない。
+    func testWorkoutContentInitializationIsIdempotentWithoutSavedSets() {
+        let session = WorkoutSession()
+        let entry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "ベンチプレス", primaryBodyPart: .chest),
+            order: 0
+        )
+
+        let first = WorkoutSessionContent(exerciseEntries: [entry])
+        let resumed = WorkoutSessionContent(exerciseEntries: [entry, entry])
+
+        XCTAssertEqual(first.exerciseEntries.map(\.id), [entry.id])
+        XCTAssertEqual(resumed.exerciseEntries.map(\.id), [entry.id])
+        XCTAssertEqual(WorkoutSessionContent.draftOrder(for: entry), 0)
+        XCTAssertTrue(entry.setEntries.isEmpty)
+    }
+
+    /// テスト概要: 複数種目と保存済みセットを持つ表示内容を、重複を含む再開時relationshipから生成する。
+    /// 期待値: 種目と保存セットはIDごとに一度だけ射影され、各Draft位置は各種目の末尾orderの次になる。
+    func testWorkoutContentInitializationKeepsDraftsSeparateAndSavedSetsUnchanged() {
+        let session = WorkoutSession()
+        let firstEntry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "スクワット", primaryBodyPart: .legs),
+            order: 0
+        )
+        let secondEntry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "ベンチプレス", primaryBodyPart: .chest),
+            order: 1
+        )
+        let firstSets = [
+            SetEntry(exerciseEntry: firstEntry, order: 0, weightKg: 80, reps: 8),
+            SetEntry(exerciseEntry: firstEntry, order: 1, weightKg: 85, reps: 5),
+        ]
+        firstEntry.setEntries = [firstSets[0], firstSets[1], firstSets[0]]
+
+        for _ in 0..<3 {
+            let content = WorkoutSessionContent(
+                exerciseEntries: [firstEntry, secondEntry, firstEntry, secondEntry]
+            )
+            XCTAssertEqual(content.exerciseEntries.map(\.id), [firstEntry.id, secondEntry.id])
+            XCTAssertEqual(WorkoutSessionContent.setEntries(for: firstEntry).map(\.id), firstSets.map(\.id))
+            XCTAssertEqual(WorkoutSessionContent.draftOrder(for: firstEntry), 2)
+            XCTAssertEqual(WorkoutSessionContent.draftOrder(for: secondEntry), 0)
+        }
+
+        XCTAssertEqual(firstSets.map(\.order), [0, 1])
+        XCTAssertEqual(firstSets.map(\.weightKg), [80, 85])
+        XCTAssertEqual(firstSets.map(\.reps), [8, 5])
     }
 
     /// テスト概要: 未確定Draftおよび不正な値を検証する。

@@ -12,6 +12,7 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: 58Y7Q3D4A7
 
 targets:
   KASANE:
@@ -49,7 +50,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.yu1Ro5.kasane.tests
         PRODUCT_NAME: KASANETests
         GENERATE_INFOPLIST_FILE: YES
-        CODE_SIGNING_ALLOWED: NO
         SKIP_INSTALL: YES
 
   KASANEUITests:
@@ -66,5 +66,4 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.yu1Ro5.kasane.uitests
         PRODUCT_NAME: KASANEUITests
         GENERATE_INFOPLIST_FILE: YES
-        CODE_SIGNING_ALLOWED: NO
         SKIP_INSTALL: YES

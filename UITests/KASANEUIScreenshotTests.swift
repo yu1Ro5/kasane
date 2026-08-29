@@ -47,6 +47,61 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutCancelConfirmationScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "workout-three-exercises"]
+        app.launch()
+
+        let resumeButton = app.buttons["workout-resume-button"]
+        XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
+        resumeButton.tap()
+
+        let moreButton = app.buttons["その他"]
+        XCTAssertTrue(moreButton.waitForExistence(timeout: 10))
+        moreButton.tap()
+
+        let cancelWorkoutButton = app.buttons["ワークアウトを中止"]
+        XCTAssertTrue(cancelWorkoutButton.waitForExistence(timeout: 5))
+        cancelWorkoutButton.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["このワークアウトの記録は削除され、元に戻せません。"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["中止する"].exists)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "workout-cancel-confirmation"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testWorkoutEmptyCancelConfirmationScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "workout-three-exercises"]
+        app.launch()
+
+        let resumeButton = app.buttons["workout-resume-button"]
+        XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
+        resumeButton.tap()
+
+        let finishButton = app.buttons["終了"]
+        XCTAssertTrue(finishButton.waitForExistence(timeout: 10))
+        finishButton.tap()
+        XCTAssertTrue(
+            app.staticTexts["完了済みとして保存せず、このワークアウトを中止します。"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["中止する"].exists)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "workout-empty-cancel-confirmation"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     func testWorkoutHistoryScreenshot() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--fixture", "workout-history"]
