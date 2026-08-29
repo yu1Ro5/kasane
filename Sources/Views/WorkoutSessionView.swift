@@ -21,7 +21,7 @@ struct WorkoutSessionView: View {
     @FocusState private var focusedInput: WorkoutInputFocus?
 
     private var sortedEntries: [ExerciseEntry] {
-        session.exerciseEntries.sorted { $0.order < $1.order }
+        WorkoutSessionContent(exerciseEntries: session.exerciseEntries).exerciseEntries
     }
 
     var body: some View {
@@ -235,7 +235,7 @@ private struct WorkoutExerciseSection: View {
     @State private var errorMessage: String?
 
     private var sortedSets: [SetEntry] {
-        entry.setEntries.sorted { $0.order < $1.order }
+        WorkoutSessionContent.setEntries(for: entry)
     }
 
     var body: some View {
@@ -249,7 +249,7 @@ private struct WorkoutExerciseSection: View {
                 )
             }
             HStack {
-                Text("Set \(sortedSets.count + 1)")
+                Text("Set \(WorkoutSessionContent.draftOrder(for: entry) + 1)")
                 TextField("重量 (kg)", text: $draft.weight)
                     .accessibilityIdentifier("draft-weight-input")
                     .keyboardType(.decimalPad)
