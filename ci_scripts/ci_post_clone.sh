@@ -23,4 +23,3 @@ test -d KASANE.xcodeproj
 
 echo "Generated project:"
 xcodebuild -project KASANE.xcodeproj -list
-
