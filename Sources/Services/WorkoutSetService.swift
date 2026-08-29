@@ -74,13 +74,12 @@ struct WorkoutSetService {
         guard let values = draft.values() else { throw WorkoutSetError.invalidValues }
         let order = (exerciseEntry.setEntries.map(\.order).max() ?? -1) + 1
         let setEntry = SetEntry(
-            exerciseEntry: nil,
+            exerciseEntry: exerciseEntry,
             order: order,
             weightKg: values.weight,
             reps: values.reps,
             isWarmup: false
         )
-        exerciseEntry.setEntries.append(setEntry)
         context.insert(setEntry)
         return setEntry
     }
@@ -98,9 +97,8 @@ struct WorkoutSetService {
     }
 
     func delete(_ setEntry: SetEntry, from exerciseEntry: ExerciseEntry) throws {
-        exerciseEntry.setEntries.removeAll { $0.id == setEntry.id }
         context.delete(setEntry)
-        let remaining = exerciseEntry.setEntries.sorted { $0.order < $1.order }
+        let remaining = exerciseEntry.setEntries.filter { $0.id != setEntry.id }.sorted { $0.order < $1.order }
         for (order, entry) in remaining.enumerated() {
             entry.order = order
         }

@@ -34,8 +34,7 @@ struct WorkoutExerciseService {
             entry.order = index + 1
         }
 
-        let entry = ExerciseEntry(workoutSession: nil, exercise: exercise, order: 0)
-        session.exerciseEntries.append(entry)
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
         context.insert(entry)
         do {
             try context.save()
@@ -47,9 +46,8 @@ struct WorkoutExerciseService {
     }
 
     func delete(_ entry: ExerciseEntry, from session: WorkoutSession) throws {
-        session.exerciseEntries.removeAll { $0.id == entry.id }
         context.delete(entry)
-        let remaining = session.exerciseEntries.sorted { $0.order < $1.order }
+        let remaining = session.exerciseEntries.filter { $0.id != entry.id }.sorted { $0.order < $1.order }
         for (order, item) in remaining.enumerated() {
             item.order = order
         }

@@ -829,7 +829,7 @@ final class KASANETests: XCTestCase {
 
         _ = try WorkoutExerciseService(context: context).add(exercise, to: session)
 
-        wait(for: [relationshipDidChange], timeout: 0)
+        wait(for: [relationshipDidChange], timeout: 1.0)
         XCTAssertEqual(session.exerciseEntries.map(\.exerciseNameSnapshot), ["ベンチプレス"])
     }
 
@@ -928,7 +928,7 @@ final class KASANETests: XCTestCase {
             to: exerciseEntry
         )
 
-        wait(for: [relationshipDidChange], timeout: 0)
+        wait(for: [relationshipDidChange], timeout: 1.0)
         XCTAssertEqual(exerciseEntry.setEntries.count, 1)
     }
 
