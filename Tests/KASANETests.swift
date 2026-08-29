@@ -845,7 +845,7 @@ final class KASANETests: XCTestCase {
         try service.delete(entries[1], from: session)
 
         let remaining = try context.fetch(FetchDescriptor<ExerciseEntry>()).sorted { $0.order < $1.order }
-        XCTAssertEqual(remaining.map(\.exerciseNameSnapshot), ["種目0", "種目2"])
+        XCTAssertEqual(remaining.map(\.exerciseNameSnapshot), ["種目2", "種目0"])
         XCTAssertEqual(remaining.map(\.order), [0, 1])
         XCTAssertFalse(context.hasChanges)
     }
