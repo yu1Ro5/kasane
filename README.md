@@ -45,9 +45,11 @@ xcodebuild -project KASANE.xcodeproj \
 
 利用できるシミュレーター名が異なる場合は、`xcrun simctl list devices available`で確認し、`-destination`の値を変更してください。GitHub Actionsでは利用可能なiPhoneシミュレーターを動的に検出するため、固定されたシミュレーターUUIDには依存しません。
 
-## TestFlightへの手動リリース
+## CIとTestFlight配布
 
-Apple Developer、App Store Connect、`main`のみに制限したGitHub Environment Secretsを準備した後、手動WorkflowからTestFlightへアップロードできます。Environmentの保護設定、必要な権限、Secret、実行方法、トラブルシューティングは[TestFlight手動リリースのセットアップ](docs/TESTFLIGHT_SETUP.md)を参照してください。
+GitHub Actionsは、Build、Unit Test、UI Test、Screenshotなどの品質確認を担当します。
+
+TestFlightへのリリースはXcode Cloudが担当します。Xcode Cloudでは`ci_scripts/ci_post_clone.sh`を実行してXcodeGenから`KASANE.xcodeproj`を生成し、Archive、Code Signing、TestFlight Internal Testingへの配布を行います。
 
 ## リポジトリ構成
 
