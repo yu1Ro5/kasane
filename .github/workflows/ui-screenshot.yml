@@ -61,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild -project KASANE.xcodeproj \
-            -scheme KASANE \
+            -scheme KASANEScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutWeightInputScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutCancelConfirmationScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutEmptyCancelConfirmationScreenshot \
