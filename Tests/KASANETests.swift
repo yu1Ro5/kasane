@@ -1207,6 +1207,72 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(session.exerciseEntries.map(\.id), [entry.id])
     }
 
+    /// テスト概要: Draft作成後に同じWorkoutの既存セットが別の操作で更新される。
+    /// 期待値: 古いDraftの保存が拒否され、介在変更とDraftの編集内容が維持される。
+    func testHistoryEditRejectsStaleDraftAfterSetUpdate() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+        let entry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "スクワット", primaryBodyPart: .legs),
+            order: 0
+        )
+        let setEntry = SetEntry(exerciseEntry: entry, order: 0, weightKg: 60, reps: 10)
+        context.insert(setEntry)
+        try context.save()
+        var draft = WorkoutHistoryEditDraft(session: session)
+        draft.exercises[0].sets[0].values = SetEntryDraft(weight: "70", reps: "8")
+
+        setEntry.weightKg = 65
+        try context.save()
+
+        XCTAssertThrowsError(try WorkoutHistoryEditService(context: context).save(draft, to: session)) {
+            XCTAssertEqual($0 as? WorkoutHistoryEditError, .staleDraft)
+        }
+        XCTAssertEqual(setEntry.weightKg, 65)
+        XCTAssertEqual(setEntry.reps, 10)
+        XCTAssertEqual(draft.exercises[0].sets[0].values, SetEntryDraft(weight: "70", reps: "8"))
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    /// テスト概要: Draft作成後に同じWorkoutへ別の操作で種目とセットが追加される。
+    /// 期待値: 古いDraftの保存が拒否され、追加された種目とセットが削除されない。
+    func testHistoryEditRejectsStaleDraftAfterExerciseAddition() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+        let firstEntry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "スクワット", primaryBodyPart: .legs),
+            order: 0
+        )
+        let firstSet = SetEntry(exerciseEntry: firstEntry, order: 0, weightKg: 60, reps: 10)
+        context.insert(firstSet)
+        try context.save()
+        var draft = WorkoutHistoryEditDraft(session: session)
+        draft.exercises[0].sets[0].values = SetEntryDraft(weight: "70", reps: "8")
+
+        let addedEntry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "デッドリフト", primaryBodyPart: .back),
+            order: 1
+        )
+        let addedSet = SetEntry(exerciseEntry: addedEntry, order: 0, weightKg: 100, reps: 5)
+        context.insert(addedSet)
+        try context.save()
+
+        XCTAssertThrowsError(try WorkoutHistoryEditService(context: context).save(draft, to: session)) {
+            XCTAssertEqual($0 as? WorkoutHistoryEditError, .staleDraft)
+        }
+        XCTAssertEqual(Set(session.exerciseEntries.map(\.id)), Set([firstEntry.id, addedEntry.id]))
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ExerciseEntry>()).count, 2)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 2)
+        XCTAssertEqual(addedSet.weightKg, 100)
+        XCTAssertEqual(addedSet.reps, 5)
+        XCTAssertFalse(context.hasChanges)
+    }
+
     /// テスト概要: 履歴編集の一括保存が失敗する。
     /// 期待値: 元モデルの値と編集Draftが維持され、同じDraftで再試行できる。
     func testHistoryEditSaveFailureKeepsOriginalDataAndDraft() throws {

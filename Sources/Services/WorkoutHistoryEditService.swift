@@ -1,14 +1,22 @@
 import Foundation
 import SwiftData
 
+/// 完了済みWorkoutのDraft検証または一括保存に失敗した理由。
 enum WorkoutHistoryEditError: LocalizedError, Equatable {
+    /// 進行中Workoutを履歴編集しようとした。
     case activeWorkout
+    /// 同じ種目が1つのWorkoutへ重複している。
     case duplicateExercise
+    /// セットを持たない種目が含まれている。
     case emptyExercise
+    /// 重量または回数が入力規則を満たしていない。
     case invalidSet
+    /// Workout全体に有効なセットが存在しない。
     case noSets
+    /// Draft作成後に保存対象のWorkoutが変更されている。
     case staleDraft
 
+    /// ユーザーへ表示するローカライズ済みエラーメッセージ。
     var errorDescription: String? {
         switch self {
         case .activeWorkout:
@@ -27,33 +35,57 @@ enum WorkoutHistoryEditError: LocalizedError, Equatable {
     }
 }
 
+/// 完了済みWorkoutの編集Draftを検証し、SwiftDataへ一括反映するService。
 @MainActor
 struct WorkoutHistoryEditService {
+    /// 保存失敗時に既存セットを復元するための状態。
     private struct OriginalSetState {
+        /// 復元対象のSwiftDataモデル。
         let entry: SetEntry
+        /// 保存開始前のセット順。
         let order: Int
+        /// 保存開始前の重量。
         let weightKg: Double
+        /// 保存開始前の回数。
         let reps: Int
+        /// 保存開始前のウォームアップ状態。
         let isWarmup: Bool
     }
 
+    /// 保存失敗時に既存種目と配下のセットを復元するための状態。
     private struct OriginalExerciseState {
+        /// 復元対象のSwiftDataモデル。
         let entry: ExerciseEntry
+        /// 保存開始前の種目順。
         let order: Int
+        /// 保存開始前のセット状態。
         let sets: [OriginalSetState]
     }
 
+    /// 編集内容の挿入・更新・削除に使用するSwiftDataコンテキスト。
     private let context: ModelContext
+    /// 呼び出し側から差し替え可能な保存処理。
     private let saveChanges: () throws -> Void
 
+    /// Workout履歴編集Serviceを作成する。
+    /// - Parameters:
+    ///   - context: 編集内容の反映先となるSwiftDataコンテキスト。
+    ///   - save: 保存処理を差し替える場合のクロージャ。省略時は`context.save()`を使用する。
     init(context: ModelContext, save: (() throws -> Void)? = nil) {
         self.context = context
         saveChanges = save ?? { try context.save() }
     }
 
+    /// Draftを検証し、完了済みWorkoutへ種目・セットの変更を一括保存する。
+    /// - Parameters:
+    ///   - draft: 保存する編集Draft。
+    ///   - session: 編集対象の完了済みWorkout。
+    /// - Throws: 入力が不正な場合、Draftが古い場合、またはSwiftDataの保存に失敗した場合。
     func save(_ draft: WorkoutHistoryEditDraft, to session: WorkoutSession) throws {
         guard session.endedAt != nil else { throw WorkoutHistoryEditError.activeWorkout }
-        guard draft.sessionID == session.id else { throw WorkoutHistoryEditError.staleDraft }
+        guard draft.matchesOriginalState(of: session) else {
+            throw WorkoutHistoryEditError.staleDraft
+        }
 
         let valuesBySetID = try validatedValues(in: draft)
         let originalStartedAt = session.startedAt
@@ -160,6 +192,10 @@ struct WorkoutHistoryEditService {
         }
     }
 
+    /// Draft内の全セットを検証し、保存に使用する数値へ変換する。
+    /// - Parameter draft: 検証する編集Draft。
+    /// - Returns: セットDraft識別子をキーとする重量・回数。
+    /// - Throws: Workoutまたはセットの構造・入力値が保存条件を満たさない場合。
     private func validatedValues(
         in draft: WorkoutHistoryEditDraft
     ) throws -> [UUID: (weight: Double, reps: Int)] {
@@ -186,6 +222,10 @@ struct WorkoutHistoryEditService {
         return valuesBySetID
     }
 
+    /// 新規種目Draftが参照する種目マスタをSwiftDataから取得する。
+    /// - Parameter draft: 種目マスタを必要とする編集Draft。
+    /// - Returns: 種目マスタ識別子をキーとする`Exercise`。
+    /// - Throws: SwiftDataからの取得に失敗した場合。
     private func fetchExercises(
         for draft: WorkoutHistoryEditDraft
     ) throws -> [UUID: Exercise] {
