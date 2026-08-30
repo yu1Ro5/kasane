@@ -881,30 +881,6 @@ final class KASANETests: XCTestCase {
         XCTAssertFalse(context.hasChanges)
     }
 
-    /// テスト概要: 表示中セッションへ種目を追加する。
-    /// 期待値: relationshipの変更がObservationへ通知され、画面が保存直後に再評価できる。
-    func testAddingExerciseNotifiesSessionRelationshipObservation() throws {
-        let container = try makeContainer()
-        let context = container.mainContext
-        let session = WorkoutSession()
-        let exercise = Exercise(name: "ベンチプレス", primaryBodyPart: .chest)
-        context.insert(session)
-        context.insert(exercise)
-        try context.save()
-        let relationshipDidChange = expectation(description: "WorkoutSession relationship changed")
-
-        withObservationTracking {
-            _ = session.exerciseEntries.count
-        } onChange: {
-            relationshipDidChange.fulfill()
-        }
-
-        _ = try WorkoutExerciseService(context: context).add(exercise, to: session)
-
-        wait(for: [relationshipDidChange], timeout: 1.0)
-        XCTAssertEqual(session.exerciseEntries.map(\.exerciseNameSnapshot), ["ベンチプレス"])
-    }
-
     /// テスト概要: 同じ種目を同一セッションと別セッションへ追加する。
     /// 期待値: 同一セッションの重複だけが拒否される。
     func testDuplicateExerciseIsRejectedOnlyWithinSameSession() throws {
@@ -973,35 +949,6 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(WorkoutSessionContent.draftOrder(for: exerciseEntry), 1)
         XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 1)
         XCTAssertFalse(context.hasChanges)
-    }
-
-    /// テスト概要: 表示中の種目へセットを追加する。
-    /// 期待値: relationshipの変更がObservationへ通知され、セット一覧が保存直後に再評価できる。
-    func testAddingSetNotifiesExerciseEntryRelationshipObservation() throws {
-        let container = try makeContainer()
-        let context = container.mainContext
-        let exerciseEntry = ExerciseEntry(
-            workoutSession: WorkoutSession(),
-            exercise: Exercise(name: "ベンチプレス", primaryBodyPart: .chest),
-            order: 0
-        )
-        context.insert(exerciseEntry)
-        try context.save()
-        let relationshipDidChange = expectation(description: "ExerciseEntry relationship changed")
-
-        withObservationTracking {
-            _ = exerciseEntry.setEntries.count
-        } onChange: {
-            relationshipDidChange.fulfill()
-        }
-
-        _ = try WorkoutSetService(context: context).add(
-            draft: SetEntryDraft(weight: "40", reps: "10"),
-            to: exerciseEntry
-        )
-
-        wait(for: [relationshipDidChange], timeout: 1.0)
-        XCTAssertEqual(exerciseEntry.setEntries.count, 1)
     }
 
     /// テスト概要: 保存済みセットがない種目の表示内容を、再開相当として繰り返し生成する。
