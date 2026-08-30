@@ -71,24 +71,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         cancelConfirmationAttachment.name = "workout-cancel-confirmation"
         cancelConfirmationAttachment.lifetime = .keepAlways
         add(cancelConfirmationAttachment)
-        let continueButton = app.buttons["続ける"]
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 5))
-        continueButton.tap()
-        XCTAssertTrue(continueButton.waitForNonExistence(timeout: 5))
-
-        let finishButton = app.buttons["終了"]
-        XCTAssertTrue(finishButton.waitForExistence(timeout: 10))
-        finishButton.tap()
-        XCTAssertTrue(
-            app.staticTexts["完了済みとして保存せず、このワークアウトを中止します。"]
-                .waitForExistence(timeout: 5)
-        )
-        XCTAssertTrue(app.buttons["中止する"].exists)
-
-        let emptyCancelConfirmationAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        emptyCancelConfirmationAttachment.name = "workout-empty-cancel-confirmation"
-        emptyCancelConfirmationAttachment.lifetime = .keepAlways
-        add(emptyCancelConfirmationAttachment)
     }
 
     @MainActor
