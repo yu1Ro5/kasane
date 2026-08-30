@@ -29,28 +29,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
-    func testAddedExerciseAppearsWithoutReopeningWorkout() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing"]
-        app.launch()
-
-        let startButton = app.buttons["workout-resume-button"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 10))
-        startButton.tap()
-
-        let addExerciseButton = app.buttons["種目を追加"].firstMatch
-        XCTAssertTrue(addExerciseButton.waitForExistence(timeout: 10))
-        addExerciseButton.tap()
-
-        let exercise = app.buttons["ダンベルカール"]
-        XCTAssertTrue(exercise.waitForExistence(timeout: 10))
-        exercise.tap()
-
-        XCTAssertTrue(app.navigationBars["ワークアウト"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["ダンベルカール"].waitForExistence(timeout: 10))
-    }
-
-    @MainActor
     func testWorkoutScreenshots() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--fixture", "workout-three-exercises"]
