@@ -1022,4 +1022,236 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(secondEntry.setEntries.map(\.order), [4])
         XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 3)
     }
+
+    /// テスト概要: 完了済みWorkoutの既存セットを履歴編集Draftから更新する。
+    /// 期待値: 重量・回数だけが更新され、日時、order、ウォームアップ状態は維持される。
+    func testHistoryEditUpdatesExistingSetAndPreservesImmutableValues() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+        let endedAt = Date(timeIntervalSince1970: 2_000)
+        let session = WorkoutSession(startedAt: startedAt, endedAt: endedAt)
+        let entry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "ベンチプレス", primaryBodyPart: .chest),
+            order: 0
+        )
+        let setEntry = SetEntry(
+            exerciseEntry: entry,
+            order: 0,
+            weightKg: 40,
+            reps: 10,
+            isWarmup: true
+        )
+        context.insert(setEntry)
+        try context.save()
+        var draft = WorkoutHistoryEditDraft(session: session)
+        draft.exercises[0].sets[0].values = SetEntryDraft(weight: "42.5", reps: "8")
+
+        try WorkoutHistoryEditService(context: context).save(draft, to: session)
+
+        XCTAssertEqual(setEntry.weightKg, 42.5)
+        XCTAssertEqual(setEntry.reps, 8)
+        XCTAssertEqual(setEntry.order, 0)
+        XCTAssertTrue(setEntry.isWarmup)
+        XCTAssertEqual(session.startedAt, startedAt)
+        XCTAssertEqual(session.endedAt, endedAt)
+    }
+
+    /// テスト概要: 完了済みWorkoutへ種目とセットをDraftから追加する。
+    /// 期待値: 種目マスタのsnapshot、新規セットの値、末尾order、isWarmup=falseが保存される。
+    func testHistoryEditAddsExerciseAndSetAtEndWithSnapshot() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+        let firstExercise = Exercise(name: "スクワット", primaryBodyPart: .legs)
+        let addedExercise = Exercise(name: "デッドリフト", primaryBodyPart: .back)
+        let firstEntry = ExerciseEntry(
+            workoutSession: session,
+            exercise: firstExercise,
+            order: 0
+        )
+        context.insert(firstEntry)
+        context.insert(addedExercise)
+        context.insert(SetEntry(exerciseEntry: firstEntry, order: 0, weightKg: 60, reps: 10))
+        try context.save()
+        var draft = WorkoutHistoryEditDraft(session: session)
+
+        try draft.addExercise(addedExercise)
+        XCTAssertThrowsError(try draft.addExercise(addedExercise)) {
+            guard
+                let error = $0 as? WorkoutExerciseError,
+                case .duplicateExercise = error
+            else {
+                return XCTFail("duplicateExercise以外のエラー: \($0)")
+            }
+        }
+        let addedEntryID = try XCTUnwrap(draft.exercises.last?.id)
+        draft.addSet(to: addedEntryID)
+        draft.exercises[1].sets[0].values = SetEntryDraft(weight: "100", reps: "5")
+
+        try WorkoutHistoryEditService(context: context).save(draft, to: session)
+
+        let entries = session.exerciseEntries.sorted { $0.order < $1.order }
+        let addedEntry = try XCTUnwrap(entries.last)
+        let addedSet = try XCTUnwrap(addedEntry.setEntries.first)
+        XCTAssertEqual(entries.map(\.order), [0, 1])
+        XCTAssertEqual(addedEntry.exercise?.id, addedExercise.id)
+        XCTAssertEqual(addedEntry.exerciseNameSnapshot, "デッドリフト")
+        XCTAssertEqual(addedEntry.bodyPartSnapshot, .back)
+        XCTAssertEqual(addedSet.order, 0)
+        XCTAssertEqual(addedSet.weightKg, 100)
+        XCTAssertEqual(addedSet.reps, 5)
+        XCTAssertFalse(addedSet.isWarmup)
+
+        let rowContent = try XCTUnwrap(WorkoutHistoryRowContent(session: session))
+        XCTAssertEqual(rowContent.exerciseNames, ["スクワット", "デッドリフト"])
+        XCTAssertEqual(WorkoutDetailContent(session: session).exercises.count, 2)
+    }
+
+    /// テスト概要: 履歴編集で中間セットと別の種目を削除する。
+    /// 期待値: 残存セットのorderが連番になり、削除種目のSetEntryもcascade削除される。
+    func testHistoryEditDeletesExerciseAndRenumbersRemainingSets() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+        let firstEntry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "スクワット", primaryBodyPart: .legs),
+            order: 0
+        )
+        let deletedEntry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "プレス", primaryBodyPart: .shoulders),
+            order: 1
+        )
+        let firstSets = (0..<3).map {
+            SetEntry(exerciseEntry: firstEntry, order: $0, weightKg: Double($0 + 1), reps: 5)
+        }
+        firstSets.forEach(context.insert)
+        context.insert(SetEntry(exerciseEntry: deletedEntry, order: 0, weightKg: 20, reps: 8))
+        try context.save()
+        var draft = WorkoutHistoryEditDraft(session: session)
+
+        draft.deleteSet(id: firstSets[1].id, from: firstEntry.id)
+        draft.deleteExercise(id: deletedEntry.id)
+        try WorkoutHistoryEditService(context: context).save(draft, to: session)
+
+        XCTAssertEqual(session.exerciseEntries.map(\.id), [firstEntry.id])
+        XCTAssertEqual(firstEntry.setEntries.sorted { $0.order < $1.order }.map(\.order), [0, 1])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ExerciseEntry>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 2)
+    }
+
+    /// テスト概要: 履歴編集Draftへ不正値、空の種目、全削除を設定して保存する。
+    /// 期待値: 既存の入力規則で各保存が拒否され、永続モデルは変更されない。
+    func testHistoryEditRejectsInvalidIncompleteAndEmptyWorkout() throws {
+        let invalidDrafts = [
+            SetEntryDraft(weight: "-1", reps: "8"),
+            SetEntryDraft(weight: "10", reps: "0"),
+            SetEntryDraft(weight: "1.234", reps: "5"),
+        ]
+
+        for invalidValues in invalidDrafts {
+            let container = try makeContainer()
+            let context = container.mainContext
+            let session = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+            let entry = ExerciseEntry(
+                workoutSession: session,
+                exercise: Exercise(name: "スクワット", primaryBodyPart: .legs),
+                order: 0
+            )
+            let setEntry = SetEntry(exerciseEntry: entry, order: 0, weightKg: 60, reps: 10)
+            context.insert(setEntry)
+            try context.save()
+            var draft = WorkoutHistoryEditDraft(session: session)
+            draft.exercises[0].sets[0].values = invalidValues
+
+            XCTAssertThrowsError(try WorkoutHistoryEditService(context: context).save(draft, to: session)) {
+                XCTAssertEqual($0 as? WorkoutHistoryEditError, .invalidSet)
+            }
+            XCTAssertEqual(setEntry.weightKg, 60)
+            XCTAssertEqual(setEntry.reps, 10)
+
+            draft.deleteSet(id: setEntry.id, from: entry.id)
+            XCTAssertThrowsError(try WorkoutHistoryEditService(context: context).save(draft, to: session)) {
+                XCTAssertEqual($0 as? WorkoutHistoryEditError, .emptyExercise)
+            }
+
+            draft.deleteExercise(id: entry.id)
+            XCTAssertThrowsError(try WorkoutHistoryEditService(context: context).save(draft, to: session)) {
+                XCTAssertEqual($0 as? WorkoutHistoryEditError, .noSets)
+            }
+        }
+    }
+
+    /// テスト概要: 履歴編集Draftを変更して保存せず破棄する。
+    /// 期待値: Draftだけが変更され、元のWorkoutモデルには一切反映されない。
+    func testHistoryEditDraftDoesNotMutateWorkoutBeforeSave() throws {
+        let session = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+        let entry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "スクワット", primaryBodyPart: .legs),
+            order: 0
+        )
+        let setEntry = SetEntry(exerciseEntry: entry, order: 0, weightKg: 60, reps: 10)
+        session.exerciseEntries = [entry]
+        entry.setEntries = [setEntry]
+        var draft = WorkoutHistoryEditDraft(session: session)
+
+        draft.exercises[0].sets[0].values = SetEntryDraft(weight: "70", reps: "8")
+
+        XCTAssertTrue(draft.hasChanges)
+        XCTAssertEqual(setEntry.weightKg, 60)
+        XCTAssertEqual(setEntry.reps, 10)
+        XCTAssertEqual(session.exerciseEntries.map(\.id), [entry.id])
+    }
+
+    /// テスト概要: 履歴編集の一括保存が失敗する。
+    /// 期待値: 元モデルの値と編集Draftが維持され、同じDraftで再試行できる。
+    func testHistoryEditSaveFailureKeepsOriginalDataAndDraft() throws {
+        struct ExpectedError: Error {}
+
+        let container = try makeContainer()
+        let context = container.mainContext
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+        let endedAt = Date(timeIntervalSince1970: 2_000)
+        let session = WorkoutSession(startedAt: startedAt, endedAt: endedAt)
+        let entry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "スクワット", primaryBodyPart: .legs),
+            order: 0
+        )
+        let setEntry = SetEntry(
+            exerciseEntry: entry,
+            order: 0,
+            weightKg: 60,
+            reps: 10,
+            isWarmup: true
+        )
+        let addedExercise = Exercise(name: "デッドリフト", primaryBodyPart: .back)
+        context.insert(setEntry)
+        context.insert(addedExercise)
+        try context.save()
+        var draft = WorkoutHistoryEditDraft(session: session)
+        draft.exercises[0].sets[0].values = SetEntryDraft(weight: "70", reps: "8")
+        try draft.addExercise(addedExercise)
+        let addedEntryID = try XCTUnwrap(draft.exercises.last?.id)
+        draft.addSet(to: addedEntryID)
+        draft.exercises[1].sets[0].values = SetEntryDraft(weight: "100", reps: "5")
+        let service = WorkoutHistoryEditService(context: context, save: { throw ExpectedError() })
+
+        XCTAssertThrowsError(try service.save(draft, to: session))
+
+        XCTAssertEqual(setEntry.weightKg, 60)
+        XCTAssertEqual(setEntry.reps, 10)
+        XCTAssertTrue(setEntry.isWarmup)
+        XCTAssertEqual(session.startedAt, startedAt)
+        XCTAssertEqual(session.endedAt, endedAt)
+        XCTAssertEqual(draft.exercises[0].sets[0].values, SetEntryDraft(weight: "70", reps: "8"))
+        XCTAssertEqual(draft.exercises.count, 2)
+        XCTAssertEqual(session.exerciseEntries.map(\.id), [entry.id])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ExerciseEntry>()).map(\.id), [entry.id])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).map(\.id), [setEntry.id])
+    }
 }
