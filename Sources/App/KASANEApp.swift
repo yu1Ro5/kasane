@@ -115,6 +115,20 @@ private enum AppModelContainer {
                 )
             }
         }
+        guard
+            let historyEditExerciseID = UUID(
+                uuidString: "30000000-0000-4000-8000-000000000001"
+            )
+        else {
+            throw FixtureError.invalidIdentifier
+        }
+        context.insert(
+            Exercise(
+                id: historyEditExerciseID,
+                name: "履歴編集テスト種目",
+                primaryBodyPart: .fullBody
+            )
+        )
         try context.save()
     }
 

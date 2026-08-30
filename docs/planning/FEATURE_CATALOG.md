@@ -18,7 +18,7 @@
 ## 機能一覧
 
 | 機能ID | 機能名 | 概要 | Status |
-|---|---|---|---|
+| ------ | -------- | ---------- | -------- |
 | REC-01 | ワークアウト開始 | 新しいトレーニングを開始・再開・破棄する | Implemented |
 | REC-02A | 種目追加・削除 | Workout内の種目を追加・削除する | Implemented |
 | REC-02B | 種目並び替え | Workout内の種目を並び替える | Candidate |
@@ -30,7 +30,8 @@
 | EXE-02 | カスタム種目管理 | 種目追加・名称変更・非表示化を行う | Candidate |
 | HIS-01 | ワークアウト履歴一覧 | 過去のWorkoutを日付順に表示する | Implemented |
 | HIS-02 | ワークアウト詳細 | 種目・セットを含む過去Workoutを見る | Implemented |
-| HIS-03 | 過去記録編集・削除 | 過去Workoutを修正・削除する | Candidate |
+| HIS-03A | 過去記録編集 | 過去Workoutの種目・セット記録を修正する | Implemented |
+| HIS-03B | 過去Workout削除 | 過去Workout全体を削除する | Candidate |
 | HIS-04 | 前回記録表示 | 同じ種目の直近重量・回数を表示する | Candidate |
 | STA-01 | トレーニング回数集計 | 月間・年間のWorkout回数を算出する | Candidate |
 | STA-02 | トレーニング時間集計 | Workout時間を集計する | Candidate |
