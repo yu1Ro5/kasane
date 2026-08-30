@@ -1,3 +1,4 @@
+import Observation
 import SwiftData
 import XCTest
 
