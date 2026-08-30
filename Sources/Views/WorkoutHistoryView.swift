@@ -7,6 +7,7 @@ struct WorkoutHistoryView: View {
         sort: \WorkoutSession.endedAt,
         order: .reverse
     ) private var completedSessions: [WorkoutSession]
+    @Query(sort: \ExerciseEntry.order) private var observedExerciseEntries: [ExerciseEntry]
 
     var body: some View {
         Group {
@@ -18,7 +19,12 @@ struct WorkoutHistoryView: View {
                 )
             } else {
                 List(completedSessions) { session in
-                    if let content = WorkoutHistoryRowContent(session: session) {
+                    if let content = WorkoutHistoryRowContent(
+                        session: session,
+                        exerciseEntries: observedExerciseEntries.filter {
+                            $0.workoutSession?.id == session.id
+                        }
+                    ) {
                         NavigationLink {
                             WorkoutDetailView(session: session)
                         } label: {

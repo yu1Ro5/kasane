@@ -19,17 +19,26 @@ struct WorkoutDetailContent {
     let duration: TimeInterval?
     let exercises: [ExerciseContent]
 
-    init(session: WorkoutSession) {
+    init(
+        session: WorkoutSession,
+        exerciseEntries: [ExerciseEntry]? = nil,
+        setEntries: [SetEntry]? = nil
+    ) {
         startedAt = session.startedAt
         endedAt = session.endedAt
         duration = session.endedAt.map { max($0.timeIntervalSince(session.startedAt), 0) }
-        exercises = session.exerciseEntries
+        exercises = (exerciseEntries ?? session.exerciseEntries)
             .sorted { $0.order < $1.order }
             .map { exerciseEntry in
-                ExerciseContent(
+                let exerciseSets =
+                    setEntries.map { entries in
+                        entries.filter { $0.exerciseEntry?.id == exerciseEntry.id }
+                    } ?? exerciseEntry.setEntries
+                return ExerciseContent(
                     id: exerciseEntry.id,
                     name: exerciseEntry.exerciseNameSnapshot,
-                    sets: exerciseEntry.setEntries
+                    sets:
+                        exerciseSets
                         .sorted { $0.order < $1.order }
                         .enumerated()
                         .map { index, setEntry in

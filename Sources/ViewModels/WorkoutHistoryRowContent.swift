@@ -5,12 +5,12 @@ struct WorkoutHistoryRowContent {
     let duration: TimeInterval
     let exerciseNames: [String]
 
-    init?(session: WorkoutSession) {
+    init?(session: WorkoutSession, exerciseEntries: [ExerciseEntry]? = nil) {
         guard let endedAt = session.endedAt else { return nil }
 
         completedAt = endedAt
         duration = max(endedAt.timeIntervalSince(session.startedAt), 0)
-        exerciseNames = session.exerciseEntries
+        exerciseNames = (exerciseEntries ?? session.exerciseEntries)
             .sorted { $0.order < $1.order }
             .map(\.exerciseNameSnapshot)
     }
