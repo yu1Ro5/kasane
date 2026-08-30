@@ -58,7 +58,7 @@ struct WorkoutSessionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button("終了") { requestFinish() }
+                Button("終了", systemImage: "checkmark") { requestFinish() }
                     .disabled(isFinishing)
                 Button("種目を追加", systemImage: "plus") { isShowingPicker = true }
                 Menu {
