@@ -5,6 +5,7 @@ struct WorkoutSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Bindable var session: WorkoutSession
+    @Bindable var draftStore: WorkoutDraftStore
     let onReturnHome: () -> Void
 
     @State private var isShowingPicker = false
@@ -13,7 +14,6 @@ struct WorkoutSessionView: View {
     @State private var isConfirmingEmptyDiscard = false
     @State private var isFinishing = false
     @State private var completionSummary: WorkoutCompletionSummary?
-    @State private var drafts: [UUID: SetEntryDraft] = [:]
     @State private var editDrafts: [UUID: SetEntryDraft] = [:]
     @State private var entryPendingDeletion: ExerciseEntry?
     @State private var errorTitle = ""
@@ -126,18 +126,24 @@ struct WorkoutSessionView: View {
 
     private var completionCounts: (exerciseCount: Int, setCount: Int) {
         let entries = session.exerciseEntries.filter {
-            !$0.setEntries.isEmpty || drafts[$0.id]?.values() != nil
+            !$0.setEntries.isEmpty || sessionDrafts[$0.id]?.values() != nil
         }
         return (
             entries.count,
-            entries.reduce(0) { $0 + $1.setEntries.count + (drafts[$1.id]?.values() == nil ? 0 : 1) }
+            entries.reduce(0) {
+                $0 + $1.setEntries.count + (sessionDrafts[$1.id]?.values() == nil ? 0 : 1)
+            }
         )
+    }
+
+    private var sessionDrafts: [UUID: SetEntryDraft] {
+        draftStore.drafts(for: session.id)
     }
 
     private func draftBinding(for entry: ExerciseEntry) -> Binding<SetEntryDraft> {
         Binding(
-            get: { drafts[entry.id] ?? SetEntryDraft() },
-            set: { drafts[entry.id] = $0 }
+            get: { draftStore.draft(for: entry.id, in: session.id) },
+            set: { draftStore.update($0, for: entry.id, in: session.id) }
         )
     }
 
@@ -161,7 +167,7 @@ struct WorkoutSessionView: View {
         if hasUnsavedSetEdits {
             errorTitle = "編集中のセットがあります"
             errorMessage = "キーボードの「完了」を押して編集を保存してから終了してください。"
-        } else if drafts.values.contains(where: { !$0.isEmpty && $0.values() == nil }) {
+        } else if sessionDrafts.values.contains(where: { !$0.isEmpty && $0.values() == nil }) {
             errorTitle = "未追加のセットがあります"
             errorMessage = "重量と回数を正しく入力するか、入力を消してから終了してください。"
         } else if completionCounts.setCount == 0 {
@@ -178,9 +184,9 @@ struct WorkoutSessionView: View {
         do {
             completionSummary = try WorkoutSessionService(context: modelContext).finish(
                 session,
-                drafts: drafts
+                drafts: sessionDrafts
             )
-            drafts.removeAll()
+            draftStore.removeAllDrafts(in: session.id)
         } catch {
             errorTitle = "ワークアウトを終了できませんでした"
             errorMessage = error.localizedDescription
@@ -202,7 +208,7 @@ struct WorkoutSessionView: View {
     private func deleteExercise(_ entry: ExerciseEntry) {
         do {
             try WorkoutExerciseService(context: modelContext).delete(entry, from: session)
-            drafts[entry.id] = nil
+            draftStore.removeDraft(for: entry.id, in: session.id)
             entry.setEntries.forEach { editDrafts[$0.id] = nil }
             if focusedInput?.exerciseID == entry.id { focusedInput = nil }
             entryPendingDeletion = nil
@@ -215,6 +221,7 @@ struct WorkoutSessionView: View {
     private func discardWorkout() {
         do {
             try WorkoutSessionService(context: modelContext).discard(session)
+            draftStore.removeAllDrafts(in: session.id)
             dismiss()
         } catch {
             errorTitle = "ワークアウトを中止できませんでした"

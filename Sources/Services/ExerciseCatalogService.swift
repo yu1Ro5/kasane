@@ -4,9 +4,13 @@ import SwiftData
 /// 組み込み種目を、既存データを変更せずに追加する。
 @MainActor
 struct ExerciseCatalogService {
+    /// 組み込み種目
     struct BuiltIn: Sendable {
+        /// 種目ID
         let id: String
+        /// 種目名
         let name: String
+        /// 主対象部位
         let bodyPart: BodyPart
     }
 
@@ -34,6 +38,7 @@ struct ExerciseCatalogService {
         BuiltIn(id: "00000000-0000-4000-8000-000000000021", name: "アブドミナルクランチ", bodyPart: .core),
         BuiltIn(id: "00000000-0000-4000-8000-000000000022", name: "プランク", bodyPart: .core),
         BuiltIn(id: "00000000-0000-4000-8000-000000000023", name: "デッドリフト", bodyPart: .fullBody),
+        BuiltIn(id: "00000000-0000-4000-8000-000000000024", name: "ダンベルフライ", bodyPart: .chest),
     ]
 
     private let context: ModelContext
@@ -42,6 +47,7 @@ struct ExerciseCatalogService {
         self.context = context
     }
 
+    /// 組み込み種目を追加する。
     func seed() throws {
         let existingIDs = Set(try context.fetch(FetchDescriptor<Exercise>()).map(\.id))
         for item in Self.builtIns {
