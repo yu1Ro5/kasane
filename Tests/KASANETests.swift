@@ -60,89 +60,76 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(fetched.exerciseEntries.first?.setEntries.first?.weightKg, 80)
     }
 
-    /// テスト概要: 重量だけを入力した未確定Draftを保存後に再取得する。
-    /// 期待値: 入力途中の文字列が変換されず、回数の空文字とともに復元される。
-    func testWorkoutDraftCanBeRestoredAfterPersistence() throws {
-        let container = try makeContainer()
-        let context = container.mainContext
-        let entry = ExerciseEntry(
-            workoutSession: WorkoutSession(),
-            exercise: Exercise(name: "ベンチプレス", primaryBodyPart: .chest),
-            order: 0
+    /// テスト概要: 複数Workout・複数種目の未確定Draftを更新する。
+    /// 期待値: DraftはSessionとExerciseEntryごとに分離され、入力文字列をそのまま保持する。
+    func testWorkoutDraftStoreKeepsDraftsScopedToSessionAndExercise() {
+        let store = WorkoutDraftStore()
+        let firstSessionID = UUID()
+        let secondSessionID = UUID()
+        let firstEntryID = UUID()
+        let secondEntryID = UUID()
+
+        store.update(
+            SetEntryDraft(weight: "60", reps: ""),
+            for: firstEntryID,
+            in: firstSessionID
         )
-        context.insert(entry)
-        try context.save()
-
-        try WorkoutDraftService(context: context).save(
-            SetEntryDraft(weight: "12.", reps: ""),
-            to: entry
+        store.update(
+            SetEntryDraft(weight: "", reps: "12"),
+            for: secondEntryID,
+            in: firstSessionID
         )
-
-        let fetched = try XCTUnwrap(try context.fetch(FetchDescriptor<ExerciseEntry>()).first)
-        XCTAssertEqual(
-            WorkoutSessionContent.draft(for: fetched),
-            SetEntryDraft(weight: "12.", reps: "")
+        store.update(
+            SetEntryDraft(weight: "100", reps: "5"),
+            for: firstEntryID,
+            in: secondSessionID
         )
-        XCTAssertTrue(fetched.setEntries.isEmpty)
-    }
-
-    /// テスト概要: 複数種目のDraftを個別に保存し、同じ種目のDraftを再度保存する。
-    /// 期待値: 各ExerciseEntryに最新のDraftが1件分だけ保持され、種目間で混ざらない。
-    func testSavingWorkoutDraftIsIdempotentAndScopedToExercise() throws {
-        let container = try makeContainer()
-        let context = container.mainContext
-        let session = WorkoutSession()
-        let entries = [
-            ExerciseEntry(
-                workoutSession: session,
-                exercise: Exercise(name: "スクワット", primaryBodyPart: .legs),
-                order: 0
-            ),
-            ExerciseEntry(
-                workoutSession: session,
-                exercise: Exercise(name: "カール", primaryBodyPart: .arms),
-                order: 1
-            ),
-        ]
-        entries.forEach(context.insert)
-        try context.save()
-        let service = WorkoutDraftService(context: context)
-
-        try service.save(SetEntryDraft(weight: "60", reps: ""), to: entries[0])
-        try service.save(SetEntryDraft(weight: "", reps: "12"), to: entries[1])
-        try service.save(SetEntryDraft(weight: "62.5", reps: "8"), to: entries[0])
 
         XCTAssertEqual(
-            WorkoutSessionContent.draft(for: entries[0]),
-            SetEntryDraft(weight: "62.5", reps: "8")
+            store.draft(for: firstEntryID, in: firstSessionID),
+            SetEntryDraft(weight: "60", reps: "")
         )
         XCTAssertEqual(
-            WorkoutSessionContent.draft(for: entries[1]),
+            store.draft(for: secondEntryID, in: firstSessionID),
             SetEntryDraft(weight: "", reps: "12")
         )
-        XCTAssertTrue(try context.fetch(FetchDescriptor<SetEntry>()).isEmpty)
+        XCTAssertEqual(
+            store.draft(for: firstEntryID, in: secondSessionID),
+            SetEntryDraft(weight: "100", reps: "5")
+        )
     }
 
-    /// テスト概要: 保持中のDraftを空にして保存する。
-    /// 期待値: Draftの両プロパティがnilになり、空のSetEntryも作られない。
-    func testClearingWorkoutDraftRemovesPersistedState() throws {
-        let container = try makeContainer()
-        let context = container.mainContext
-        let entry = ExerciseEntry(
-            workoutSession: WorkoutSession(),
-            exercise: Exercise(name: "プレス", primaryBodyPart: .shoulders),
-            order: 0
-        )
-        context.insert(entry)
-        try context.save()
-        let service = WorkoutDraftService(context: context)
-        try service.save(SetEntryDraft(weight: "20", reps: "5"), to: entry)
+    /// テスト概要: 空になったDraftと終了したWorkoutのDraftを消去する。
+    /// 期待値: 空Draftは保持されず、Session単位で残りのDraftも消去できる。
+    func testWorkoutDraftStoreRemovesEmptyAndCompletedSessionDrafts() {
+        let store = WorkoutDraftStore()
+        let sessionID = UUID()
+        let firstEntryID = UUID()
+        let secondEntryID = UUID()
+        store.update(SetEntryDraft(weight: "20", reps: "5"), for: firstEntryID, in: sessionID)
+        store.update(SetEntryDraft(weight: "40", reps: "8"), for: secondEntryID, in: sessionID)
 
-        try service.save(SetEntryDraft(), to: entry)
+        store.update(SetEntryDraft(), for: firstEntryID, in: sessionID)
 
-        XCTAssertNil(entry.draftWeight)
-        XCTAssertNil(entry.draftReps)
-        XCTAssertTrue(try context.fetch(FetchDescriptor<SetEntry>()).isEmpty)
+        XCTAssertEqual(store.draft(for: firstEntryID, in: sessionID), SetEntryDraft())
+        XCTAssertEqual(store.drafts(for: sessionID).count, 1)
+
+        store.removeAllDrafts(in: sessionID)
+
+        XCTAssertTrue(store.drafts(for: sessionID).isEmpty)
+    }
+
+    /// テスト概要: 新しいアプリ起動に相当するStoreを生成する。
+    /// 期待値: 以前の起動中に入力したDraftは復元されない。
+    func testWorkoutDraftStoreDoesNotRestoreDraftAfterStoreRecreation() {
+        let sessionID = UUID()
+        let entryID = UUID()
+        let store = WorkoutDraftStore()
+        store.update(SetEntryDraft(weight: "12.", reps: ""), for: entryID, in: sessionID)
+
+        let recreatedStore = WorkoutDraftStore()
+
+        XCTAssertEqual(recreatedStore.draft(for: entryID, in: sessionID), SetEntryDraft())
     }
 
     /// テスト概要: 同じExerciseを異なるWorkoutSessionのExerciseEntryから参照する。
@@ -436,10 +423,6 @@ final class KASANETests: XCTestCase {
         context.insert(entry)
         context.insert(SetEntry(exerciseEntry: entry, order: 0, weightKg: 80, reps: 5))
         try context.save()
-        try WorkoutDraftService(context: context).save(
-            SetEntryDraft(weight: "82.5", reps: "4"),
-            to: entry
-        )
 
         let summary = try WorkoutSessionService(context: context, now: { endedAt }).finish(
             session,
@@ -453,8 +436,6 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(sets.last?.reps, 4)
         XCTAssertEqual(summary.setCount, 2)
         XCTAssertEqual(session.endedAt, endedAt)
-        XCTAssertNil(entry.draftWeight)
-        XCTAssertNil(entry.draftReps)
     }
 
     /// テスト概要: 複数種目の有効な未追加Draftを伴ってセッションを終了する。
@@ -953,10 +934,6 @@ final class KASANETests: XCTestCase {
         )
         context.insert(exerciseEntry)
         try context.save()
-        try WorkoutDraftService(context: context).save(
-            SetEntryDraft(weight: "7.50", reps: "12"),
-            to: exerciseEntry
-        )
 
         let setEntry = try WorkoutSetService(context: context).add(
             draft: SetEntryDraft(weight: "7.50", reps: "12"),
@@ -970,8 +947,6 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(WorkoutSessionContent.setEntries(for: exerciseEntry).count, 1)
         XCTAssertEqual(WorkoutSessionContent.draftOrder(for: exerciseEntry), 1)
         XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 1)
-        XCTAssertNil(exerciseEntry.draftWeight)
-        XCTAssertNil(exerciseEntry.draftReps)
         XCTAssertFalse(context.hasChanges)
     }
 

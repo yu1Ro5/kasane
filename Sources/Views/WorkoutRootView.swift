@@ -4,6 +4,7 @@ import SwiftUI
 struct WorkoutRootView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = WorkoutRootViewModel()
+    let draftStore: WorkoutDraftStore
 
     var body: some View {
         VStack(spacing: 24) {
@@ -39,7 +40,7 @@ struct WorkoutRootView: View {
         .padding()
         .navigationTitle("KASANE")
         .navigationDestination(item: selectedSession) { session in
-            WorkoutSessionView(session: session) { closeWorkout() }
+            WorkoutSessionView(session: session, draftStore: draftStore) { closeWorkout() }
         }
         .alert("ワークアウトを開けませんでした", isPresented: errorIsPresented) {
             Button("OK", role: .cancel) {}
@@ -94,7 +95,7 @@ struct WorkoutRootView: View {
 
 #Preview {
     NavigationStack {
-        WorkoutRootView()
+        WorkoutRootView(draftStore: WorkoutDraftStore())
     }
     .modelContainer(
         for: [WorkoutSession.self, Exercise.self, ExerciseEntry.self, SetEntry.self],

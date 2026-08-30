@@ -20,10 +20,6 @@ final class ExerciseEntry {
     @Relationship(deleteRule: .cascade, inverse: \SetEntry.exerciseEntry)
     var setEntries: [SetEntry]
 
-    /// 入力途中の未確定Draft。両方が空の場合はnilとして保持する。
-    var draftWeight: String?
-    var draftReps: String?
-
     init(
         id: UUID = UUID(),
         workoutSession: WorkoutSession,
@@ -37,8 +33,6 @@ final class ExerciseEntry {
         primaryBodyPartSnapshot = exercise.primaryBodyPart
         self.order = order
         setEntries = []
-        draftWeight = nil
-        draftReps = nil
     }
 
     var bodyPartSnapshot: BodyPart {

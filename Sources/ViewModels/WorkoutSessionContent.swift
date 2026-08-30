@@ -20,13 +20,6 @@ struct WorkoutSessionContent {
         (setEntries(for: exerciseEntry).map(\.order).max() ?? -1) + 1
     }
 
-    static func draft(for exerciseEntry: ExerciseEntry) -> SetEntryDraft {
-        SetEntryDraft(
-            weight: exerciseEntry.draftWeight ?? "",
-            reps: exerciseEntry.draftReps ?? ""
-        )
-    }
-
     private static func unique<Model: Identifiable>(_ models: [Model]) -> [Model]
     where Model.ID == UUID {
         var seen = Set<UUID>()

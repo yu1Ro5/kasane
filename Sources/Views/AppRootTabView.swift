@@ -1,11 +1,13 @@
 import SwiftUI
 
 struct AppRootTabView: View {
+    @State private var draftStore = WorkoutDraftStore()
+
     var body: some View {
         TabView {
             Tab("ワークアウト", systemImage: "figure.strengthtraining.traditional") {
                 NavigationStack {
-                    WorkoutRootView()
+                    WorkoutRootView(draftStore: draftStore)
                 }
             }
 

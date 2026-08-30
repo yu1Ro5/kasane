@@ -87,8 +87,6 @@ struct WorkoutSessionService {
                 if let draft = drafts[entry.id], !draft.isEmpty {
                     _ = try setService.insert(draft: draft, to: entry)
                 }
-                entry.draftWeight = nil
-                entry.draftReps = nil
             }
         } catch {
             context.rollback()
