@@ -61,6 +61,78 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(fetched.exerciseEntries.first?.setEntries.first?.weightKg, 80)
     }
 
+    /// テスト概要: 複数Workout・複数種目の未確定Draftを更新する。
+    /// 期待値: DraftはSessionとExerciseEntryごとに分離され、入力文字列をそのまま保持する。
+    func testWorkoutDraftStoreKeepsDraftsScopedToSessionAndExercise() {
+        let store = WorkoutDraftStore()
+        let firstSessionID = UUID()
+        let secondSessionID = UUID()
+        let firstEntryID = UUID()
+        let secondEntryID = UUID()
+
+        store.update(
+            SetEntryDraft(weight: "60", reps: ""),
+            for: firstEntryID,
+            in: firstSessionID
+        )
+        store.update(
+            SetEntryDraft(weight: "", reps: "12"),
+            for: secondEntryID,
+            in: firstSessionID
+        )
+        store.update(
+            SetEntryDraft(weight: "100", reps: "5"),
+            for: firstEntryID,
+            in: secondSessionID
+        )
+
+        XCTAssertEqual(
+            store.draft(for: firstEntryID, in: firstSessionID),
+            SetEntryDraft(weight: "60", reps: "")
+        )
+        XCTAssertEqual(
+            store.draft(for: secondEntryID, in: firstSessionID),
+            SetEntryDraft(weight: "", reps: "12")
+        )
+        XCTAssertEqual(
+            store.draft(for: firstEntryID, in: secondSessionID),
+            SetEntryDraft(weight: "100", reps: "5")
+        )
+    }
+
+    /// テスト概要: 空になったDraftと終了したWorkoutのDraftを消去する。
+    /// 期待値: 空Draftは保持されず、Session単位で残りのDraftも消去できる。
+    func testWorkoutDraftStoreRemovesEmptyAndCompletedSessionDrafts() {
+        let store = WorkoutDraftStore()
+        let sessionID = UUID()
+        let firstEntryID = UUID()
+        let secondEntryID = UUID()
+        store.update(SetEntryDraft(weight: "20", reps: "5"), for: firstEntryID, in: sessionID)
+        store.update(SetEntryDraft(weight: "40", reps: "8"), for: secondEntryID, in: sessionID)
+
+        store.update(SetEntryDraft(), for: firstEntryID, in: sessionID)
+
+        XCTAssertEqual(store.draft(for: firstEntryID, in: sessionID), SetEntryDraft())
+        XCTAssertEqual(store.drafts(for: sessionID).count, 1)
+
+        store.removeAllDrafts(in: sessionID)
+
+        XCTAssertTrue(store.drafts(for: sessionID).isEmpty)
+    }
+
+    /// テスト概要: 新しいアプリ起動に相当するStoreを生成する。
+    /// 期待値: 以前の起動中に入力したDraftは復元されない。
+    func testWorkoutDraftStoreDoesNotRestoreDraftAfterStoreRecreation() {
+        let sessionID = UUID()
+        let entryID = UUID()
+        let store = WorkoutDraftStore()
+        store.update(SetEntryDraft(weight: "12.", reps: ""), for: entryID, in: sessionID)
+
+        let recreatedStore = WorkoutDraftStore()
+
+        XCTAssertEqual(recreatedStore.draft(for: entryID, in: sessionID), SetEntryDraft())
+    }
+
     /// テスト概要: 同じExerciseを異なるWorkoutSessionのExerciseEntryから参照する。
     /// 期待値: Exerciseの逆方向Relationshipに2件のExerciseEntryが含まれる。
     func testExerciseCanBeReferencedByMultipleWorkoutSessions() throws {
