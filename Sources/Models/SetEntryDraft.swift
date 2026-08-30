@@ -2,13 +2,17 @@ import Foundation
 
 /// 保存前のセット入力を表す値。
 struct SetEntryDraft: Equatable {
+    /// 重量
     var weight = ""
+    /// 回数
     var reps = ""
 
+    /// 空の場合、trueを返す。
     var isEmpty: Bool {
         weight.isEmpty && reps.isEmpty
     }
 
+    /// 値を取得する。
     func values(decimalSeparator: String = Locale.current.decimalSeparator ?? ".") -> (weight: Double, reps: Int)? {
         let escapedSeparator = NSRegularExpression.escapedPattern(for: decimalSeparator)
         guard
@@ -25,6 +29,7 @@ struct SetEntryDraft: Equatable {
         return (parsedWeight, parsedReps)
     }
 
+    /// 保存された値からDraftを作成する。
     static func savedValues(
         from entry: SetEntry,
         decimalSeparator: String = Locale.current.decimalSeparator ?? "."
@@ -40,6 +45,7 @@ struct SetEntryDraft: Equatable {
         )
     }
 
+    /// 保存された値と異なる場合、trueを返す。
     func hasChanges(
         from entry: SetEntry,
         decimalSeparator: String = Locale.current.decimalSeparator ?? "."
