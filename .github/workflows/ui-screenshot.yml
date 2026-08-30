@@ -72,6 +72,7 @@ jobs:
             -derivedDataPath build \
             -resultBundlePath "$RUNNER_TEMP/ui-screenshots.xcresult" \
             -configuration Debug \
+            -enableCodeCoverage NO \
             CODE_SIGNING_ALLOWED=NO \
             test
 
