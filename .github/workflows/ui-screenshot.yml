@@ -122,7 +122,6 @@ jobs:
           scenarios = [
               ("workout-weight-input", "Workout — Weight Input"),
               ("workout-cancel-confirmation", "Workout — Cancel Confirmation"),
-              ("workout-empty-cancel-confirmation", "Workout — Empty Cancel Confirmation"),
               ("workout-history", "Workout — History"),
               ("workout-detail", "Workout — Detail"),
           ]
