@@ -5,6 +5,8 @@ struct WorkoutSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Bindable var session: WorkoutSession
+    @Query(sort: \ExerciseEntry.order) private var observedExerciseEntries: [ExerciseEntry]
+    @Query(sort: \SetEntry.order) private var observedSetEntries: [SetEntry]
     @Bindable var draftStore: WorkoutDraftStore
     let onReturnHome: () -> Void
 
@@ -21,7 +23,9 @@ struct WorkoutSessionView: View {
     @FocusState private var focusedInput: WorkoutInputFocus?
 
     private var sortedEntries: [ExerciseEntry] {
-        WorkoutSessionContent(exerciseEntries: session.exerciseEntries).exerciseEntries
+        WorkoutSessionContent(
+            exerciseEntries: observedExerciseEntries.filter { $0.workoutSession?.id == session.id }
+        ).exerciseEntries
     }
 
     var body: some View {
@@ -40,6 +44,7 @@ struct WorkoutSessionView: View {
                     ForEach(sortedEntries) { entry in
                         WorkoutExerciseSection(
                             entry: entry,
+                            setEntries: sortedSets(for: entry),
                             draft: draftBinding(for: entry),
                             editDraft: editDraftBinding,
                             focusedInput: $focusedInput,
@@ -77,7 +82,7 @@ struct WorkoutSessionView: View {
         }
         .sheet(isPresented: $isShowingPicker) {
             ExercisePickerView(
-                selectedExerciseIDs: Set(session.exerciseEntries.compactMap { $0.exercise?.id }),
+                selectedExerciseIDs: Set(sortedEntries.compactMap { $0.exercise?.id }),
                 onSelect: addExercise
             )
         }
@@ -107,7 +112,10 @@ struct WorkoutSessionView: View {
             Button("種目を削除", role: .destructive) { deleteExercise(entry) }
             Button("キャンセル", role: .cancel) { entryPendingDeletion = nil }
         } message: { entry in
-            Text(entry.setEntries.isEmpty ? "この操作は元に戻せません。" : "保存済みのセットもすべて削除されます。")
+            Text(
+                sortedSets(for: entry).isEmpty
+                    ? "この操作は元に戻せません。" : "保存済みのセットもすべて削除されます。"
+            )
         }
         .alert(errorTitle, isPresented: errorIsPresented) {
             Button("OK", role: .cancel) {}
@@ -125,15 +133,19 @@ struct WorkoutSessionView: View {
     }
 
     private var completionCounts: (exerciseCount: Int, setCount: Int) {
-        let entries = session.exerciseEntries.filter {
-            !$0.setEntries.isEmpty || sessionDrafts[$0.id]?.values() != nil
+        let entries = sortedEntries.filter {
+            !sortedSets(for: $0).isEmpty || sessionDrafts[$0.id]?.values() != nil
         }
         return (
             entries.count,
             entries.reduce(0) {
-                $0 + $1.setEntries.count + (sessionDrafts[$1.id]?.values() == nil ? 0 : 1)
+                $0 + sortedSets(for: $1).count + (sessionDrafts[$1.id]?.values() == nil ? 0 : 1)
             }
         )
+    }
+
+    private func sortedSets(for entry: ExerciseEntry) -> [SetEntry] {
+        observedSetEntries.filter { $0.exerciseEntry?.id == entry.id }
     }
 
     private var sessionDrafts: [UUID: SetEntryDraft] {
@@ -155,8 +167,8 @@ struct WorkoutSessionView: View {
     }
 
     private var hasUnsavedSetEdits: Bool {
-        session.exerciseEntries
-            .flatMap(\.setEntries)
+        sortedEntries
+            .flatMap { sortedSets(for: $0) }
             .contains { setEntry in
                 editDrafts[setEntry.id]?.hasChanges(from: setEntry) == true
             }
@@ -198,7 +210,7 @@ struct WorkoutSessionView: View {
     }
 
     private func requestDeletion(of entry: ExerciseEntry) {
-        if entry.setEntries.isEmpty {
+        if sortedSets(for: entry).isEmpty {
             deleteExercise(entry)
         } else {
             entryPendingDeletion = entry
@@ -207,9 +219,10 @@ struct WorkoutSessionView: View {
 
     private func deleteExercise(_ entry: ExerciseEntry) {
         do {
+            let deletedSetIDs = sortedSets(for: entry).map(\.id)
             try WorkoutExerciseService(context: modelContext).delete(entry, from: session)
             draftStore.removeDraft(for: entry.id, in: session.id)
-            entry.setEntries.forEach { editDrafts[$0.id] = nil }
+            deletedSetIDs.forEach { editDrafts[$0] = nil }
             if focusedInput?.exerciseID == entry.id { focusedInput = nil }
             entryPendingDeletion = nil
         } catch {
@@ -233,6 +246,7 @@ struct WorkoutSessionView: View {
 private struct WorkoutExerciseSection: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var entry: ExerciseEntry
+    let setEntries: [SetEntry]
     @Binding var draft: SetEntryDraft
     let editDraft: (SetEntry) -> Binding<SetEntryDraft>
     var focusedInput: FocusState<WorkoutInputFocus?>.Binding
@@ -241,13 +255,9 @@ private struct WorkoutExerciseSection: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
 
-    private var sortedSets: [SetEntry] {
-        WorkoutSessionContent.setEntries(for: entry)
-    }
-
     var body: some View {
         Section {
-            ForEach(sortedSets) { setEntry in
+            ForEach(setEntries) { setEntry in
                 WorkoutSetRow(
                     setEntry: setEntry,
                     exerciseEntry: entry,
@@ -256,7 +266,7 @@ private struct WorkoutExerciseSection: View {
                 )
             }
             HStack {
-                Text("Set \(WorkoutSessionContent.draftOrder(for: entry) + 1)")
+                Text("Set \((setEntries.map(\.order).max() ?? -1) + 2)")
                 TextField("重量 (kg)", text: $draft.weight)
                     .accessibilityIdentifier("draft-weight-input")
                     .keyboardType(.decimalPad)
