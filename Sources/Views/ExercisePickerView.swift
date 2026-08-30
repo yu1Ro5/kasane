@@ -42,7 +42,7 @@ struct ExercisePickerView: View {
             .searchable(text: $searchText, prompt: "種目名を検索")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { dismiss() }
+                    Button("キャンセル", systemImage: "xmark") { dismiss() }
                 }
             }
             .alert("種目を追加できませんでした", isPresented: errorIsPresented) {

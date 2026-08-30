@@ -44,18 +44,18 @@ struct WorkoutDetailView: View {
         .toolbar {
             if isEditing {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { requestDiscard() }
+                    Button("キャンセル", systemImage: "xmark") { requestDiscard() }
                 }
                 ToolbarItemGroup(placement: .confirmationAction) {
                     Button("種目を追加", systemImage: "plus") {
                         isShowingExercisePicker = true
                     }
-                    Button("保存") { save() }
+                    Button("保存", systemImage: "checkmark") { save() }
                         .disabled(!editDraft.hasChanges || isSaving)
                 }
             } else if session.endedAt != nil {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("編集") { startEditing() }
+                    Button("編集", systemImage: "pencil") { startEditing() }
                 }
             }
         }

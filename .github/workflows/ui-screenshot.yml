@@ -53,25 +53,46 @@ jobs:
                       raise SystemExit
           raise SystemExit("No available iOS 26 iPhone simulator found")
           ')"
+          simulator_info="$(xcrun simctl list devices --json | python3 -c '
+          import json, sys
+          target = sys.argv[1]
+          device = next(
+              device
+              for values in json.load(sys.stdin)["devices"].values()
+              for device in values
+              if device["udid"] == target
+          )
+          print("{}\t{}".format(device["name"], device["state"]))
+          ' "$simulator")"
+          IFS=$'\t' read -r simulator_name simulator_state <<< "$simulator_info"
           echo "id=$simulator" >> "$GITHUB_OUTPUT"
-          echo "name=$(xcrun simctl list devices --json | python3 -c 'import json,sys; target=sys.argv[1]; print(next(d["name"] for values in json.load(sys.stdin)["devices"].values() for d in values if d["udid"] == target))' "$simulator")" >> "$GITHUB_OUTPUT"
+          echo "name=$simulator_name" >> "$GITHUB_OUTPUT"
+          case "$simulator_state" in
+            Shutdown)
+              xcrun simctl boot "$simulator"
+              ;;
+            Booted)
+              ;;
+            *)
+              echo "Simulator $simulator is in unexpected state: $simulator_state" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Run UI screenshot tests
         shell: bash
         run: |
           set -euo pipefail
           xcodebuild -project KASANE.xcodeproj \
-            -scheme KASANE \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutWeightInputScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutCancelConfirmationScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutEmptyCancelConfirmationScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDetailScreenshot \
+            -scheme KASANEScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -derivedDataPath build \
             -resultBundlePath "$RUNNER_TEMP/ui-screenshots.xcresult" \
             -configuration Debug \
+            -enableCodeCoverage NO \
             CODE_SIGNING_ALLOWED=NO \
             test
 
@@ -101,7 +122,6 @@ jobs:
           scenarios = [
               ("workout-weight-input", "Workout — Weight Input"),
               ("workout-cancel-confirmation", "Workout — Cancel Confirmation"),
-              ("workout-empty-cancel-confirmation", "Workout — Empty Cancel Confirmation"),
               ("workout-history", "Workout — History"),
               ("workout-detail", "Workout — Detail"),
           ]

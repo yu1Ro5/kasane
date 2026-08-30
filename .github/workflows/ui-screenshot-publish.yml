@@ -5,6 +5,10 @@ on:
     workflows: [UI Screenshot]
     types: [completed]
 
+concurrency:
+  group: ui-screenshot-publish
+  cancel-in-progress: false
+
 permissions:
   actions: read
   contents: write
@@ -111,6 +115,7 @@ jobs:
             const branch = 'ui-screenshots';
 
             let branchSha;
+            let createdBranch = false;
             try {
               const ref = await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
               branchSha = ref.data.object.sha;
@@ -129,28 +134,66 @@ jobs:
                 sha: base.data.object.sha,
               });
               branchSha = base.data.object.sha;
+              createdBranch = true;
             }
 
+            const overwritePaths = new Set();
+            const newEntries = [];
             for (const screenshot of metadata.screenshots) {
               const destination = `pr-${prNumber}/${headSha}/${screenshot.file}`;
-              let existingSha;
-              try {
-                const existing = await github.rest.repos.getContent({ owner, repo, path: destination, ref: branch });
-                existingSha = existing.data.sha;
-              } catch (error) {
-                if (error.status !== 404) throw error;
-              }
-              const response = await github.rest.repos.createOrUpdateFileContents({
+              overwritePaths.add(destination);
+              const blob = await github.rest.git.createBlob({
                 owner,
                 repo,
-                path: destination,
-                branch,
-                message: `Add UI screenshot for PR #${prNumber} at ${headSha.slice(0, 7)}`,
                 content: fs.readFileSync(path.join(artifactDir, screenshot.file)).toString('base64'),
-                ...(existingSha ? { sha: existingSha } : {}),
+                encoding: 'base64',
               });
-              branchSha = response.data.commit.sha;
+              newEntries.push({
+                path: destination,
+                mode: '100644',
+                type: 'blob',
+                sha: blob.data.sha,
+              });
             }
+
+            let existingBlobEntries = [];
+            if (!createdBranch) {
+              const commit = await github.rest.git.getCommit({ owner, repo, commit_sha: branchSha });
+              const currentTree = await github.rest.git.getTree({
+                owner,
+                repo,
+                tree_sha: commit.data.tree.sha,
+                recursive: true,
+              });
+              if (currentTree.data.truncated) {
+                throw new Error('The ui-screenshots tree is truncated; refusing to publish a partial tree.');
+              }
+              existingBlobEntries = currentTree.data.tree
+                .filter((entry) => entry.type === 'blob' && !overwritePaths.has(entry.path))
+                .map((entry) => ({
+                  path: entry.path,
+                  mode: entry.mode,
+                  type: 'blob',
+                  sha: entry.sha,
+                }));
+            }
+
+            const tree = [...existingBlobEntries, ...newEntries];
+            const createdTree = await github.rest.git.createTree({ owner, repo, tree });
+            const createdCommit = await github.rest.git.createCommit({
+              owner,
+              repo,
+              message: `Add UI screenshot for PR #${prNumber} at ${headSha.slice(0, 7)}`,
+              tree: createdTree.data.sha,
+              parents: [],
+            });
+            await github.rest.git.updateRef({
+              owner,
+              repo,
+              ref: `heads/${branch}`,
+              sha: createdCommit.data.sha,
+              force: true,
+            });
 
             const marker = '<!-- kasane-ui-screenshot-review -->';
             const sections = metadata.screenshots.map((screenshot) => {

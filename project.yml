@@ -35,6 +35,10 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         PRIVACY_MANIFEST_PATH: Sources/PrivacyInfo.xcprivacy
         CODE_SIGN_STYLE: Automatic
+    scheme:
+      testTargets:
+        - KASANETests
+        - KASANEUITests
 
   KASANETests:
     type: bundle.unit-test
@@ -67,3 +71,14 @@ targets:
         PRODUCT_NAME: KASANEUITests
         GENERATE_INFOPLIST_FILE: YES
         SKIP_INSTALL: YES
+
+schemes:
+  KASANEScreenshot:
+    build:
+      targets:
+        KASANE: all
+        KASANEUITests: [test]
+    test:
+      gatherCoverageData: false
+      targets:
+        - KASANEUITests
