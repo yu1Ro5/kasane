@@ -155,7 +155,7 @@ struct WorkoutDetailHeader: View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
                 Text(content.startedAt, format: .dateTime.year().month().day())
-                    .font(.title2.bold())
+                    .font(.headline)
                 HStack(spacing: 8) {
                     Text(content.startedAt, format: .dateTime.hour().minute())
                     Text("〜")
@@ -165,8 +165,11 @@ struct WorkoutDetailHeader: View {
                         Text("--")
                     }
                 }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 Text(content.durationText)
-                    .font(.headline)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
             .padding(.vertical, 4)
         }

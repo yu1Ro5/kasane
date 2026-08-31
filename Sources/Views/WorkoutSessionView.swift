@@ -57,9 +57,11 @@ struct WorkoutSessionView: View {
         .navigationTitle("ワークアウト")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button("終了", systemImage: "checkmark") { requestFinish() }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("終了") { requestFinish() }
                     .disabled(isFinishing)
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 Button("種目を追加", systemImage: "plus") { isShowingPicker = true }
                 Menu {
                     Button("ワークアウトを中止", systemImage: "trash", role: .destructive) {
@@ -279,6 +281,7 @@ private struct WorkoutExerciseSection: View {
                         .submitLabel(.next)
                         .onSubmit { focusedInput.wrappedValue = .draftReps(exerciseID: entry.id) }
                     Text("kg")
+                        .foregroundStyle(.secondary)
                 }
             } reps: {
                 TextField("回数", text: $draft.reps, prompt: Text("0"))
@@ -301,6 +304,7 @@ private struct WorkoutExerciseSection: View {
                 } label: {
                     Image(systemName: "ellipsis")
                 }
+                .accessibilityLabel("\(entry.exerciseNameSnapshot)の操作")
             }
         }
         .alert("セットを保存できませんでした", isPresented: errorIsPresented) {
@@ -349,6 +353,7 @@ private struct WorkoutSetRow: View {
                         .keyboardType(.decimalPad)
                         .focused(focusedInput, equals: savedWeightFocus)
                     Text("kg")
+                        .foregroundStyle(.secondary)
                 }
             } else {
                 WorkoutWeightText(weightKg: displayedWeight)

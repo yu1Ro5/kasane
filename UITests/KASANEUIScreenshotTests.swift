@@ -29,6 +29,23 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutRootEmptyScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        let startButton = app.buttons["workout-resume-button"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 10))
+        XCTAssertEqual(startButton.label, "ワークアウトを開始")
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "workout-root-empty"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     func testWorkoutScreenshots() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
@@ -37,6 +54,12 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         let resumeButton = app.buttons["workout-resume-button"]
         XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
+
+        let activeRootAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        activeRootAttachment.name = "workout-root-active"
+        activeRootAttachment.lifetime = .keepAlways
+        add(activeRootAttachment)
+
         resumeButton.tap()
 
         let weightInput = app.textFields.matching(identifier: "draft-weight-input").firstMatch
@@ -52,6 +75,20 @@ final class KASANEUIScreenshotTests: XCTestCase {
         add(weightInputAttachment)
         app.buttons["完了"].tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+
+        let addExerciseButton = app.buttons["種目を追加"]
+        XCTAssertTrue(addExerciseButton.waitForExistence(timeout: 10))
+        addExerciseButton.tap()
+        let searchField = app.searchFields["種目名を検索"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+
+        let exercisePickerAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        exercisePickerAttachment.name = "exercise-picker"
+        exercisePickerAttachment.lifetime = .keepAlways
+        add(exercisePickerAttachment)
+
+        app.buttons["キャンセル"].tap()
+        XCTAssertTrue(searchField.waitForNonExistence(timeout: 5))
 
         let moreButton = app.buttons["その他"]
         XCTAssertTrue(moreButton.waitForExistence(timeout: 10))
@@ -71,6 +108,31 @@ final class KASANEUIScreenshotTests: XCTestCase {
         cancelConfirmationAttachment.name = "workout-cancel-confirmation"
         cancelConfirmationAttachment.lifetime = .keepAlways
         add(cancelConfirmationAttachment)
+    }
+
+    @MainActor
+    func testWorkoutCompletedScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        let resumeButton = app.buttons["workout-resume-button"]
+        XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
+        resumeButton.tap()
+
+        let finishButton = app.buttons["終了"]
+        XCTAssertTrue(finishButton.waitForExistence(timeout: 10))
+        finishButton.tap()
+        let saveButton = app.buttons["終了して保存"]
+        XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
+        saveButton.tap()
+
+        XCTAssertTrue(app.staticTexts["ワークアウトを記録しました"].waitForExistence(timeout: 10))
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "workout-completed"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     @MainActor
