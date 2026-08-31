@@ -143,6 +143,21 @@ swift-format format --in-place --configuration .swift-format --recursive Sources
 
 シークレット、認証情報、APIキー、証明書、プロビジョニングプロファイル、秘密の署名素材は絶対にコミットしないでください。CIのシミュレーター向けビルドではコード署名を無効にします。
 
+## UI / Design Review
+
+- UI、Navigation、Presentation、Accessibility、またはVisual hierarchyを変更するIssueでは、`.agents/skills/kasane-review-ui/SKILL.md` に従ってUIレビューを行ってください。
+- Codexのproject-scoped custom agentを利用できる場合は、`.codex/agents/kasane-ui-reviewer.toml` のUIレビュー専用Agentを、読み取り中心のレビュー作業に利用してください。
+- UIレビューでは、Apple Human Interface Guidelines、Accessibility、Apple Platform Convention、KASANE Design Principles、任意の改善提案を混同しないでください。
+- Appleプラットフォーム上の設計判断についてApple公式情報へアクセスできる場合は、最新のApple Human Interface GuidelinesまたはApple Developer Documentationを優先してください。
+- Repository内のApple関連資料は最新HIGの代替ではありません。Apple公式情報と差異がある場合はApple公式情報を優先してください。
+- 「Appleっぽくない」「Appleならこうする」といった主観だけをレビュー指摘の根拠にしないでください。
+- ScreenshotはVisualな事実を確認するEvidenceとして扱い、内部実装やRuntime behaviorをScreenshotだけから推測しないでください。
+- Screenshotがない場合、実際に見えていることが必要なVisual defectを断定しないでください。
+- Codex CloudでiOS Simulatorを利用できない場合は、表示・Navigation・Keyboard・Dynamic Type・Dark Mode等をSimulatorで確認済みとして報告しないでください。
+- UI Review Agentはレビュー専用として扱い、明示的な実装修正依頼なしにコード、テスト、ドキュメント、設定を変更させないでください。
+- 一般的なcorrectness、SwiftData整合性、永続化、architecture、security、business logicのレビューは主に `kasane-review-pr` の責務とし、同じ根本原因をUIレビューと重複して報告しないでください。
+- UI変更を含むIssueでは、実装完了後に関連するScreenshotとコードを可能な範囲で照合し、重大なUI Review Findingを解消してから完了としてください。
+
 ## UI Screenshotレビュー
 
 - UI表示を変更するIssueでは、既存のScreenshot scenarioで対象状態を再現できる場合、その結果をPull Request上で確認してください。
