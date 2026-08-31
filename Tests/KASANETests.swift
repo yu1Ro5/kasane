@@ -720,13 +720,13 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(content.durationText, "52分")
         XCTAssertEqual(content.exercises.map(\.name), ["ベンチプレス", "スクワット"])
         XCTAssertEqual(content.exercises.first?.sets.map(\.number), [1, 2])
-        XCTAssertEqual(content.exercises.first?.sets.map(\.weightText), ["40", "42.5"])
+        XCTAssertEqual(content.exercises.first?.sets.map(\.weightKg), [40, 42.5])
         XCTAssertEqual(content.exercises.first?.sets.map(\.reps), [10, 8])
     }
 
     /// テスト概要: 整数、小数、0の保存重量を詳細表示内容へ変換する。
-    /// 期待値: 不要な末尾ゼロを付けず、0も省略せずに表示される。
-    func testWorkoutDetailContentFormatsSavedWeightsWithoutTrailingZeros() throws {
+    /// 期待値: Viewが共通Formatterで表示できるよう、保存重量の数値がそのまま保持される。
+    func testWorkoutDetailContentKeepsSavedWeightValuesForSharedFormatting() throws {
         let session = WorkoutSession(endedAt: Date())
         let exercise = Exercise(name: "テスト種目", primaryBodyPart: .other)
         let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
@@ -740,7 +740,40 @@ final class KASANETests: XCTestCase {
 
         let content = WorkoutDetailContent(session: session)
 
-        XCTAssertEqual(content.exercises.first?.sets.map(\.weightText), ["40", "7.5", "22.5", "0"])
+        XCTAssertEqual(
+            content.exercises.first?.sets.map(\.weightKg),
+            [40, 7.5, 22.5, 0]
+        )
+    }
+
+    /// テスト概要: 入力画面と履歴詳細で共有するセット表示規則を数値へ適用する。
+    /// 期待値: セット番号と回数は数値のみ、重量は小数点以下2桁の数値とkgで表示される。
+    func testWorkoutSetDisplayFormatterUsesSharedColumnFormats() {
+        XCTAssertEqual(WorkoutSetDisplayFormatter.setNumber(1), "1")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(18), "18.00 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(4.5), "4.50 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(100), "100.00 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.reps(12), "12")
+    }
+
+    /// テスト概要: 保存済み重量を小数点以下2桁固定の表示文字列へ変換する。
+    /// 期待値: 整数と小数のどちらも2桁の小数部とkgを持つ。
+    func testWorkoutSetDisplayFormatterUsesTwoFractionDigitsForDisplay() {
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(40), "40.00 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(40.0), "40.00 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(42.5), "42.50 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(4.5), "4.50 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(22.25), "22.25 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(100), "100.00 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(0), "0.00 kg")
+    }
+
+    /// テスト概要: 保存重量を編集開始時の入力文字列へ変換する。
+    /// 期待値: 表示用とは異なり、入力しやすいよう不要な末尾ゼロを除去する。
+    func testWorkoutSetDisplayFormatterRemovesTrailingZerosForEditing() {
+        XCTAssertEqual(WorkoutSetDisplayFormatter.editableWeightValue(40), "40")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.editableWeightValue(42.5), "42.5")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.editableWeightValue(22.25), "22.25")
     }
 
     /// テスト概要: 終了日時とExercise参照が欠けたWorkoutから詳細表示内容を生成する。
@@ -1036,8 +1069,18 @@ final class KASANETests: XCTestCase {
         )
 
         let draft = SetEntryDraft.savedValues(from: setEntry, decimalSeparator: ",")
+        let integerDraft = SetEntryDraft.savedValues(
+            from: SetEntry(exerciseEntry: exerciseEntry, order: 1, weightKg: 40, reps: 10),
+            decimalSeparator: ","
+        )
+        let twoDigitFractionDraft = SetEntryDraft.savedValues(
+            from: SetEntry(exerciseEntry: exerciseEntry, order: 2, weightKg: 22.25, reps: 6),
+            decimalSeparator: ","
+        )
 
         XCTAssertEqual(draft, SetEntryDraft(weight: "1000,5", reps: "8"))
+        XCTAssertEqual(integerDraft, SetEntryDraft(weight: "40", reps: "10"))
+        XCTAssertEqual(twoDigitFractionDraft, SetEntryDraft(weight: "22,25", reps: "6"))
         XCTAssertEqual(draft.values(decimalSeparator: ",")?.weight, 1_000.5)
     }
 

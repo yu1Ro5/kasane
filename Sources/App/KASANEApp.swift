@@ -44,8 +44,8 @@ private enum AppModelContainer {
             for: schema,
             configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         )
-        if fixtureName(in: arguments) == "workout-three-exercises" {
-            try insertWorkoutFixture(into: container.mainContext)
+        if fixtureName(in: arguments) == "workout-set-layout" {
+            try insertWorkoutSetLayoutFixture(into: container.mainContext)
         } else if fixtureName(in: arguments) == "workout-history" {
             try insertHistoryFixture(into: container.mainContext)
         }
@@ -59,7 +59,7 @@ private enum AppModelContainer {
         return arguments[valueIndex]
     }
 
-    private static func insertWorkoutFixture(into context: ModelContext) throws {
+    private static func insertWorkoutSetLayoutFixture(into context: ModelContext) throws {
         guard let sessionID = UUID(uuidString: "10000000-0000-4000-8000-000000000001") else {
             throw FixtureError.invalidIdentifier
         }
@@ -67,18 +67,25 @@ private enum AppModelContainer {
             id: sessionID,
             startedAt: Date(timeIntervalSince1970: 1_767_225_600)
         )
-        let fixtures: [(String, String, BodyPart)] = [
-            ("20000000-0000-4000-8000-000000000001", "ベンチプレス", .chest),
-            ("20000000-0000-4000-8000-000000000002", "スクワット", .legs),
-            ("20000000-0000-4000-8000-000000000003", "ラットプルダウン", .back),
-        ]
-
         context.insert(session)
-        for (order, fixture) in fixtures.enumerated() {
-            guard let id = UUID(uuidString: fixture.0) else { continue }
-            let exercise = Exercise(id: id, name: fixture.1, primaryBodyPart: fixture.2)
-            context.insert(exercise)
-            context.insert(ExerciseEntry(workoutSession: session, exercise: exercise, order: order))
+        guard let exerciseID = UUID(uuidString: "20000000-0000-4000-8000-000000000001") else {
+            throw FixtureError.invalidIdentifier
+        }
+        let exercise = Exercise(id: exerciseID, name: "シーテッドロー", primaryBodyPart: .back)
+        context.insert(exercise)
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        context.insert(entry)
+        for (order, values) in [(40.0, 10), (42.5, 8), (4.5, 12), (100.0, 6), (22.25, 8)]
+            .enumerated()
+        {
+            context.insert(
+                SetEntry(
+                    exerciseEntry: entry,
+                    order: order,
+                    weightKg: values.0,
+                    reps: values.1
+                )
+            )
         }
         try context.save()
     }
@@ -102,7 +109,7 @@ private enum AppModelContainer {
             context.insert(entry)
             let setFixtures: [(Double, Int)] =
                 order == 0
-                ? [(40, 10), (42.5, 8)]
+                ? [(40, 10), (42.5, 8), (4.5, 12), (100, 6), (22.25, 8)]
                 : order == 1 ? [(0, 12), (22.5, 8)] : [(60, 10)]
             for (setOrder, setFixture) in setFixtures.enumerated() {
                 context.insert(

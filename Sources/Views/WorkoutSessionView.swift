@@ -257,6 +257,7 @@ private struct WorkoutExerciseSection: View {
 
     var body: some View {
         Section {
+            WorkoutSetColumnHeader()
             ForEach(setEntries) { setEntry in
                 WorkoutSetRow(
                     setEntry: setEntry,
@@ -265,15 +266,24 @@ private struct WorkoutExerciseSection: View {
                     focusedInput: focusedInput
                 )
             }
-            HStack {
-                Text("Set \((setEntries.map(\.order).max() ?? -1) + 2)")
-                TextField("重量 (kg)", text: $draft.weight)
-                    .accessibilityIdentifier("draft-weight-input")
-                    .keyboardType(.decimalPad)
-                    .focused(focusedInput, equals: .draftWeight(exerciseID: entry.id))
-                    .submitLabel(.next)
-                    .onSubmit { focusedInput.wrappedValue = .draftReps(exerciseID: entry.id) }
-                TextField("回数", text: $draft.reps)
+            WorkoutSetColumns {
+                Text(WorkoutSetDisplayFormatter.setNumber((setEntries.map(\.order).max() ?? -1) + 2))
+            } weight: {
+                HStack(spacing: 4) {
+                    TextField("重量", text: $draft.weight, prompt: Text("0"))
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .accessibilityIdentifier("draft-weight-input")
+                        .keyboardType(.decimalPad)
+                        .focused(focusedInput, equals: .draftWeight(exerciseID: entry.id))
+                        .submitLabel(.next)
+                        .onSubmit { focusedInput.wrappedValue = .draftReps(exerciseID: entry.id) }
+                    Text("kg")
+                }
+            } reps: {
+                TextField("回数", text: $draft.reps, prompt: Text("0"))
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
                     .accessibilityIdentifier("draft-reps-input")
                     .keyboardType(.numberPad)
                     .focused(focusedInput, equals: .draftReps(exerciseID: entry.id))
@@ -328,15 +338,30 @@ private struct WorkoutSetRow: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        HStack {
-            Text("Set \(setEntry.order + 1)")
-            TextField("重量 (kg)", text: $editDraft.weight)
-                .keyboardType(.decimalPad)
-                .focused(
-                    focusedInput,
-                    equals: .savedWeight(exerciseID: exerciseEntry.id, setID: setEntry.id)
-                )
-            TextField("回数", text: $editDraft.reps)
+        WorkoutSetColumns {
+            Text(WorkoutSetDisplayFormatter.setNumber(setEntry.order + 1))
+        } weight: {
+            if focusedInput.wrappedValue == savedWeightFocus {
+                HStack(spacing: 4) {
+                    TextField("重量", text: $editDraft.weight, prompt: Text("0"))
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .keyboardType(.decimalPad)
+                        .focused(focusedInput, equals: savedWeightFocus)
+                    Text("kg")
+                }
+            } else {
+                WorkoutWeightText(weightKg: displayedWeight)
+                    .contentShape(Rectangle())
+                    .onTapGesture { focusedInput.wrappedValue = savedWeightFocus }
+                    .accessibilityLabel("重量、\(WorkoutSetDisplayFormatter.displayWeight(displayedWeight))")
+                    .accessibilityHint("ダブルタップして編集")
+                    .accessibilityAddTraits(.isButton)
+            }
+        } reps: {
+            TextField("回数", text: $editDraft.reps, prompt: Text("0"))
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
                 .keyboardType(.numberPad)
                 .focused(
                     focusedInput,
@@ -360,6 +385,14 @@ private struct WorkoutSetRow: View {
         } message: {
             Text(errorMessage ?? "不明なエラーが発生しました。")
         }
+    }
+
+    private var savedWeightFocus: WorkoutInputFocus {
+        .savedWeight(exerciseID: exerciseEntry.id, setID: setEntry.id)
+    }
+
+    private var displayedWeight: Double {
+        editDraft.values()?.weight ?? setEntry.weightKg
     }
 
     private var errorIsPresented: Binding<Bool> {

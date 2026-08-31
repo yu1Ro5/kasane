@@ -34,10 +34,7 @@ struct SetEntryDraft: Equatable {
         from entry: SetEntry,
         decimalSeparator: String = Locale.current.decimalSeparator ?? "."
     ) -> SetEntryDraft {
-        let asciiWeight = String(
-            format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), entry.weightKg
-        )
-        .replacingOccurrences(of: #"\.?0+$"#, with: "", options: .regularExpression)
+        let asciiWeight = WorkoutSetDisplayFormatter.editableWeightValue(entry.weightKg)
 
         return SetEntryDraft(
             weight: asciiWeight.replacingOccurrences(of: ".", with: decimalSeparator),

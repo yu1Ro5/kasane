@@ -48,16 +48,26 @@ private struct WorkoutHistoryEditExerciseSection: View {
 
     var body: some View {
         Section {
+            WorkoutSetColumnHeader()
             ForEach($exercise.sets) { $setDraft in
-                HStack {
-                    Text("Set \(setNumber(for: setDraft.id))")
-                    TextField("重量 (kg)", text: $setDraft.values.weight)
-                        .accessibilityIdentifier(
-                            "history-edit-weight-input-\(exerciseAccessibilityKey)-\(setDraft.id.uuidString)"
-                        )
-                        .keyboardType(.decimalPad)
-                        .focused(focusedInput, equals: .weight(setID: setDraft.id))
-                    TextField("回数", text: $setDraft.values.reps)
+                WorkoutSetColumns {
+                    Text(WorkoutSetDisplayFormatter.setNumber(setNumber(for: setDraft.id)))
+                } weight: {
+                    HStack(spacing: 4) {
+                        TextField("重量", text: $setDraft.values.weight, prompt: Text("0"))
+                            .multilineTextAlignment(.trailing)
+                            .monospacedDigit()
+                            .accessibilityIdentifier(
+                                "history-edit-weight-input-\(exerciseAccessibilityKey)-\(setDraft.id.uuidString)"
+                            )
+                            .keyboardType(.decimalPad)
+                            .focused(focusedInput, equals: .weight(setID: setDraft.id))
+                        Text("kg")
+                    }
+                } reps: {
+                    TextField("回数", text: $setDraft.values.reps, prompt: Text("0"))
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
                         .accessibilityIdentifier(
                             "history-edit-reps-input-\(exerciseAccessibilityKey)-\(setDraft.id.uuidString)"
                         )

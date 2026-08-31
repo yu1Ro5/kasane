@@ -129,23 +129,16 @@ private struct WorkoutDetailReadContent: View {
 
             ForEach(content.exercises) { exercise in
                 Section(exercise.name) {
-                    HStack {
-                        Text("セット")
-                        Spacer()
-                        Text("重量")
-                        Spacer()
-                        Text("回数")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    WorkoutSetColumnHeader()
 
                     ForEach(exercise.sets) { set in
-                        HStack {
-                            Text("\(set.number)")
-                            Spacer()
-                            Text("\(set.weightText) kg")
-                            Spacer()
-                            Text("\(set.reps)")
+                        WorkoutSetColumns {
+                            Text(WorkoutSetDisplayFormatter.setNumber(set.number))
+                        } weight: {
+                            WorkoutWeightText(weightKg: set.weightKg)
+                        } reps: {
+                            Text(WorkoutSetDisplayFormatter.reps(set.reps))
+                                .monospacedDigit()
                         }
                     }
                 }
