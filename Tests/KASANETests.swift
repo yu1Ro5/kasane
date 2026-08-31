@@ -747,42 +747,33 @@ final class KASANETests: XCTestCase {
     }
 
     /// テスト概要: 入力画面と履歴詳細で共有するセット表示規則を数値へ適用する。
-    /// 期待値: セット番号と回数は数値のみ、重量は末尾ゼロなしの数値とkgで表示される。
+    /// 期待値: セット番号と回数は数値のみ、重量は小数点以下2桁の数値とkgで表示される。
     func testWorkoutSetDisplayFormatterUsesSharedColumnFormats() {
         XCTAssertEqual(WorkoutSetDisplayFormatter.setNumber(1), "1")
-        XCTAssertEqual(WorkoutSetDisplayFormatter.weight(18), "18 kg")
-        XCTAssertEqual(WorkoutSetDisplayFormatter.weight(4.5), "4.5 kg")
-        XCTAssertEqual(WorkoutSetDisplayFormatter.weight(100), "100 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(18), "18.00 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(4.5), "4.50 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(100), "100.00 kg")
         XCTAssertEqual(WorkoutSetDisplayFormatter.reps(12), "12")
     }
 
-    /// テスト概要: 保存済み重量を小数点揃え表示用の整数部と小数部へ分解する。
-    /// 期待値: 不要な末尾ゼロを除去し、最大2桁の小数部だけを返す。
-    func testWorkoutSetDisplayFormatterSplitsWeightPartsWithoutTrailingZeros() {
-        XCTAssertEqual(
-            WorkoutSetDisplayFormatter.weightParts(40),
-            .init(integer: "40", fraction: nil)
-        )
-        XCTAssertEqual(
-            WorkoutSetDisplayFormatter.weightParts(40.0),
-            .init(integer: "40", fraction: nil)
-        )
-        XCTAssertEqual(
-            WorkoutSetDisplayFormatter.weightParts(4.5),
-            .init(integer: "4", fraction: "5")
-        )
-        XCTAssertEqual(
-            WorkoutSetDisplayFormatter.weightParts(22.25),
-            .init(integer: "22", fraction: "25")
-        )
-        XCTAssertEqual(
-            WorkoutSetDisplayFormatter.weightParts(0),
-            .init(integer: "0", fraction: nil)
-        )
-        XCTAssertEqual(
-            WorkoutSetDisplayFormatter.weightParts(100),
-            .init(integer: "100", fraction: nil)
-        )
+    /// テスト概要: 保存済み重量を小数点以下2桁固定の表示文字列へ変換する。
+    /// 期待値: 整数と小数のどちらも2桁の小数部とkgを持つ。
+    func testWorkoutSetDisplayFormatterUsesTwoFractionDigitsForDisplay() {
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(40), "40.00 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(40.0), "40.00 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(42.5), "42.50 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(4.5), "4.50 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(22.25), "22.25 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(100), "100.00 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.displayWeight(0), "0.00 kg")
+    }
+
+    /// テスト概要: 保存重量を編集開始時の入力文字列へ変換する。
+    /// 期待値: 表示用とは異なり、入力しやすいよう不要な末尾ゼロを除去する。
+    func testWorkoutSetDisplayFormatterRemovesTrailingZerosForEditing() {
+        XCTAssertEqual(WorkoutSetDisplayFormatter.editableWeightValue(40), "40")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.editableWeightValue(42.5), "42.5")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.editableWeightValue(22.25), "22.25")
     }
 
     /// テスト概要: 終了日時とExercise参照が欠けたWorkoutから詳細表示内容を生成する。

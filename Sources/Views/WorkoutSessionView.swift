@@ -341,16 +341,22 @@ private struct WorkoutSetRow: View {
         WorkoutSetColumns {
             Text(WorkoutSetDisplayFormatter.setNumber(setEntry.order + 1))
         } weight: {
-            HStack(spacing: 4) {
-                TextField("重量", text: $editDraft.weight, prompt: Text("0"))
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .keyboardType(.decimalPad)
-                    .focused(
-                        focusedInput,
-                        equals: .savedWeight(exerciseID: exerciseEntry.id, setID: setEntry.id)
-                    )
-                Text("kg")
+            if focusedInput.wrappedValue == savedWeightFocus {
+                HStack(spacing: 4) {
+                    TextField("重量", text: $editDraft.weight, prompt: Text("0"))
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .keyboardType(.decimalPad)
+                        .focused(focusedInput, equals: savedWeightFocus)
+                    Text("kg")
+                }
+            } else {
+                WorkoutWeightText(weightKg: displayedWeight)
+                    .contentShape(Rectangle())
+                    .onTapGesture { focusedInput.wrappedValue = savedWeightFocus }
+                    .accessibilityLabel("重量、\(WorkoutSetDisplayFormatter.displayWeight(displayedWeight))")
+                    .accessibilityHint("ダブルタップして編集")
+                    .accessibilityAddTraits(.isButton)
             }
         } reps: {
             TextField("回数", text: $editDraft.reps, prompt: Text("0"))
@@ -379,6 +385,14 @@ private struct WorkoutSetRow: View {
         } message: {
             Text(errorMessage ?? "不明なエラーが発生しました。")
         }
+    }
+
+    private var savedWeightFocus: WorkoutInputFocus {
+        .savedWeight(exerciseID: exerciseEntry.id, setID: setEntry.id)
+    }
+
+    private var displayedWeight: Double {
+        editDraft.values()?.weight ?? setEntry.weightKg
     }
 
     private var errorIsPresented: Binding<Bool> {
