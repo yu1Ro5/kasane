@@ -31,7 +31,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
     @MainActor
     func testWorkoutScreenshots() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--fixture", "workout-three-exercises"]
+        app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
         app.launch()
         waitForAppToBeStable(app)
 

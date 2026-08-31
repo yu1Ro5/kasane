@@ -720,7 +720,7 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(content.durationText, "52分")
         XCTAssertEqual(content.exercises.map(\.name), ["ベンチプレス", "スクワット"])
         XCTAssertEqual(content.exercises.first?.sets.map(\.number), [1, 2])
-        XCTAssertEqual(content.exercises.first?.sets.map(\.weightText), ["40", "42.5"])
+        XCTAssertEqual(content.exercises.first?.sets.map(\.weightText), ["40 kg", "42.5 kg"])
         XCTAssertEqual(content.exercises.first?.sets.map(\.reps), [10, 8])
     }
 
@@ -740,7 +740,20 @@ final class KASANETests: XCTestCase {
 
         let content = WorkoutDetailContent(session: session)
 
-        XCTAssertEqual(content.exercises.first?.sets.map(\.weightText), ["40", "7.5", "22.5", "0"])
+        XCTAssertEqual(
+            content.exercises.first?.sets.map(\.weightText),
+            ["40 kg", "7.5 kg", "22.5 kg", "0 kg"]
+        )
+    }
+
+    /// テスト概要: 入力画面と履歴詳細で共有するセット表示規則を数値へ適用する。
+    /// 期待値: セット番号と回数は数値のみ、重量は末尾ゼロなしの数値とkgで表示される。
+    func testWorkoutSetDisplayFormatterUsesSharedColumnFormats() {
+        XCTAssertEqual(WorkoutSetDisplayFormatter.setNumber(1), "1")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.weight(18), "18 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.weight(4.5), "4.5 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.weight(100), "100 kg")
+        XCTAssertEqual(WorkoutSetDisplayFormatter.reps(12), "12")
     }
 
     /// テスト概要: 終了日時とExercise参照が欠けたWorkoutから詳細表示内容を生成する。

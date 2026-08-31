@@ -45,7 +45,7 @@ struct WorkoutDetailContent {
                             SetContent(
                                 id: setEntry.id,
                                 number: index + 1,
-                                weightText: Self.formatWeight(setEntry.weightKg),
+                                weightText: WorkoutSetDisplayFormatter.weight(setEntry.weightKg),
                                 reps: setEntry.reps
                             )
                         }
@@ -61,7 +61,4 @@ struct WorkoutDetailContent {
         return hours > 0 ? "\(hours)時間\(minutes)分" : "\(minutes)分"
     }
 
-    private static func formatWeight(_ weight: Double) -> String {
-        weight.formatted(.number.precision(.fractionLength(0...3)))
-    }
 }
