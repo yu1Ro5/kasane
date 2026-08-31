@@ -135,9 +135,10 @@ private struct WorkoutDetailReadContent: View {
                         WorkoutSetColumns {
                             Text(WorkoutSetDisplayFormatter.setNumber(set.number))
                         } weight: {
-                            Text(set.weightText)
+                            WorkoutWeightText(weightKg: set.weightKg)
                         } reps: {
                             Text(WorkoutSetDisplayFormatter.reps(set.reps))
+                                .monospacedDigit()
                         }
                     }
                 }

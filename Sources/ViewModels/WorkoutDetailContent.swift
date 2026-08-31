@@ -10,7 +10,7 @@ struct WorkoutDetailContent {
     struct SetContent: Identifiable {
         let id: UUID
         let number: Int
-        let weightText: String
+        let weightKg: Double
         let reps: Int
     }
 
@@ -45,7 +45,7 @@ struct WorkoutDetailContent {
                             SetContent(
                                 id: setEntry.id,
                                 number: index + 1,
-                                weightText: WorkoutSetDisplayFormatter.weight(setEntry.weightKg),
+                                weightKg: setEntry.weightKg,
                                 reps: setEntry.reps
                             )
                         }

@@ -75,7 +75,9 @@ private enum AppModelContainer {
         context.insert(exercise)
         let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
         context.insert(entry)
-        for (order, values) in [(18.0, 12), (23.0, 10), (4.5, 8)].enumerated() {
+        for (order, values) in [(40.0, 10), (42.5, 8), (4.5, 12), (100.0, 6), (22.25, 8)]
+            .enumerated()
+        {
             context.insert(
                 SetEntry(
                     exerciseEntry: entry,
@@ -107,7 +109,7 @@ private enum AppModelContainer {
             context.insert(entry)
             let setFixtures: [(Double, Int)] =
                 order == 0
-                ? [(40, 10), (42.5, 8)]
+                ? [(40, 10), (42.5, 8), (4.5, 12), (100, 6), (22.25, 8)]
                 : order == 1 ? [(0, 12), (22.5, 8)] : [(60, 10)]
             for (setOrder, setFixture) in setFixtures.enumerated() {
                 context.insert(

@@ -270,8 +270,9 @@ private struct WorkoutExerciseSection: View {
                 Text(WorkoutSetDisplayFormatter.setNumber((setEntries.map(\.order).max() ?? -1) + 2))
             } weight: {
                 HStack(spacing: 4) {
-                    TextField("0", text: $draft.weight)
+                    TextField("重量", text: $draft.weight, prompt: Text("0"))
                         .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
                         .accessibilityIdentifier("draft-weight-input")
                         .keyboardType(.decimalPad)
                         .focused(focusedInput, equals: .draftWeight(exerciseID: entry.id))
@@ -280,8 +281,9 @@ private struct WorkoutExerciseSection: View {
                     Text("kg")
                 }
             } reps: {
-                TextField("0", text: $draft.reps)
+                TextField("回数", text: $draft.reps, prompt: Text("0"))
                     .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
                     .accessibilityIdentifier("draft-reps-input")
                     .keyboardType(.numberPad)
                     .focused(focusedInput, equals: .draftReps(exerciseID: entry.id))
@@ -340,8 +342,9 @@ private struct WorkoutSetRow: View {
             Text(WorkoutSetDisplayFormatter.setNumber(setEntry.order + 1))
         } weight: {
             HStack(spacing: 4) {
-                TextField("0", text: $editDraft.weight)
+                TextField("重量", text: $editDraft.weight, prompt: Text("0"))
                     .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
                     .keyboardType(.decimalPad)
                     .focused(
                         focusedInput,
@@ -350,8 +353,9 @@ private struct WorkoutSetRow: View {
                 Text("kg")
             }
         } reps: {
-            TextField("0", text: $editDraft.reps)
+            TextField("回数", text: $editDraft.reps, prompt: Text("0"))
                 .multilineTextAlignment(.trailing)
+                .monospacedDigit()
                 .keyboardType(.numberPad)
                 .focused(
                     focusedInput,

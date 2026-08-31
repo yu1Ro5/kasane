@@ -30,3 +30,29 @@ struct WorkoutSetColumns<SetColumn: View, WeightColumn: View, RepsColumn: View>:
         }
     }
 }
+
+struct WorkoutWeightText: View {
+    let weightKg: Double
+
+    private var parts: WorkoutSetDisplayFormatter.WeightParts {
+        WorkoutSetDisplayFormatter.weightParts(weightKg)
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text(parts.integer)
+                .frame(minWidth: 0, alignment: .trailing)
+            ZStack(alignment: .leading) {
+                Text(".00")
+                    .hidden()
+                if let fraction = parts.fraction {
+                    Text(".\(fraction)")
+                }
+            }
+            Text(" kg")
+        }
+        .monospacedDigit()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(WorkoutSetDisplayFormatter.weight(weightKg))
+    }
+}

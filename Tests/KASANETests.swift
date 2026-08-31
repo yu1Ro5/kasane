@@ -720,13 +720,13 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(content.durationText, "52分")
         XCTAssertEqual(content.exercises.map(\.name), ["ベンチプレス", "スクワット"])
         XCTAssertEqual(content.exercises.first?.sets.map(\.number), [1, 2])
-        XCTAssertEqual(content.exercises.first?.sets.map(\.weightText), ["40 kg", "42.5 kg"])
+        XCTAssertEqual(content.exercises.first?.sets.map(\.weightKg), [40, 42.5])
         XCTAssertEqual(content.exercises.first?.sets.map(\.reps), [10, 8])
     }
 
     /// テスト概要: 整数、小数、0の保存重量を詳細表示内容へ変換する。
-    /// 期待値: 不要な末尾ゼロを付けず、0も省略せずに表示される。
-    func testWorkoutDetailContentFormatsSavedWeightsWithoutTrailingZeros() throws {
+    /// 期待値: Viewが共通Formatterで表示できるよう、保存重量の数値がそのまま保持される。
+    func testWorkoutDetailContentKeepsSavedWeightValuesForSharedFormatting() throws {
         let session = WorkoutSession(endedAt: Date())
         let exercise = Exercise(name: "テスト種目", primaryBodyPart: .other)
         let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
@@ -741,8 +741,8 @@ final class KASANETests: XCTestCase {
         let content = WorkoutDetailContent(session: session)
 
         XCTAssertEqual(
-            content.exercises.first?.sets.map(\.weightText),
-            ["40 kg", "7.5 kg", "22.5 kg", "0 kg"]
+            content.exercises.first?.sets.map(\.weightKg),
+            [40, 7.5, 22.5, 0]
         )
     }
 
@@ -754,6 +754,35 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(WorkoutSetDisplayFormatter.weight(4.5), "4.5 kg")
         XCTAssertEqual(WorkoutSetDisplayFormatter.weight(100), "100 kg")
         XCTAssertEqual(WorkoutSetDisplayFormatter.reps(12), "12")
+    }
+
+    /// テスト概要: 保存済み重量を小数点揃え表示用の整数部と小数部へ分解する。
+    /// 期待値: 不要な末尾ゼロを除去し、最大2桁の小数部だけを返す。
+    func testWorkoutSetDisplayFormatterSplitsWeightPartsWithoutTrailingZeros() {
+        XCTAssertEqual(
+            WorkoutSetDisplayFormatter.weightParts(40),
+            .init(integer: "40", fraction: nil)
+        )
+        XCTAssertEqual(
+            WorkoutSetDisplayFormatter.weightParts(40.0),
+            .init(integer: "40", fraction: nil)
+        )
+        XCTAssertEqual(
+            WorkoutSetDisplayFormatter.weightParts(4.5),
+            .init(integer: "4", fraction: "5")
+        )
+        XCTAssertEqual(
+            WorkoutSetDisplayFormatter.weightParts(22.25),
+            .init(integer: "22", fraction: "25")
+        )
+        XCTAssertEqual(
+            WorkoutSetDisplayFormatter.weightParts(0),
+            .init(integer: "0", fraction: nil)
+        )
+        XCTAssertEqual(
+            WorkoutSetDisplayFormatter.weightParts(100),
+            .init(integer: "100", fraction: nil)
+        )
     }
 
     /// テスト概要: 終了日時とExercise参照が欠けたWorkoutから詳細表示内容を生成する。
@@ -1049,8 +1078,18 @@ final class KASANETests: XCTestCase {
         )
 
         let draft = SetEntryDraft.savedValues(from: setEntry, decimalSeparator: ",")
+        let integerDraft = SetEntryDraft.savedValues(
+            from: SetEntry(exerciseEntry: exerciseEntry, order: 1, weightKg: 40, reps: 10),
+            decimalSeparator: ","
+        )
+        let twoDigitFractionDraft = SetEntryDraft.savedValues(
+            from: SetEntry(exerciseEntry: exerciseEntry, order: 2, weightKg: 22.25, reps: 6),
+            decimalSeparator: ","
+        )
 
         XCTAssertEqual(draft, SetEntryDraft(weight: "1000,5", reps: "8"))
+        XCTAssertEqual(integerDraft, SetEntryDraft(weight: "40", reps: "10"))
+        XCTAssertEqual(twoDigitFractionDraft, SetEntryDraft(weight: "22,25", reps: "6"))
         XCTAssertEqual(draft.values(decimalSeparator: ",")?.weight, 1_000.5)
     }
 

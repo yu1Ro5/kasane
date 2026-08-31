@@ -54,8 +54,9 @@ private struct WorkoutHistoryEditExerciseSection: View {
                     Text(WorkoutSetDisplayFormatter.setNumber(setNumber(for: setDraft.id)))
                 } weight: {
                     HStack(spacing: 4) {
-                        TextField("0", text: $setDraft.values.weight)
+                        TextField("重量", text: $setDraft.values.weight, prompt: Text("0"))
                             .multilineTextAlignment(.trailing)
+                            .monospacedDigit()
                             .accessibilityIdentifier(
                                 "history-edit-weight-input-\(exerciseAccessibilityKey)-\(setDraft.id.uuidString)"
                             )
@@ -64,8 +65,9 @@ private struct WorkoutHistoryEditExerciseSection: View {
                         Text("kg")
                     }
                 } reps: {
-                    TextField("0", text: $setDraft.values.reps)
+                    TextField("回数", text: $setDraft.values.reps, prompt: Text("0"))
                         .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
                         .accessibilityIdentifier(
                             "history-edit-reps-input-\(exerciseAccessibilityKey)-\(setDraft.id.uuidString)"
                         )
