@@ -63,6 +63,7 @@ private struct WorkoutHistoryEditExerciseSection: View {
                             .keyboardType(.decimalPad)
                             .focused(focusedInput, equals: .weight(setID: setDraft.id))
                         Text("kg")
+                            .foregroundStyle(.secondary)
                     }
                 } reps: {
                     TextField("回数", text: $setDraft.values.reps, prompt: Text("0"))
@@ -94,6 +95,7 @@ private struct WorkoutHistoryEditExerciseSection: View {
                 } label: {
                     Image(systemName: "ellipsis")
                 }
+                .accessibilityLabel("\(exercise.exerciseNameSnapshot)の操作")
             }
         } footer: {
             if exercise.sets.isEmpty {

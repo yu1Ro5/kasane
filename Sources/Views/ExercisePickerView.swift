@@ -74,6 +74,7 @@ struct ExercisePickerView: View {
             }
         }
         .disabled(isSelected)
+        .accessibilityValue(isSelected ? "追加済み" : "")
     }
 
     private var errorIsPresented: Binding<Bool> {

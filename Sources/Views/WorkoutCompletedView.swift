@@ -13,6 +13,7 @@ struct WorkoutCompletedView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(.green)
+                .accessibilityHidden(true)
             Text("ワークアウトを記録しました")
                 .font(.title2.bold())
 
@@ -41,7 +42,9 @@ struct WorkoutCompletedView: View {
     private func summaryRow(_ label: String, value: String) -> some View {
         GridRow {
             Text(label).foregroundStyle(.secondary)
-            Text(value).bold()
+            Text(value)
+                .bold()
+                .monospacedDigit()
         }
     }
 }

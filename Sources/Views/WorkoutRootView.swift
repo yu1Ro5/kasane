@@ -16,6 +16,7 @@ struct WorkoutRootView: View {
             )
             .font(.system(size: 52))
             .foregroundStyle(.tint)
+            .accessibilityHidden(true)
 
             VStack(spacing: 8) {
                 Text(viewModel.activeSession == nil ? "ワークアウトを始めましょう" : "進行中のワークアウト")
@@ -23,6 +24,7 @@ struct WorkoutRootView: View {
 
                 if let activeSession = viewModel.activeSession {
                     Text(activeSession.startedAt, format: .dateTime.year().month().day().hour().minute())
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -38,7 +40,7 @@ struct WorkoutRootView: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .navigationTitle("KASANE")
+        .navigationTitle("ワークアウト")
         .navigationDestination(item: selectedSession) { session in
             WorkoutSessionView(session: session, draftStore: draftStore) { closeWorkout() }
         }
