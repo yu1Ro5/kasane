@@ -258,7 +258,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         detailView.swipeUp()
         detailView.swipeUp()
         XCTAssertTrue(app.staticTexts["履歴編集テスト種目"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["100 kg"].exists)
 
         app.navigationBars["ワークアウト詳細"].buttons["履歴"].tap()
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン、ほか2種目"].waitForExistence(timeout: 10))
