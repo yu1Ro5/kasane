@@ -50,8 +50,8 @@ jobs:
 
           root = Path(os.environ["ARTIFACT_DIR"]).resolve()
           files = [path for path in root.rglob("*") if path.is_file()]
-          if not files or len(files) > 6:
-              raise SystemExit("Artifact must contain between 1 and 6 files")
+          if len(files) != 10:
+              raise SystemExit("Artifact must contain metadata and exactly 9 screenshots")
           if any(path.parent != root for path in files):
               raise SystemExit("Nested artifact paths are not allowed")
           if any(path.is_symlink() for path in root.rglob("*")):
@@ -65,8 +65,8 @@ jobs:
               raise SystemExit("Artifact PR number does not match workflow_run")
 
           screenshots = metadata.get("screenshots")
-          if not isinstance(screenshots, list) or not 1 <= len(screenshots) <= 5:
-              raise SystemExit("Artifact must describe between 1 and 5 screenshots")
+          if not isinstance(screenshots, list) or len(screenshots) != 9:
+              raise SystemExit("Artifact must describe exactly 9 screenshots")
           expected_files = {"metadata.json"}
           for screenshot in screenshots:
               name, filename = screenshot.get("name"), screenshot.get("file")
