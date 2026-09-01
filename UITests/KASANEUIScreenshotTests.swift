@@ -29,11 +29,32 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testOverviewRootScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["概要"].exists)
+        XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
+        XCTAssertTrue(app.buttons["履歴"].exists)
+        XCTAssertFalse(app.tabBars.buttons["履歴"].exists)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "overview-root"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     func testWorkoutRootEmptyScreenshot() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]
         app.launch()
         waitForAppToBeStable(app)
+
+        app.tabBars.buttons["ワークアウト"].tap()
 
         let startButton = app.buttons["workout-resume-button"]
         XCTAssertTrue(startButton.waitForExistence(timeout: 10))
@@ -51,6 +72,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
         app.launch()
         waitForAppToBeStable(app)
+
+        app.tabBars.buttons["ワークアウト"].tap()
 
         let resumeButton = app.buttons["workout-resume-button"]
         XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
@@ -117,6 +140,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.launch()
         waitForAppToBeStable(app)
 
+        app.tabBars.buttons["ワークアウト"].tap()
+
         let resumeButton = app.buttons["workout-resume-button"]
         XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
         resumeButton.tap()
@@ -142,9 +167,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.launch()
         waitForAppToBeStable(app)
 
-        let historyTab = app.tabBars.buttons["履歴"]
-        XCTAssertTrue(historyTab.waitForExistence(timeout: 10))
-        historyTab.tap()
+        let historyLink = app.buttons["履歴"]
+        XCTAssertTrue(historyLink.waitForExistence(timeout: 10))
+        historyLink.tap()
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン、ほか1種目"].waitForExistence(timeout: 10))
 
         let historyAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
@@ -161,7 +186,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let detailView = app.descendants(matching: .any)["workout-detail-view"]
         XCTAssertTrue(detailView.waitForExistence(timeout: 10))
         XCTAssertTrue(app.navigationBars["ワークアウト詳細"].exists)
-        XCTAssertTrue(app.tabBars.buttons["履歴"].exists)
+        XCTAssertTrue(app.tabBars.buttons["概要"].exists)
+        XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
 
         let detailAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         detailAttachment.name = "workout-detail"
@@ -177,7 +203,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.launch()
         waitForAppToBeStable(app)
 
-        app.tabBars.buttons["履歴"].tap()
+        let historyLink = app.buttons["履歴"]
+        XCTAssertTrue(historyLink.waitForExistence(timeout: 10))
+        historyLink.tap()
         let historyRow = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
         ).firstMatch
@@ -263,6 +291,29 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.navigationBars["ワークアウト詳細"].buttons["履歴"].tap()
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン、ほか2種目"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["52分・4種目"].exists)
+    }
+
+    @MainActor
+    func testActiveWorkoutPersistsAcrossTabSwitch() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        app.tabBars.buttons["ワークアウト"].tap()
+        let resumeButton = app.buttons["workout-resume-button"]
+        XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
+        resumeButton.tap()
+
+        let weightInput = app.textFields.matching(identifier: "draft-weight-input").firstMatch
+        XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
+
+        app.tabBars.buttons["概要"].tap()
+        XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["ワークアウト"].tap()
+
+        XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["終了"].exists)
     }
 }
 

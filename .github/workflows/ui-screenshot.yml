@@ -85,6 +85,7 @@ jobs:
           set -euo pipefail
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANEScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewRootScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
             -sdk iphonesimulator \
@@ -120,6 +121,7 @@ jobs:
           runner_temp = Path(os.environ["RUNNER_TEMP"])
           export_dir = runner_temp / "ui-screenshot-attachments"
           scenarios = [
+              ("overview-root", "Overview — Root"),
               ("workout-weight-input", "Workout — Weight Input"),
               ("workout-cancel-confirmation", "Workout — Cancel Confirmation"),
               ("workout-history", "Workout — History"),
