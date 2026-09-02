@@ -180,14 +180,14 @@ jobs:
 
       - name: Upload xcresult
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ui-screenshot-xcresult
           path: ${{ runner.temp }}/*.xcresult
           retention-days: 7
 
       - name: Upload UI screenshot
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ui-screenshot-review
           path: ${{ runner.temp }}/ui-screenshot-artifact
