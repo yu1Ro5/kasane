@@ -49,7 +49,7 @@ private enum WorkoutHistoryRoute: Hashable {
     case detail(UUID)
 }
 
-private struct WorkoutHistoryRow: View {
+struct WorkoutHistoryRow: View {
     let content: WorkoutHistoryRowContent
 
     var body: some View {
