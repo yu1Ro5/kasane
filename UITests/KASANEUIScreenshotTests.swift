@@ -1,6 +1,9 @@
 import XCTest
 
 final class KASANEUIScreenshotTests: XCTestCase {
+    private let historySessionID = "50000000-0000-4000-8000-000000000001"
+    private let overviewNewestSessionID = "40000000-0000-4000-8000-000000000001"
+
     // UIが安定し、最前面ウィンドウのフレームが有限かつゼロでないことを確認してから進む
     @MainActor private func waitForAppToBeStable(_ app: XCUIApplication, timeout: TimeInterval = 5.0) {
         // ウィンドウが存在するまで待機
@@ -29,7 +32,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
-    func testOverviewRootScreenshot() throws {
+    func testOverviewEmptyScreenshot() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]
         app.launch()
@@ -38,13 +41,53 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
         XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
-        XCTAssertTrue(app.buttons["履歴"].exists)
+        XCTAssertTrue(app.staticTexts["ワークアウトがありません"].exists)
+        XCTAssertTrue(app.staticTexts["完了したワークアウトがここに表示されます。"].exists)
+        XCTAssertFalse(app.buttons["履歴"].exists)
         XCTAssertFalse(app.tabBars.buttons["履歴"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        attachment.name = "overview-root"
+        attachment.name = "overview-empty"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    @MainActor
+    func testOverviewRecentWorkoutsScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "overview-recent-workouts"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
+        XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
+        XCTAssertTrue(app.staticTexts["スクワット"].exists)
+        XCTAssertTrue(app.staticTexts["ショルダープレス"].exists)
+        XCTAssertFalse(app.staticTexts["デッドリフト"].exists)
+        XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
+        XCTAssertTrue(app.buttons["すべて表示"].exists)
+        XCTAssertTrue(app.tabBars.buttons["概要"].exists)
+        XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "overview-recent-workouts"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        let recentRow = app.buttons["overview-recent-workout-row-\(overviewNewestSessionID)"]
+        XCTAssertTrue(recentRow.waitForExistence(timeout: 10))
+        recentRow.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
+        )
+
+        app.navigationBars["ワークアウト詳細"].buttons["概要"].tap()
+        XCTAssertTrue(app.buttons["すべて表示"].waitForExistence(timeout: 10))
+        app.buttons["すべて表示"].tap()
+        XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["デッドリフト"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
     }
 
     @MainActor
@@ -167,7 +210,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.launch()
         waitForAppToBeStable(app)
 
-        let historyLink = app.buttons["履歴"]
+        let historyLink = app.buttons["すべて表示"]
         XCTAssertTrue(historyLink.waitForExistence(timeout: 10))
         historyLink.tap()
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン、ほか1種目"].waitForExistence(timeout: 10))
@@ -177,9 +220,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         historyAttachment.lifetime = .keepAlways
         add(historyAttachment)
 
-        let historyRow = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
-        ).firstMatch
+        let historyRow = app.buttons["workout-history-row-\(historySessionID)"]
         XCTAssertTrue(historyRow.waitForExistence(timeout: 10))
         historyRow.tap()
 
@@ -204,12 +245,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.launch()
         waitForAppToBeStable(app)
 
-        let historyLink = app.buttons["履歴"]
+        let historyLink = app.buttons["すべて表示"]
         XCTAssertTrue(historyLink.waitForExistence(timeout: 10))
         historyLink.tap()
-        let historyRow = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
-        ).firstMatch
+        let historyRow = app.buttons["workout-history-row-\(historySessionID)"]
         XCTAssertTrue(historyRow.waitForExistence(timeout: 10))
         historyRow.tap()
 

@@ -25,7 +25,7 @@ struct WorkoutHistoryView: View {
                             $0.workoutSession?.id == session.id
                         }
                     ) {
-                        NavigationLink(value: WorkoutHistoryRoute.detail(session.id)) {
+                        NavigationLink(value: OverviewRoute.workoutDetail(session.id)) {
                             WorkoutHistoryRow(content: content)
                         }
                         .accessibilityIdentifier("workout-history-row-\(session.id.uuidString)")
@@ -34,22 +34,10 @@ struct WorkoutHistoryView: View {
             }
         }
         .navigationTitle("履歴")
-        .navigationDestination(for: WorkoutHistoryRoute.self) { route in
-            switch route {
-            case .detail(let sessionID):
-                if let session = completedSessions.first(where: { $0.id == sessionID }) {
-                    WorkoutDetailView(session: session)
-                }
-            }
-        }
     }
 }
 
-private enum WorkoutHistoryRoute: Hashable {
-    case detail(UUID)
-}
-
-private struct WorkoutHistoryRow: View {
+struct WorkoutHistoryRow: View {
     let content: WorkoutHistoryRowContent
 
     var body: some View {

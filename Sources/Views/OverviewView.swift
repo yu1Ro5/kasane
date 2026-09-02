@@ -1,10 +1,46 @@
+import SwiftData
 import SwiftUI
 
 struct OverviewView: View {
+    @Query(
+        filter: #Predicate<WorkoutSession> { $0.endedAt != nil },
+        sort: \WorkoutSession.endedAt,
+        order: .reverse
+    ) private var completedSessions: [WorkoutSession]
+    @Query(sort: \ExerciseEntry.order) private var observedExerciseEntries: [ExerciseEntry]
+
     var body: some View {
-        List {
-            NavigationLink(value: OverviewRoute.history) {
-                Label("履歴", systemImage: "clock.arrow.circlepath")
+        Group {
+            if completedSessions.isEmpty {
+                ContentUnavailableView(
+                    "ワークアウトがありません",
+                    systemImage: "clock.arrow.circlepath",
+                    description: Text("完了したワークアウトがここに表示されます。")
+                )
+            } else {
+                List {
+                    Section("最近のワークアウト") {
+                        ForEach(completedSessions.prefix(3)) { session in
+                            if let content = WorkoutHistoryRowContent(
+                                session: session,
+                                exerciseEntries: observedExerciseEntries.filter {
+                                    $0.workoutSession?.id == session.id
+                                }
+                            ) {
+                                NavigationLink(value: OverviewRoute.workoutDetail(session.id)) {
+                                    WorkoutHistoryRow(content: content)
+                                }
+                                .accessibilityIdentifier(
+                                    "overview-recent-workout-row-\(session.id.uuidString)"
+                                )
+                            }
+                        }
+
+                        NavigationLink(value: OverviewRoute.history) {
+                            Text("すべて表示")
+                        }
+                    }
+                }
             }
         }
         .navigationTitle("概要")
@@ -12,13 +48,23 @@ struct OverviewView: View {
             switch route {
             case .history:
                 WorkoutHistoryView()
+            case .workoutDetail(let sessionID):
+                if let session = completedSessions.first(where: { $0.id == sessionID }) {
+                    WorkoutDetailView(session: session)
+                } else {
+                    ContentUnavailableView(
+                        "ワークアウトを表示できません",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                }
             }
         }
     }
 }
 
-private enum OverviewRoute: Hashable {
+enum OverviewRoute: Hashable {
     case history
+    case workoutDetail(UUID)
 }
 
 #Preview {

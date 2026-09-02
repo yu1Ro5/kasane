@@ -48,6 +48,8 @@ private enum AppModelContainer {
             try insertWorkoutSetLayoutFixture(into: container.mainContext)
         } else if fixtureName(in: arguments) == "workout-history" {
             try insertHistoryFixture(into: container.mainContext)
+        } else if fixtureName(in: arguments) == "overview-recent-workouts" {
+            try insertOverviewRecentWorkoutsFixture(into: container.mainContext)
         }
         return container
     }
@@ -91,7 +93,11 @@ private enum AppModelContainer {
     }
 
     private static func insertHistoryFixture(into context: ModelContext) throws {
+        guard let sessionID = UUID(uuidString: "50000000-0000-4000-8000-000000000001") else {
+            throw FixtureError.invalidIdentifier
+        }
         let session = WorkoutSession(
+            id: sessionID,
             startedAt: Date(timeIntervalSince1970: 1_767_229_200),
             endedAt: Date(timeIntervalSince1970: 1_767_232_320)
         )
@@ -136,6 +142,64 @@ private enum AppModelContainer {
                 primaryBodyPart: .fullBody
             )
         )
+        try context.save()
+    }
+
+    private static func insertOverviewRecentWorkoutsFixture(into context: ModelContext) throws {
+        let fixtures: [(String, TimeInterval, TimeInterval?, [(String, BodyPart)])] = [
+            (
+                "40000000-0000-4000-8000-000000000001",
+                1_767_546_000,
+                1_767_549_600,
+                [("ベンチプレス", .chest), ("ラットプルダウン", .back)]
+            ),
+            (
+                "40000000-0000-4000-8000-000000000002",
+                1_767_459_600,
+                1_767_462_300,
+                [("スクワット", .legs)]
+            ),
+            (
+                "40000000-0000-4000-8000-000000000003",
+                1_767_373_200,
+                1_767_375_600,
+                [("ショルダープレス", .shoulders)]
+            ),
+            (
+                "40000000-0000-4000-8000-000000000004",
+                1_767_286_800,
+                1_767_288_600,
+                [("デッドリフト", .back)]
+            ),
+            (
+                "40000000-0000-4000-8000-000000000005",
+                1_767_632_400,
+                nil,
+                [("アクティブテスト種目", .fullBody)]
+            ),
+        ]
+
+        for fixture in fixtures {
+            guard let sessionID = UUID(uuidString: fixture.0) else {
+                throw FixtureError.invalidIdentifier
+            }
+            let session = WorkoutSession(
+                id: sessionID,
+                startedAt: Date(timeIntervalSince1970: fixture.1),
+                endedAt: fixture.2.map(Date.init(timeIntervalSince1970:))
+            )
+            context.insert(session)
+            for (order, exerciseFixture) in fixture.3.enumerated() {
+                let exercise = Exercise(
+                    name: exerciseFixture.0,
+                    primaryBodyPart: exerciseFixture.1
+                )
+                context.insert(exercise)
+                context.insert(
+                    ExerciseEntry(workoutSession: session, exercise: exercise, order: order)
+                )
+            }
+        }
         try context.save()
     }
 
