@@ -5,15 +5,15 @@ struct AppRootTabView: View {
 
     var body: some View {
         TabView {
-            Tab("ワークアウト", systemImage: "figure.strengthtraining.traditional") {
+            Tab("概要", systemImage: "square.grid.2x2.fill") {
                 NavigationStack {
-                    WorkoutRootView(draftStore: draftStore)
+                    OverviewView()
                 }
             }
 
-            Tab("履歴", systemImage: "clock.arrow.circlepath") {
+            Tab("ワークアウト", systemImage: "figure.strengthtraining.traditional") {
                 NavigationStack {
-                    WorkoutHistoryView()
+                    WorkoutRootView(draftStore: draftStore)
                 }
             }
         }
