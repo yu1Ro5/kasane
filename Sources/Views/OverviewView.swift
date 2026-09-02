@@ -27,9 +27,7 @@ struct OverviewView: View {
                                     $0.workoutSession?.id == session.id
                                 }
                             ) {
-                                NavigationLink {
-                                    WorkoutDetailView(session: session)
-                                } label: {
+                                NavigationLink(value: OverviewRoute.workoutDetail(session.id)) {
                                     WorkoutHistoryRow(content: content)
                                 }
                                 .accessibilityIdentifier(
@@ -38,9 +36,7 @@ struct OverviewView: View {
                             }
                         }
 
-                        NavigationLink {
-                            WorkoutHistoryView()
-                        } label: {
+                        NavigationLink(value: OverviewRoute.history) {
                             Text("すべて表示")
                         }
                     }
@@ -48,7 +44,27 @@ struct OverviewView: View {
             }
         }
         .navigationTitle("概要")
+        .navigationDestination(for: OverviewRoute.self) { route in
+            switch route {
+            case .history:
+                WorkoutHistoryView()
+            case .workoutDetail(let sessionID):
+                if let session = completedSessions.first(where: { $0.id == sessionID }) {
+                    WorkoutDetailView(session: session)
+                } else {
+                    ContentUnavailableView(
+                        "ワークアウトを表示できません",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                }
+            }
+        }
     }
+}
+
+enum OverviewRoute: Hashable {
+    case history
+    case workoutDetail(UUID)
 }
 
 #Preview {

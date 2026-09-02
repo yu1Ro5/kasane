@@ -1,6 +1,9 @@
 import XCTest
 
 final class KASANEUIScreenshotTests: XCTestCase {
+    private let historySessionID = "50000000-0000-4000-8000-000000000001"
+    private let overviewNewestSessionID = "40000000-0000-4000-8000-000000000001"
+
     // UIが安定し、最前面ウィンドウのフレームが有限かつゼロでないことを確認してから進む
     @MainActor private func waitForAppToBeStable(_ app: XCUIApplication, timeout: TimeInterval = 5.0) {
         // ウィンドウが存在するまで待機
@@ -72,9 +75,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
 
-        let recentRow = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "overview-recent-workout-row-")
-        ).firstMatch
+        let recentRow = app.buttons["overview-recent-workout-row-\(overviewNewestSessionID)"]
         XCTAssertTrue(recentRow.waitForExistence(timeout: 10))
         recentRow.tap()
         XCTAssertTrue(
@@ -219,9 +220,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         historyAttachment.lifetime = .keepAlways
         add(historyAttachment)
 
-        let historyRow = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
-        ).firstMatch
+        let historyRow = app.buttons["workout-history-row-\(historySessionID)"]
         XCTAssertTrue(historyRow.waitForExistence(timeout: 10))
         historyRow.tap()
 
@@ -249,9 +248,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let historyLink = app.buttons["すべて表示"]
         XCTAssertTrue(historyLink.waitForExistence(timeout: 10))
         historyLink.tap()
-        let historyRow = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
-        ).firstMatch
+        let historyRow = app.buttons["workout-history-row-\(historySessionID)"]
         XCTAssertTrue(historyRow.waitForExistence(timeout: 10))
         historyRow.tap()
 

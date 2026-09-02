@@ -93,7 +93,11 @@ private enum AppModelContainer {
     }
 
     private static func insertHistoryFixture(into context: ModelContext) throws {
+        guard let sessionID = UUID(uuidString: "50000000-0000-4000-8000-000000000001") else {
+            throw FixtureError.invalidIdentifier
+        }
         let session = WorkoutSession(
+            id: sessionID,
             startedAt: Date(timeIntervalSince1970: 1_767_229_200),
             endedAt: Date(timeIntervalSince1970: 1_767_232_320)
         )
