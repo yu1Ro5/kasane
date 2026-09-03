@@ -640,6 +640,116 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 1)
     }
 
+    func testWorkoutSearchReturnsNoSessionsForEmptyOrWhitespaceQuery() {
+        let session = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+        let entry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "ベンチプレス", primaryBodyPart: .chest),
+            order: 0
+        )
+
+        XCTAssertTrue(WorkoutSearch.sessions(matching: "", sessions: [session], exerciseEntries: [entry]).isEmpty)
+        XCTAssertTrue(WorkoutSearch.sessions(matching: "   ", sessions: [session], exerciseEntries: [entry]).isEmpty)
+    }
+
+    func testWorkoutSearchMatchesExerciseNameSnapshotPartially() {
+        let session = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+        let entry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "ラットプルダウン", primaryBodyPart: .back),
+            order: 0
+        )
+
+        XCTAssertEqual(
+            WorkoutSearch.sessions(matching: "プル", sessions: [session], exerciseEntries: [entry]).map(\.id),
+            [session.id]
+        )
+    }
+
+    func testWorkoutSearchExcludesActiveSession() {
+        let session = WorkoutSession()
+        let entry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "ベンチプレス", primaryBodyPart: .chest),
+            order: 0
+        )
+
+        XCTAssertTrue(
+            WorkoutSearch.sessions(matching: "プレス", sessions: [session], exerciseEntries: [entry]).isEmpty
+        )
+    }
+
+    func testWorkoutSearchDeduplicatesMatchingEntriesBySession() {
+        let session = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+        let entries = ["ベンチプレス", "ダンベルプレス"].enumerated().map { order, name in
+            ExerciseEntry(
+                workoutSession: session,
+                exercise: Exercise(name: name, primaryBodyPart: .chest),
+                order: order
+            )
+        }
+
+        let results = WorkoutSearch.sessions(
+            matching: "プレス",
+            sessions: [session],
+            exerciseEntries: entries
+        )
+
+        XCTAssertEqual(results.map(\.id), [session.id])
+    }
+
+    func testWorkoutSearchSortsCompletedSessionsByNewestEndDate() {
+        let older = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 1_000),
+            endedAt: Date(timeIntervalSince1970: 2_000)
+        )
+        let newer = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 500),
+            endedAt: Date(timeIntervalSince1970: 3_000)
+        )
+        let entries = [older, newer].map {
+            ExerciseEntry(
+                workoutSession: $0,
+                exercise: Exercise(name: "プレス", primaryBodyPart: .chest),
+                order: 0
+            )
+        }
+
+        XCTAssertEqual(
+            WorkoutSearch.sessions(
+                matching: "プレス",
+                sessions: [older, newer],
+                exerciseEntries: entries
+            ).map(\.id),
+            [newer.id, older.id]
+        )
+    }
+
+    func testWorkoutSearchReturnsNoSessionsForNonmatchingQuery() {
+        let session = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+        let entry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "ベンチプレス", primaryBodyPart: .chest),
+            order: 0
+        )
+
+        XCTAssertTrue(
+            WorkoutSearch.sessions(matching: "スクワット", sessions: [session], exerciseEntries: [entry]).isEmpty
+        )
+    }
+
+    func testWorkoutSearchUsesSnapshotAfterCurrentExerciseNameChanges() {
+        let session = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+        let exercise = Exercise(name: "ベンチプレス", primaryBodyPart: .chest)
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        exercise.name = "チェストプレス"
+
+        XCTAssertEqual(
+            WorkoutSearch.sessions(matching: "ベンチ", sessions: [session], exerciseEntries: [entry]).map(\.id),
+            [session.id]
+        )
+    }
+
     /// テスト概要: 完了Workoutの履歴行表示を生成する。
     /// 期待値: 種目はorder順のスナップショットから先頭2件と残数に要約され、所要時間と種目数が表示用文字列になる。
     func testWorkoutHistoryRowContentUsesSnapshotOrderAndSummarizesExercises() throws {

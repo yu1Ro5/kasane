@@ -91,6 +91,79 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testOverviewSearchResultsScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "overview-recent-workouts"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        let searchButton = app.buttons["検索"]
+        XCTAssertTrue(searchButton.waitForExistence(timeout: 10))
+        searchButton.tap()
+        XCTAssertTrue(app.navigationBars["検索"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-search-unsearched"].waitForExistence(
+                timeout: 10
+            )
+        )
+        XCTAssertFalse(
+            app.buttons["workout-search-result-row-\(overviewNewestSessionID)"].exists
+        )
+
+        let searchField = app.searchFields["種目名を検索"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 10))
+        searchField.tap()
+        searchField.typeText("プレス")
+
+        XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["ショルダープレス"].exists)
+        XCTAssertFalse(app.staticTexts["スクワット"].exists)
+        XCTAssertFalse(app.staticTexts["デッドリフト"].exists)
+        XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "overview-search-results"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        let resultRow = app.buttons["workout-search-result-row-\(overviewNewestSessionID)"]
+        XCTAssertTrue(resultRow.waitForExistence(timeout: 10))
+        resultRow.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
+        )
+    }
+
+    @MainActor
+    func testOverviewSearchEmptyScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "overview-recent-workouts"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        let searchButton = app.buttons["検索"]
+        XCTAssertTrue(searchButton.waitForExistence(timeout: 10))
+        searchButton.tap()
+        XCTAssertTrue(app.navigationBars["検索"].waitForExistence(timeout: 10))
+
+        let searchField = app.searchFields["種目名を検索"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 10))
+        searchField.tap()
+        searchField.typeText("存在しない種目")
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-search-empty"].waitForExistence(timeout: 10)
+        )
+        XCTAssertFalse(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
+        XCTAssertFalse(app.staticTexts["ショルダープレス"].exists)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "overview-search-empty"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     func testWorkoutRootEmptyScreenshot() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]
