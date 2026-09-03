@@ -44,10 +44,19 @@ struct OverviewView: View {
             }
         }
         .navigationTitle("概要")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink(value: OverviewRoute.search) {
+                    Label("検索", systemImage: "magnifyingglass")
+                }
+            }
+        }
         .navigationDestination(for: OverviewRoute.self) { route in
             switch route {
             case .history:
                 WorkoutHistoryView()
+            case .search:
+                WorkoutSearchView()
             case .workoutDetail(let sessionID):
                 if let session = completedSessions.first(where: { $0.id == sessionID }) {
                     WorkoutDetailView(session: session)
@@ -64,6 +73,7 @@ struct OverviewView: View {
 
 enum OverviewRoute: Hashable {
     case history
+    case search
     case workoutDetail(UUID)
 }
 
