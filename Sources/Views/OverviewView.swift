@@ -42,8 +42,6 @@ struct OverviewView: View {
                         }
                     } header: {
                         Text("今月よく行う種目")
-                    } footer: {
-                        Text("実施したワークアウト数")
                     }
                 }
 
