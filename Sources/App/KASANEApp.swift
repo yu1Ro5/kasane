@@ -13,7 +13,7 @@ struct KASANEApp: App {
         WindowGroup {
             switch container {
             case .success(let container):
-                AppRootTabView()
+                AppRootTabView(referenceDate: AppModelContainer.referenceDate())
                     .modelContainer(container)
             case .failure(let error):
                 ContentUnavailableView(
@@ -50,6 +50,8 @@ private enum AppModelContainer {
             try insertHistoryFixture(into: container.mainContext)
         } else if fixtureName(in: arguments) == "overview-recent-workouts" {
             try insertOverviewRecentWorkoutsFixture(into: container.mainContext)
+        } else if fixtureName(in: arguments) == "overview-previous-month" {
+            try insertOverviewPreviousMonthFixture(into: container.mainContext)
         }
         return container
     }
@@ -59,6 +61,11 @@ private enum AppModelContainer {
         let valueIndex = arguments.index(after: optionIndex)
         guard valueIndex < arguments.endIndex else { return nil }
         return arguments[valueIndex]
+    }
+
+    static func referenceDate(arguments: [String] = ProcessInfo.processInfo.arguments) -> Date? {
+        guard arguments.contains("--ui-testing") else { return nil }
+        return Date(timeIntervalSince1970: 1_788_656_400)
     }
 
     private static func insertWorkoutSetLayoutFixture(into context: ModelContext) throws {
@@ -206,31 +213,31 @@ private enum AppModelContainer {
         let fixtures: [(String, TimeInterval, TimeInterval?, [(String, BodyPart)])] = [
             (
                 "40000000-0000-4000-8000-000000000001",
-                1_767_546_000,
-                1_767_549_600,
+                1_788_570_000,
+                1_788_573_600,
                 [("ベンチプレス", .chest), ("ラットプルダウン", .back)]
             ),
             (
                 "40000000-0000-4000-8000-000000000002",
-                1_767_459_600,
-                1_767_462_300,
+                1_788_397_200,
+                1_788_399_900,
                 [("スクワット", .legs)]
             ),
             (
                 "40000000-0000-4000-8000-000000000003",
-                1_767_373_200,
-                1_767_375_600,
+                1_788_224_400,
+                1_788_226_800,
                 [("ショルダープレス", .shoulders)]
             ),
             (
                 "40000000-0000-4000-8000-000000000004",
-                1_767_286_800,
-                1_767_288_600,
+                1_787_878_800,
+                1_787_880_600,
                 [("デッドリフト", .back)]
             ),
             (
                 "40000000-0000-4000-8000-000000000005",
-                1_767_632_400,
+                1_788_656_400,
                 nil,
                 [("アクティブテスト種目", .fullBody)]
             ),
@@ -257,6 +264,18 @@ private enum AppModelContainer {
                 )
             }
         }
+        try context.save()
+    }
+
+    private static func insertOverviewPreviousMonthFixture(into context: ModelContext) throws {
+        let session = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 1_787_878_800),
+            endedAt: Date(timeIntervalSince1970: 1_787_880_600)
+        )
+        let exercise = Exercise(name: "デッドリフト", primaryBodyPart: .back)
+        context.insert(session)
+        context.insert(exercise)
+        context.insert(ExerciseEntry(workoutSession: session, exercise: exercise, order: 0))
         try context.save()
     }
 

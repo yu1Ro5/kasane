@@ -87,6 +87,9 @@ jobs:
             -scheme KASANEScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testEmptyScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewPreviousMonthScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewDarkModeScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewDynamicTypeScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutInteractionScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDynamicTypeScreenshot \
@@ -126,6 +129,9 @@ jobs:
           scenarios = [
               ("overview-empty", "Overview — Empty"),
               ("overview-recent-workouts", "Overview — Recent Workouts"),
+              ("overview-previous-month", "Overview — Previous Month"),
+              ("overview-dark-mode", "Overview — Dark Mode"),
+              ("overview-dynamic-type", "Overview — Dynamic Type"),
               ("overview-search-results", "Overview — Search Results"),
               ("overview-search-empty", "Overview — Search Empty"),
               ("workout-root-empty", "Workout — Empty"),
