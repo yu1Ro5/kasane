@@ -245,7 +245,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
         XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
         weightInput.tap()
-        weightInput.typeText("12.345")
+        weightInput.typeText("12.34")
         app.buttons["次へ"].tap()
         app.buttons["完了"].tap()
 
@@ -261,10 +261,15 @@ final class KASANEUIScreenshotTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
 
-        weightInput.tap()
-        weightInput.typeKey("a", modifierFlags: .command)
-        weightInput.typeKey(.delete, modifierFlags: [])
-        app.buttons["次へ"].tap()
+        let repsInput = app.textFields["draft-reps-input-\(workoutSeatedRowEntryID)"]
+        XCTAssertTrue(repsInput.waitForExistence(timeout: 5))
+        
+        // 追加: まずタップしてフォーカス＆キーボードを出す
+        repsInput.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        
+        // その後に typeText
+        repsInput.typeText("1")
         app.buttons["完了"].tap()
         XCTAssertTrue(
             app.staticTexts["draft-validation-message"].waitForNonExistence(timeout: 5)
