@@ -43,6 +43,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
         XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
+        XCTAssertTrue(app.staticTexts["今月のトレーニング"].exists)
+        XCTAssertTrue(app.staticTexts["最初の記録から、少しずつ。"].exists)
         XCTAssertTrue(app.staticTexts["ワークアウトがありません"].exists)
         XCTAssertTrue(app.staticTexts["完了したワークアウトがここに表示されます。"].exists)
         XCTAssertFalse(app.buttons["履歴"].exists)
@@ -73,13 +75,16 @@ final class KASANEUIScreenshotTests: XCTestCase {
         waitForAppToBeStable(app)
 
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["overview-workout-count"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
+        XCTAssertTrue(app.staticTexts["overview-active-days"].exists)
+        XCTAssertTrue(app.staticTexts["今月よく行う種目"].exists)
         XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
         XCTAssertTrue(app.staticTexts["スクワット"].exists)
         XCTAssertTrue(app.staticTexts["ショルダープレス"].exists)
         XCTAssertFalse(app.staticTexts["デッドリフト"].exists)
         XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
-        XCTAssertTrue(app.buttons["すべて表示"].exists)
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
         XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
 
@@ -96,6 +101,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         )
 
         app.navigationBars["ワークアウト詳細"].buttons["概要"].tap()
+        app.swipeUp()
         XCTAssertTrue(app.buttons["すべて表示"].waitForExistence(timeout: 10))
         app.buttons["すべて表示"].tap()
         XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
@@ -149,6 +155,67 @@ final class KASANEUIScreenshotTests: XCTestCase {
         searchEmptyAttachment.name = "overview-search-empty"
         searchEmptyAttachment.lifetime = .keepAlways
         add(searchEmptyAttachment)
+    }
+
+    @MainActor
+    func testOverviewPreviousMonthScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "overview-previous-month"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        XCTAssertTrue(app.staticTexts["今月の記録はまだありません"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
+        XCTAssertTrue(app.staticTexts["デッドリフト"].exists)
+        XCTAssertFalse(app.staticTexts["今月よく行う種目"].exists)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "overview-previous-month"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testOverviewDarkModeScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing", "--fixture", "overview-recent-workouts",
+            "-AppleInterfaceStyle", "Dark",
+        ]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10)
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
+        XCTAssertTrue(app.staticTexts["今月よく行う種目"].exists)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "overview-dark-mode"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testOverviewDynamicTypeScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing", "--fixture", "overview-recent-workouts",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityLarge",
+        ]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10)
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "overview-dynamic-type"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     @MainActor
@@ -263,11 +330,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         let repsInput = app.textFields["draft-reps-input-\(workoutSeatedRowEntryID)"]
         XCTAssertTrue(repsInput.waitForExistence(timeout: 5))
-        
+
         // 追加: まずタップしてフォーカス＆キーボードを出す
         repsInput.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        
+
         // その後に typeText
         repsInput.typeText("1")
         app.buttons["完了"].tap()

@@ -2,12 +2,14 @@ import SwiftUI
 
 struct AppRootTabView: View {
     @State private var draftStore = WorkoutDraftStore()
+    /// UI ScreenshotでOverviewの対象月を固定するための基準日時。
+    var referenceDate: Date? = nil
 
     var body: some View {
         TabView {
             Tab("概要", systemImage: "square.grid.2x2.fill") {
                 NavigationStack {
-                    OverviewView()
+                    OverviewView(referenceDate: referenceDate)
                 }
             }
 

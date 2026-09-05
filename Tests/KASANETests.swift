@@ -798,6 +798,185 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(content.exerciseCountText, "0種目")
     }
 
+    /// テスト概要: 当月の完了済みWorkoutと種目頻度を集計する。
+    /// 期待値: 進行中を除外し、時間と活動日を合計し、同一Workout内の同一種目を1回と数える。
+    func testOverviewStatsAggregatesCompletedWorkoutsAndDeduplicatesExercises() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 15)))
+        let firstStart = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 9, day: 3, hour: 10))
+        )
+        let secondStart = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 9, day: 3, hour: 18))
+        )
+        let activeStart = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 9, day: 4, hour: 10))
+        )
+        let exercise = Exercise(name: "スクワット", primaryBodyPart: .legs)
+        let first = WorkoutSession(
+            startedAt: firstStart,
+            endedAt: firstStart.addingTimeInterval(3_600)
+        )
+        let second = WorkoutSession(
+            startedAt: secondStart,
+            endedAt: secondStart.addingTimeInterval(1_800)
+        )
+        let active = WorkoutSession(startedAt: activeStart)
+        let entries = [
+            ExerciseEntry(workoutSession: first, exercise: exercise, order: 0),
+            ExerciseEntry(workoutSession: first, exercise: exercise, order: 1),
+            ExerciseEntry(workoutSession: second, exercise: exercise, order: 0),
+            ExerciseEntry(workoutSession: active, exercise: exercise, order: 0),
+        ]
+
+        let stats = OverviewStats(
+            sessions: [first, second, active],
+            entries: entries,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(stats.workoutCount, 2)
+        XCTAssertEqual(stats.duration, 5_400)
+        XCTAssertEqual(stats.durationText, "1時間30分")
+        XCTAssertEqual(stats.activeDayCount, 1)
+        XCTAssertEqual(stats.frequentExercises.map(\.name), ["スクワット"])
+        XCTAssertEqual(stats.frequentExercises.map(\.workoutCount), [2])
+    }
+
+    /// テスト概要: 月初と翌月初の期間境界を集計する。
+    /// 期待値: 月初は含み、翌月初と前月の記録は含まない。
+    func testOverviewStatsUsesStartInclusiveAndEndExclusiveMonthBoundary() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 9 * 3_600))
+        let monthStart = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 9, day: 1))
+        )
+        let nextMonth = try XCTUnwrap(calendar.date(byAdding: .month, value: 1, to: monthStart))
+        let previous = WorkoutSession(
+            startedAt: monthStart.addingTimeInterval(-1),
+            endedAt: monthStart.addingTimeInterval(100)
+        )
+        let included = WorkoutSession(
+            startedAt: monthStart,
+            endedAt: monthStart.addingTimeInterval(600)
+        )
+        let excluded = WorkoutSession(
+            startedAt: nextMonth,
+            endedAt: nextMonth.addingTimeInterval(600)
+        )
+
+        let stats = OverviewStats(
+            sessions: [previous, included, excluded],
+            entries: [],
+            now: monthStart,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(stats.workoutCount, 1)
+        XCTAssertEqual(stats.duration, 600)
+    }
+
+    /// テスト概要: 完了履歴はあるが当月0件の状態を集計する。
+    /// 期待値: 当月値は安全な0となり、履歴が存在することは保持する。
+    func testOverviewStatsHandlesMonthWithNoWorkouts() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 15)))
+        let previousStart = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 8, day: 31, hour: 10))
+        )
+        let previous = WorkoutSession(
+            startedAt: previousStart,
+            endedAt: previousStart.addingTimeInterval(600)
+        )
+
+        let stats = OverviewStats(
+            sessions: [previous],
+            entries: [],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(stats.hasCompletedWorkouts)
+        XCTAssertEqual(stats.workoutCount, 0)
+        XCTAssertEqual(stats.duration, 0)
+        XCTAssertEqual(stats.activeDayCount, 0)
+        XCTAssertTrue(stats.frequentExercises.isEmpty)
+    }
+
+    /// テスト概要: 種目との参照を失った当月Workoutを集計する。
+    /// 期待値: 回数と時間は維持し、不完全な種目を頻度表示へ含めない。
+    func testOverviewStatsKeepsSummaryWhenExerciseRelationshipIsMissing() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let start = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 9, day: 10))
+        )
+        let session = WorkoutSession(startedAt: start, endedAt: start.addingTimeInterval(600))
+        let entry = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "参照なし", primaryBodyPart: .other),
+            order: 0
+        )
+        entry.exercise = nil
+
+        let stats = OverviewStats(
+            sessions: [session],
+            entries: [entry],
+            now: start,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(stats.workoutCount, 1)
+        XCTAssertEqual(stats.duration, 600)
+        XCTAssertTrue(stats.frequentExercises.isEmpty)
+    }
+
+    /// テスト概要: 同数の最多実施種目を集計する。
+    /// 期待値: 名称順、Exercise ID順で安定し、最大3件だけを返す。
+    func testOverviewStatsUsesStableExerciseFrequencyTieBreak() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let start = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 9, day: 10))
+        )
+        let session = WorkoutSession(startedAt: start, endedAt: start.addingTimeInterval(600))
+        let namesAndIDs = [
+            ("ベンチプレス", "10000000-0000-4000-8000-000000000002"),
+            ("スクワット", "10000000-0000-4000-8000-000000000004"),
+            ("デッドリフト", "10000000-0000-4000-8000-000000000003"),
+            ("スクワット", "10000000-0000-4000-8000-000000000001"),
+        ]
+        let entries = try namesAndIDs.enumerated().map { order, item in
+            ExerciseEntry(
+                workoutSession: session,
+                exercise: Exercise(
+                    id: try XCTUnwrap(UUID(uuidString: item.1)),
+                    name: item.0,
+                    primaryBodyPart: .fullBody
+                ),
+                order: order
+            )
+        }
+
+        let stats = OverviewStats(
+            sessions: [session],
+            entries: entries,
+            now: start,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(
+            stats.frequentExercises.map(\.id.uuidString),
+            [
+                "10000000-0000-4000-8000-000000000001",
+                "10000000-0000-4000-8000-000000000004",
+                "10000000-0000-4000-8000-000000000003",
+            ])
+    }
+
     /// テスト概要: 完了Workoutの詳細表示内容を順不同の種目・セットから生成する。
     /// 期待値: 種目とセットがorder順になり、変更前の種目名スナップショットと期間が使われる。
     func testWorkoutDetailContentUsesDurationSnapshotAndEntryOrder() throws {

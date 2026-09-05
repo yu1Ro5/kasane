@@ -32,15 +32,15 @@
 | HIS-02 | ワークアウト詳細 | 種目・セットを含む過去Workoutを見る | Implemented |
 | HIS-03A | 過去記録編集 | 過去Workoutの種目・セット記録を修正する | Implemented |
 | HIS-03B | 過去Workout削除 | 過去Workout全体を削除する | Candidate |
-| HIS-04 | 前回記録表示 | 同じ種目の直近重量・回数を表示する | Candidate |
-| STA-01 | トレーニング回数集計 | 月間・年間のWorkout回数を算出する | Candidate |
-| STA-02 | トレーニング時間集計 | Workout時間を集計する | Candidate |
+| HIS-04 | 前回記録表示 | 同じ種目の直近重量・回数を表示する | Implemented |
+| STA-01 | 月間トレーニング回数 | 当月のWorkout回数を算出する | Implemented |
+| STA-02 | 月間トレーニング時間 | 当月のWorkout時間を集計する | Implemented |
 | STA-03 | 総挙上重量集計 | 重量×回数の合計を算出する | Candidate |
-| STA-04 | 最多実施種目 | 最も多く行った種目を算出する | Candidate |
+| STA-04 | 月間最多実施種目 | 当月に実施したWorkout数が多い種目を算出する | Implemented |
 | STA-05 | 部位別集計 | 部位ごとの実績を集計する | Candidate |
 | STA-06 | 自己ベスト判定 | 最大重量等のPRを検出する | Candidate |
 | STA-07 | 種目別成長 | 過去記録との比較から成長を算出する | Candidate |
-| STA-08 | 継続・活動日数 | Workout実施日から継続状況を算出する | Candidate |
+| STA-08 | 月間活動日数 | 当月のWorkout実施日の重複を除いて算出する | Implemented |
 | RPL-01 | 月間サマリー | 月単位の振り返りを生成する | Candidate |
 | RPL-02 | 年間Replay | 1年間のトレーニングを振り返る | Candidate |
 | RPL-03 | シェアカード | Stats / Replayを共有用に表示する | Candidate |
