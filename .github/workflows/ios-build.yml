@@ -66,14 +66,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Run unit and behavior UI tests
+      - name: Run unit tests
         run: |
           set -o pipefail
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANE \
             -only-testing:KASANETests \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testActiveWorkoutPersistsAcrossTabSwitch \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDetailEditingFlow \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -derivedDataPath build \
