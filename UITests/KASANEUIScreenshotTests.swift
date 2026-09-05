@@ -464,6 +464,89 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["終了"].exists)
     }
+
+    @MainActor
+    func testWorkoutDetailEditingFlow() throws {
+        let historyEditExerciseID = "30000000-0000-4000-8000-000000000001"
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "workout-history"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        let historyLink = app.buttons["すべて表示"]
+        XCTAssertTrue(historyLink.waitForExistence(timeout: 10))
+        historyLink.tap()
+        let historyRow = app.buttons["workout-history-row-\(historySessionID)"]
+        XCTAssertTrue(historyRow.waitForExistence(timeout: 10))
+        historyRow.tap()
+
+        let editButton = app.buttons["編集"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 10))
+        editButton.tap()
+
+        let editView = app.descendants(matching: .any)["workout-detail-edit-mode"]
+        XCTAssertTrue(editView.waitForExistence(timeout: 10))
+        app.buttons["種目を追加"].tap()
+        let searchField = app.searchFields["種目名を検索"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("履歴編集テスト種目")
+        let addedExerciseButton = app.buttons["履歴編集テスト種目"]
+        XCTAssertTrue(addedExerciseButton.waitForExistence(timeout: 5))
+        addedExerciseButton.tap()
+
+        app.buttons["キャンセル"].tap()
+        XCTAssertTrue(app.staticTexts["保存していない変更は失われます。"].waitForExistence(timeout: 5))
+        app.buttons["破棄する"].tap()
+
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5))
+        editButton.tap()
+        app.buttons["種目を追加"].tap()
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("履歴編集テスト種目")
+        XCTAssertTrue(addedExerciseButton.waitForExistence(timeout: 5))
+        addedExerciseButton.tap()
+
+        editView.swipeUp()
+        editView.swipeUp()
+        editView.swipeUp()
+        let addSetButton = app.buttons["history-edit-add-set-\(historyEditExerciseID)"]
+        XCTAssertTrue(addSetButton.waitForExistence(timeout: 5))
+        addSetButton.tap()
+        let addedWeightInput = app.textFields.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "history-edit-weight-input-\(historyEditExerciseID)-"
+            )
+        ).firstMatch
+        let addedRepsInput = app.textFields.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "history-edit-reps-input-\(historyEditExerciseID)-"
+            )
+        ).firstMatch
+        XCTAssertTrue(addedWeightInput.waitForExistence(timeout: 5))
+        addedWeightInput.tap()
+        addedWeightInput.typeText("100")
+        addedRepsInput.tap()
+        addedRepsInput.typeText("5")
+        app.buttons["完了"].tap()
+        app.buttons["保存"].tap()
+
+        let detailView = app.descendants(matching: .any)["workout-detail-view"]
+        XCTAssertTrue(detailView.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["編集"].exists)
+        detailView.swipeUp()
+        detailView.swipeUp()
+        detailView.swipeUp()
+        XCTAssertTrue(app.staticTexts["履歴編集テスト種目"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["100.00 kg"].exists)
+
+        app.navigationBars["ワークアウト詳細"].buttons["履歴"].tap()
+        XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン、ほか2種目"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["52分・4種目"].exists)
+    }
 }
 
 extension CGRect {

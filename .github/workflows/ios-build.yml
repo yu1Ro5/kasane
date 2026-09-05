@@ -73,6 +73,7 @@ jobs:
             -scheme KASANE \
             -only-testing:KASANETests \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testActiveWorkoutPersistsAcrossTabSwitch \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDetailEditingFlow \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -derivedDataPath build \

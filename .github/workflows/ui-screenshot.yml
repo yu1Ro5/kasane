@@ -15,23 +15,6 @@ jobs:
   capture-screenshot:
     runs-on: macos-26
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix:
-        include:
-          - group: overview-history
-            test-selectors: >-
-              -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewEmptyScreenshot
-              -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewRecentWorkoutsScreenshot
-              -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots
-            scenarios: overview-empty,overview-recent-workouts,workout-history,workout-detail,workout-detail-edit-mode
-          - group: workout
-            test-selectors: >-
-              -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutRootEmptyScreenshot
-              -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutScreenshots
-              -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutCompletedScreenshot
-            scenarios: workout-root-empty,workout-root-active,workout-weight-input,exercise-picker,workout-cancel-confirmation,workout-completed
 
     steps:
       - name: Checkout pull request
@@ -98,14 +81,16 @@ jobs:
 
       - name: Run UI screenshot tests
         shell: bash
-        env:
-          TEST_SELECTORS: ${{ matrix.test-selectors }}
         run: |
           set -euo pipefail
-          read -r -a selectors <<< "$TEST_SELECTORS"
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANEScreenshot \
-            "${selectors[@]}" \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewEmptyScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewRecentWorkoutsScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutRootEmptyScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutCompletedScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -derivedDataPath build \
@@ -115,16 +100,18 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             test
 
-      - name: Extract screenshots
+      - name: Extract screenshot and metadata
         shell: bash
         env:
-          SCENARIOS: ${{ matrix.scenarios }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           SIMULATOR_NAME: ${{ steps.simulator.outputs.name }}
         run: |
           set -euo pipefail
           artifact_dir="$RUNNER_TEMP/ui-screenshot-artifact"
           export_dir="$RUNNER_TEMP/ui-screenshot-attachments"
-          mkdir -p "$artifact_dir" "$export_dir"
+          mkdir -p "$artifact_dir"
+          mkdir -p "$export_dir"
           xcrun xcresulttool export attachments \
             --path "$RUNNER_TEMP/ui-screenshots.xcresult" \
             --output-path "$export_dir"
@@ -136,15 +123,28 @@ jobs:
 
           runner_temp = Path(os.environ["RUNNER_TEMP"])
           export_dir = runner_temp / "ui-screenshot-attachments"
+          scenarios = [
+              ("overview-empty", "Overview — Empty"),
+              ("overview-recent-workouts", "Overview — Recent Workouts"),
+              ("workout-root-empty", "Workout — Empty"),
+              ("workout-root-active", "Workout — Active"),
+              ("workout-weight-input", "Workout — Weight Input"),
+              ("exercise-picker", "Workout — Exercise Picker"),
+              ("workout-cancel-confirmation", "Workout — Cancel Confirmation"),
+              ("workout-history", "Workout — History"),
+              ("workout-detail", "Workout — Detail"),
+              ("workout-detail-edit-mode", "Workout — Detail Edit Mode"),
+              ("workout-completed", "Workout — Completed"),
+          ]
           artifact_dir = runner_temp / "ui-screenshot-artifact"
-          scenarios = os.environ["SCENARIOS"].split(",")
           manifest = json.loads((export_dir / "manifest.json").read_text())
           attachments = [
               attachment
               for test in manifest
               for attachment in test.get("attachments", [])
           ]
-          for result_name in scenarios:
+          metadata_screenshots = []
+          for result_name, display_name in scenarios:
               matches = [
                   attachment
                   for attachment in attachments
@@ -163,89 +163,28 @@ jobs:
               source = (export_dir / exported_file).resolve()
               if source.parent != export_dir.resolve() or not source.is_file():
                   raise SystemExit(f"Exported attachment is missing for {result_name}.")
-              shutil.copyfile(source, artifact_dir / f"{result_name}.png")
+              filename = f"{result_name}.png"
+              shutil.copyfile(source, artifact_dir / filename)
+              metadata_screenshots.append({"name": display_name, "file": filename})
 
-          (artifact_dir / f"simulator-{os.environ['SIMULATOR_NAME']}.txt").touch()
+          metadata = {
+              "pr_number": int(os.environ["PR_NUMBER"]),
+              "head_sha": os.environ["HEAD_SHA"],
+              "simulator": os.environ["SIMULATOR_NAME"],
+              "ios": "26.x",
+              "screenshots": metadata_screenshots,
+          }
+          path = artifact_dir / "metadata.json"
+          path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
           PY
 
       - name: Upload xcresult
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: ui-screenshot-xcresult-${{ matrix.group }}
+          name: ui-screenshot-xcresult
           path: ${{ runner.temp }}/*.xcresult
           retention-days: 7
-
-      - name: Upload screenshot group
-        uses: actions/upload-artifact@v6
-        with:
-          name: ui-screenshot-${{ matrix.group }}
-          path: ${{ runner.temp }}/ui-screenshot-artifact
-          if-no-files-found: error
-          retention-days: 1
-
-  consolidate-screenshots:
-    needs: capture-screenshot
-    runs-on: macos-26
-    timeout-minutes: 10
-    steps:
-      - name: Download screenshot groups
-        uses: actions/download-artifact@v6
-        with:
-          pattern: ui-screenshot-*
-          path: ${{ runner.temp }}/ui-screenshot-artifact
-          merge-multiple: true
-
-      - name: Validate and create metadata
-        shell: bash
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          artifact_dir = Path(os.environ["RUNNER_TEMP"]) / "ui-screenshot-artifact"
-          scenarios = [
-              ("overview-empty", "Overview — Empty"),
-              ("overview-recent-workouts", "Overview — Recent Workouts"),
-              ("workout-root-empty", "Workout — Empty"),
-              ("workout-root-active", "Workout — Active"),
-              ("workout-weight-input", "Workout — Weight Input"),
-              ("exercise-picker", "Workout — Exercise Picker"),
-              ("workout-cancel-confirmation", "Workout — Cancel Confirmation"),
-              ("workout-history", "Workout — History"),
-              ("workout-detail", "Workout — Detail"),
-              ("workout-detail-edit-mode", "Workout — Detail Edit Mode"),
-              ("workout-completed", "Workout — Completed"),
-          ]
-          expected = {f"{name}.png" for name, _ in scenarios}
-          actual = {path.name for path in artifact_dir.glob("*.png")}
-          if actual != expected:
-              raise SystemExit(f"Screenshot set mismatch: expected {expected}, found {actual}")
-          simulator_files = list(artifact_dir.glob("simulator-*.txt"))
-          if not simulator_files:
-              raise SystemExit("Simulator metadata is missing")
-          simulators = sorted({path.stem.removeprefix("simulator-") for path in simulator_files})
-          for path in simulator_files:
-              path.unlink()
-          metadata = {
-              "pr_number": int(os.environ["PR_NUMBER"]),
-              "head_sha": os.environ["HEAD_SHA"],
-              "simulator": ", ".join(simulators),
-              "ios": "26.x",
-              "screenshots": [
-                  {"name": display_name, "file": f"{result_name}.png"}
-                  for result_name, display_name in scenarios
-              ],
-          }
-          (artifact_dir / "metadata.json").write_text(
-              json.dumps(metadata, ensure_ascii=False, indent=2) + "\n"
-          )
-          PY
 
       - name: Upload UI screenshot
         uses: actions/upload-artifact@v6
