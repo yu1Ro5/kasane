@@ -59,6 +59,7 @@ struct WorkoutSessionView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("終了", systemImage: "checkmark") { requestFinish() }
+                    .buttonStyle(.borderedProminent)
                     .disabled(isFinishing)
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -75,8 +76,9 @@ struct WorkoutSessionView: View {
                 Spacer()
                 if focusedInput?.nextInput != nil {
                     Button("次へ") { focusedInput = focusedInput?.nextInput }
+                } else {
+                    Button("完了") { focusedInput = nil }
                 }
-                Button("完了") { focusedInput = nil }
             }
         }
         .navigationDestination(item: $completionSummary) { summary in
@@ -270,29 +272,47 @@ private struct WorkoutExerciseSection: View {
             }
             WorkoutSetColumns {
                 Text(WorkoutSetDisplayFormatter.setNumber((setEntries.map(\.order).max() ?? -1) + 2))
+                    .accessibilityLabel("セット \((setEntries.map(\.order).max() ?? -1) + 2)")
             } weight: {
                 HStack(spacing: 4) {
                     TextField("重量", text: $draft.weight, prompt: Text("0"))
                         .multilineTextAlignment(.trailing)
                         .monospacedDigit()
-                        .accessibilityIdentifier("draft-weight-input")
+                        .accessibilityIdentifier("draft-weight-input-\(entry.id.uuidString)")
+                        .accessibilityLabel("\(entry.exerciseNameSnapshot)、次のセットの重量、kg")
                         .keyboardType(.decimalPad)
                         .focused(focusedInput, equals: .draftWeight(exerciseID: entry.id))
                         .submitLabel(.next)
                         .onSubmit { focusedInput.wrappedValue = .draftReps(exerciseID: entry.id) }
                     Text("kg")
                         .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                 }
             } reps: {
                 TextField("回数", text: $draft.reps, prompt: Text("0"))
                     .multilineTextAlignment(.trailing)
                     .monospacedDigit()
-                    .accessibilityIdentifier("draft-reps-input")
+                    .accessibilityIdentifier("draft-reps-input-\(entry.id.uuidString)")
+                    .accessibilityLabel("\(entry.exerciseNameSnapshot)、次のセットの回数")
                     .keyboardType(.numberPad)
                     .focused(focusedInput, equals: .draftReps(exerciseID: entry.id))
             }
+            .textFieldStyle(.roundedBorder)
+
+            if showsDraftValidation {
+                Label(
+                    "重量は0以上（小数点以下2桁まで）、回数は1以上で入力してください。",
+                    systemImage: "exclamationmark.circle"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("draft-validation-message")
+            }
+
             Button("セットを追加", systemImage: "plus") { addSet() }
+                .accessibilityIdentifier("add-set-button-\(entry.id.uuidString)")
                 .disabled(draft.values() == nil || isSaving)
+                .accessibilityHint("入力した重量と回数を保存します")
         } header: {
             HStack {
                 Text(entry.exerciseNameSnapshot)
@@ -306,6 +326,8 @@ private struct WorkoutExerciseSection: View {
                 }
                 .accessibilityLabel("\(entry.exerciseNameSnapshot)の操作")
             }
+            .font(.headline)
+            .textCase(nil)
         }
         .alert("セットを保存できませんでした", isPresented: errorIsPresented) {
             Button("OK", role: .cancel) {}
@@ -316,6 +338,10 @@ private struct WorkoutExerciseSection: View {
 
     private var errorIsPresented: Binding<Bool> {
         Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
+    }
+
+    private var showsDraftValidation: Bool {
+        !draft.isEmpty && draft.values() == nil
     }
 
     private func addSet() {
@@ -344,6 +370,7 @@ private struct WorkoutSetRow: View {
     var body: some View {
         WorkoutSetColumns {
             Text(WorkoutSetDisplayFormatter.setNumber(setEntry.order + 1))
+                .accessibilityLabel("セット \(setEntry.order + 1)")
         } weight: {
             if focusedInput.wrappedValue == savedWeightFocus {
                 HStack(spacing: 4) {
@@ -351,28 +378,41 @@ private struct WorkoutSetRow: View {
                         .multilineTextAlignment(.trailing)
                         .monospacedDigit()
                         .keyboardType(.decimalPad)
+                        .accessibilityLabel("セット \(setEntry.order + 1)の重量、kg")
                         .focused(focusedInput, equals: savedWeightFocus)
                     Text("kg")
                         .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                 }
             } else {
                 WorkoutWeightText(weightKg: displayedWeight)
                     .contentShape(Rectangle())
                     .onTapGesture { focusedInput.wrappedValue = savedWeightFocus }
-                    .accessibilityLabel("重量、\(WorkoutSetDisplayFormatter.displayWeight(displayedWeight))")
+                    .accessibilityLabel(
+                        "重量、\(WorkoutSetDisplayFormatter.displayWeight(displayedWeight))"
+                    )
                     .accessibilityHint("ダブルタップして編集")
                     .accessibilityAddTraits(.isButton)
             }
         } reps: {
-            TextField("回数", text: $editDraft.reps, prompt: Text("0"))
-                .multilineTextAlignment(.trailing)
-                .monospacedDigit()
-                .keyboardType(.numberPad)
-                .focused(
-                    focusedInput,
-                    equals: .savedReps(exerciseID: exerciseEntry.id, setID: setEntry.id)
-                )
+            if focusedInput.wrappedValue == savedRepsFocus {
+                TextField("回数", text: $editDraft.reps, prompt: Text("0"))
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .keyboardType(.numberPad)
+                    .accessibilityLabel("セット \(setEntry.order + 1)の回数")
+                    .focused(focusedInput, equals: savedRepsFocus)
+            } else {
+                Text(displayedReps, format: .number)
+                    .monospacedDigit()
+                    .contentShape(Rectangle())
+                    .onTapGesture { focusedInput.wrappedValue = savedRepsFocus }
+                    .accessibilityLabel("回数、\(displayedReps)")
+                    .accessibilityHint("ダブルタップして編集")
+                    .accessibilityAddTraits(.isButton)
+            }
         }
+        .textFieldStyle(.roundedBorder)
         .onChange(of: focusedInput.wrappedValue) { oldValue, newValue in
             let rowIdentity = WorkoutInputFocus.SavedSetIdentity(
                 exerciseID: exerciseEntry.id,
@@ -396,8 +436,16 @@ private struct WorkoutSetRow: View {
         .savedWeight(exerciseID: exerciseEntry.id, setID: setEntry.id)
     }
 
+    private var savedRepsFocus: WorkoutInputFocus {
+        .savedReps(exerciseID: exerciseEntry.id, setID: setEntry.id)
+    }
+
     private var displayedWeight: Double {
         editDraft.values()?.weight ?? setEntry.weightKg
+    }
+
+    private var displayedReps: Int {
+        editDraft.values()?.reps ?? setEntry.reps
     }
 
     private var errorIsPresented: Binding<Bool> {
@@ -452,7 +500,13 @@ enum WorkoutInputFocus: Hashable {
     }
 
     var nextInput: WorkoutInputFocus? {
-        guard case .draftWeight(let exerciseID) = self else { return nil }
-        return .draftReps(exerciseID: exerciseID)
+        switch self {
+        case .draftWeight(let exerciseID):
+            .draftReps(exerciseID: exerciseID)
+        case .savedWeight(let exerciseID, let setID):
+            .savedReps(exerciseID: exerciseID, setID: setID)
+        case .draftReps, .savedReps:
+            nil
+        }
     }
 }

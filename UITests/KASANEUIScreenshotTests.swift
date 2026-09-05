@@ -3,6 +3,7 @@ import XCTest
 final class KASANEUIScreenshotTests: XCTestCase {
     private let historySessionID = "50000000-0000-4000-8000-000000000001"
     private let overviewNewestSessionID = "40000000-0000-4000-8000-000000000001"
+    private let workoutSeatedRowEntryID = "21000000-0000-4000-8000-000000000001"
 
     // UIが安定し、最前面ウィンドウのフレームが有限かつゼロでないことを確認してから進む
     @MainActor private func waitForAppToBeStable(_ app: XCUIApplication, timeout: TimeInterval = 5.0) {
@@ -201,12 +202,26 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         resumeButton.tap()
 
-        let weightInput = app.textFields.matching(identifier: "draft-weight-input").firstMatch
+        let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
         XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
+
+        let sessionAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        sessionAttachment.name = "workout-session-active"
+        sessionAttachment.lifetime = .keepAlways
+        add(sessionAttachment)
+
         weightInput.tap()
+        weightInput.typeText("47.5")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 1)
+        XCTAssertEqual(app.buttons.matching(identifier: "完了").count, 0)
+
+        app.buttons["次へ"].tap()
+        XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 0)
         XCTAssertEqual(app.buttons.matching(identifier: "完了").count, 1)
+        let repsInput = app.textFields["draft-reps-input-\(workoutSeatedRowEntryID)"]
+        XCTAssertTrue(repsInput.waitForExistence(timeout: 5))
+        repsInput.typeText("8")
 
         let weightInputAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         weightInputAttachment.name = "workout-weight-input"
@@ -247,6 +262,59 @@ final class KASANEUIScreenshotTests: XCTestCase {
         cancelConfirmationAttachment.name = "workout-cancel-confirmation"
         cancelConfirmationAttachment.lifetime = .keepAlways
         add(cancelConfirmationAttachment)
+    }
+
+    @MainActor
+    func testWorkoutValidationScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["workout-resume-button"].tap()
+
+        let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
+        XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
+        weightInput.tap()
+        weightInput.typeText("12.345")
+        app.buttons["次へ"].tap()
+        app.buttons["完了"].tap()
+
+        XCTAssertTrue(
+            app.staticTexts["draft-validation-message"].waitForExistence(timeout: 5)
+        )
+        let addSetButton = app.buttons["add-set-button-\(workoutSeatedRowEntryID)"]
+        XCTAssertTrue(addSetButton.exists)
+        XCTAssertFalse(addSetButton.isEnabled)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "workout-validation-error"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testWorkoutDynamicTypeScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing", "--fixture", "workout-set-layout",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityLarge",
+        ]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["workout-resume-button"].tap()
+        XCTAssertTrue(
+            app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
+                .waitForExistence(timeout: 10)
+        )
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "workout-dynamic-type"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     @MainActor
@@ -418,7 +486,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
         resumeButton.tap()
 
-        let weightInput = app.textFields.matching(identifier: "draft-weight-input").firstMatch
+        let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
         XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
 
         app.tabBars.buttons["概要"].tap()
