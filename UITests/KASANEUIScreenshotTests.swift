@@ -4,6 +4,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
     private let historySessionID = "50000000-0000-4000-8000-000000000001"
     private let overviewNewestSessionID = "40000000-0000-4000-8000-000000000001"
     private let workoutSeatedRowEntryID = "21000000-0000-4000-8000-000000000001"
+    private let workoutNoPreviousEntryID = "21000000-0000-4000-8000-000000000002"
 
     // UIが安定し、最前面ウィンドウのフレームが有限かつゼロでないことを確認してから進む
     @MainActor private func waitForAppToBeStable(_ app: XCUIApplication, timeout: TimeInterval = 5.0) {
@@ -292,6 +293,50 @@ final class KASANEUIScreenshotTests: XCTestCase {
         attachment.name = "workout-validation-error"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    @MainActor
+    func testWorkoutPreviousRecordScreenshots() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["workout-resume-button"].tap()
+
+        let previousRecord = app.descendants(matching: .any)[
+            "previous-workout-record-\(workoutSeatedRowEntryID)"
+        ]
+        XCTAssertTrue(previousRecord.waitForExistence(timeout: 10))
+        for order in 0..<3 {
+            XCTAssertTrue(
+                app.descendants(matching: .any)[
+                    "previous-set-row-\(workoutSeatedRowEntryID)-\(order)"
+                ].exists
+            )
+        }
+
+        let availableAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        availableAttachment.name = "workout-previous-record-available"
+        availableAttachment.lifetime = .keepAlways
+        add(availableAttachment)
+
+        let noPreviousWeightInput = app.textFields[
+            "draft-weight-input-\(workoutNoPreviousEntryID)"
+        ]
+        XCTAssertTrue(noPreviousWeightInput.waitForExistence(timeout: 10))
+        app.swipeUp()
+        XCTAssertFalse(
+            app.descendants(matching: .any)[
+                "previous-workout-record-\(workoutNoPreviousEntryID)"
+            ].exists
+        )
+
+        let unavailableAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        unavailableAttachment.name = "workout-previous-record-unavailable"
+        unavailableAttachment.lifetime = .keepAlways
+        add(unavailableAttachment)
     }
 
     @MainActor

@@ -856,6 +856,180 @@ final class KASANETests: XCTestCase {
         )
     }
 
+    /// テスト概要: 現在の種目と同じExerciseを持つ完了Workoutを検索する。
+    /// 期待値: 現在Workoutより前に完了したWorkoutの記録を返す。
+    func testPreviousRecordReturnsLatestCompletedWorkoutForSameExercise() throws {
+        let exercise = Exercise(name: "ラットプルダウン", primaryBodyPart: .back)
+        let current = makeWorkout(startedAt: 300, exercise: exercise)
+        let previous = makeWorkout(startedAt: 200, endedAt: 250, exercise: exercise)
+        let unrelatedExercise = Exercise(name: "スクワット", primaryBodyPart: .legs)
+        let unrelated = makeWorkout(
+            startedAt: 250,
+            endedAt: 275,
+            exercise: unrelatedExercise
+        )
+
+        let result = PreviousWorkoutRecordContent.find(
+            for: try XCTUnwrap(current.exerciseEntries.first),
+            in: current,
+            sessions: [current, unrelated, previous]
+        )
+
+        XCTAssertEqual(result?.startedAt, previous.startedAt)
+    }
+
+    func testPreviousRecordChoosesNewestInsteadOfOlderWorkout() throws {
+        let exercise = Exercise(name: "ラットプルダウン", primaryBodyPart: .back)
+        let current = makeWorkout(startedAt: 400, exercise: exercise)
+        let older = makeWorkout(startedAt: 100, endedAt: 150, exercise: exercise)
+        let newer = makeWorkout(startedAt: 300, endedAt: 350, exercise: exercise)
+
+        let result = PreviousWorkoutRecordContent.find(
+            for: try XCTUnwrap(current.exerciseEntries.first),
+            in: current,
+            sessions: [older, current, newer]
+        )
+
+        XCTAssertEqual(result?.startedAt, newer.startedAt)
+    }
+
+    func testPreviousRecordExcludesActiveWorkout() throws {
+        let exercise = Exercise(name: "ラットプルダウン", primaryBodyPart: .back)
+        let current = makeWorkout(startedAt: 400, exercise: exercise)
+        let completed = makeWorkout(startedAt: 200, endedAt: 250, exercise: exercise)
+        let active = makeWorkout(startedAt: 300, exercise: exercise)
+
+        let result = PreviousWorkoutRecordContent.find(
+            for: try XCTUnwrap(current.exerciseEntries.first),
+            in: current,
+            sessions: [active, completed]
+        )
+
+        XCTAssertEqual(result?.startedAt, completed.startedAt)
+    }
+
+    func testPreviousRecordDoesNotMixDifferentExercise() throws {
+        let target = Exercise(name: "同名種目", primaryBodyPart: .back)
+        let different = Exercise(name: "同名種目", primaryBodyPart: .back)
+        let current = makeWorkout(startedAt: 300, exercise: target)
+        let previous = makeWorkout(startedAt: 200, endedAt: 250, exercise: different)
+
+        let result = PreviousWorkoutRecordContent.find(
+            for: try XCTUnwrap(current.exerciseEntries.first),
+            in: current,
+            sessions: [previous]
+        )
+
+        XCTAssertNil(result)
+    }
+
+    func testPreviousRecordReturnsSetsInOrder() throws {
+        let exercise = Exercise(name: "ラットプルダウン", primaryBodyPart: .back)
+        let current = makeWorkout(startedAt: 300, exercise: exercise)
+        let previous = makeWorkout(
+            startedAt: 200,
+            endedAt: 250,
+            exercise: exercise,
+            sets: [(2, 42.5, 8), (0, 40, 10), (1, 40, 10)]
+        )
+
+        let result = PreviousWorkoutRecordContent.find(
+            for: try XCTUnwrap(current.exerciseEntries.first),
+            in: current,
+            sessions: [previous]
+        )
+
+        XCTAssertEqual(result?.setEntries.map(\.order), [0, 1, 2])
+    }
+
+    func testPreviousRecordSafelyReturnsNilWhenNoRecordExists() throws {
+        let exercise = Exercise(name: "ラットプルダウン", primaryBodyPart: .back)
+        let current = makeWorkout(startedAt: 300, exercise: exercise)
+
+        let result = PreviousWorkoutRecordContent.find(
+            for: try XCTUnwrap(current.exerciseEntries.first),
+            in: current,
+            sessions: []
+        )
+
+        XCTAssertNil(result)
+    }
+
+    func testPreviousRecordExcludesWorkoutStartingInFuture() throws {
+        let exercise = Exercise(name: "ラットプルダウン", primaryBodyPart: .back)
+        let current = makeWorkout(startedAt: 300, exercise: exercise)
+        let previous = makeWorkout(startedAt: 200, endedAt: 250, exercise: exercise)
+        let future = makeWorkout(startedAt: 400, endedAt: 450, exercise: exercise)
+
+        let result = PreviousWorkoutRecordContent.find(
+            for: try XCTUnwrap(current.exerciseEntries.first),
+            in: current,
+            sessions: [future, previous]
+        )
+
+        XCTAssertEqual(result?.startedAt, previous.startedAt)
+    }
+
+    func testPreviousRecordReturnsEverySetWithoutSummarizing() throws {
+        let exercise = Exercise(name: "ラットプルダウン", primaryBodyPart: .back)
+        let current = makeWorkout(startedAt: 300, exercise: exercise)
+        let previous = makeWorkout(
+            startedAt: 200,
+            endedAt: 250,
+            exercise: exercise,
+            sets: [(0, 40, 10), (1, 40, 10), (2, 40, 8), (3, 42.5, 8)]
+        )
+
+        let result = PreviousWorkoutRecordContent.find(
+            for: try XCTUnwrap(current.exerciseEntries.first),
+            in: current,
+            sessions: [previous]
+        )
+
+        XCTAssertEqual(result?.setEntries.count, 4)
+        XCTAssertEqual(result?.setEntries.map(\.reps), [10, 10, 8, 8])
+    }
+
+    func testPreviousRecordPreservesSavedExerciseNameSnapshot() throws {
+        let exercise = Exercise(name: "保存時の種目名", primaryBodyPart: .back)
+        let previous = makeWorkout(startedAt: 200, endedAt: 250, exercise: exercise)
+        exercise.name = "現在の種目名"
+        let current = makeWorkout(startedAt: 300, exercise: exercise)
+
+        let result = PreviousWorkoutRecordContent.find(
+            for: try XCTUnwrap(current.exerciseEntries.first),
+            in: current,
+            sessions: [previous]
+        )
+
+        XCTAssertEqual(result?.exerciseNameSnapshot, "保存時の種目名")
+    }
+
+    private func makeWorkout(
+        startedAt: TimeInterval,
+        endedAt: TimeInterval? = nil,
+        exercise: Exercise,
+        sets: [(order: Int, weight: Double, reps: Int)] = []
+    ) -> WorkoutSession {
+        let session = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: startedAt),
+            endedAt: endedAt.map(Date.init(timeIntervalSince1970:))
+        )
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        session.exerciseEntries.append(entry)
+        exercise.exerciseEntries.append(entry)
+        for values in sets {
+            let setEntry = SetEntry(
+                exerciseEntry: entry,
+                order: values.order,
+                weightKg: values.weight,
+                reps: values.reps
+            )
+            entry.setEntries.append(setEntry)
+        }
+        return session
+    }
+
     /// テスト概要: 入力画面と履歴詳細で共有するセット表示規則を数値へ適用する。
     /// 期待値: セット番号と回数は数値のみ、重量は小数点以下2桁の数値とkgで表示される。
     func testWorkoutSetDisplayFormatterUsesSharedColumnFormats() {
