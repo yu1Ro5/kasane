@@ -1,0 +1,240 @@
+name: Publish UI Screenshot
+
+on:
+  workflow_run:
+    workflows: [UI Screenshot]
+    types: [completed]
+
+concurrency:
+  group: ui-screenshot-publish
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  publish-screenshot:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Resolve associated pull request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pullRequests = context.payload.workflow_run.pull_requests ?? [];
+            if (pullRequests.length === 0) {
+              core.setFailed('No pull request associated with this workflow_run');
+              return;
+            }
+            core.exportVariable('EXPECTED_PR_NUMBER', String(pullRequests[0].number));
+
+      - name: Download screenshot artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: ui-screenshot-review
+          path: ${{ runner.temp }}/ui-screenshot-artifact
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Validate untrusted artifact
+        shell: bash
+        env:
+          ARTIFACT_DIR: ${{ runner.temp }}/ui-screenshot-artifact
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          max_screenshots = 20
+          root = Path(os.environ["ARTIFACT_DIR"]).resolve()
+          files = [path for path in root.rglob("*") if path.is_file()]
+          if not files:
+              raise SystemExit("Artifact is empty")
+          if any(path.parent != root for path in files):
+              raise SystemExit("Nested artifact paths are not allowed")
+          if any(path.is_symlink() for path in root.rglob("*")):
+              raise SystemExit("Artifact symlinks are not allowed")
+
+          metadata_path = root / "metadata.json"
+          if not metadata_path.is_file():
+              raise SystemExit("Artifact metadata.json is missing")
+          metadata = json.loads(metadata_path.read_text())
+          if metadata.get("head_sha") != os.environ["EXPECTED_HEAD_SHA"]:
+              raise SystemExit("Artifact head SHA does not match workflow_run")
+          if metadata.get("pr_number") != int(os.environ["EXPECTED_PR_NUMBER"]):
+              raise SystemExit("Artifact PR number does not match workflow_run")
+
+          screenshots = metadata.get("screenshots")
+          if not isinstance(screenshots, list) or not (1 <= len(screenshots) <= max_screenshots):
+              raise SystemExit(
+                  f"Artifact must describe between 1 and {max_screenshots} screenshots"
+              )
+          expected_files = {"metadata.json"}
+          for screenshot in screenshots:
+              name, filename = screenshot.get("name"), screenshot.get("file")
+              if not isinstance(name, str) or not name or len(name) > 100:
+                  raise SystemExit("Invalid screenshot name")
+              if not isinstance(filename, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*\.png", filename):
+                  raise SystemExit("Invalid screenshot filename")
+              if ".." in filename or Path(filename).name != filename:
+                  raise SystemExit("Screenshot path traversal is not allowed")
+              path = (root / filename).resolve()
+              if path.parent != root or not path.is_file():
+                  raise SystemExit("Screenshot file is missing")
+              size = path.stat().st_size
+              if not 24 <= size <= 10 * 1024 * 1024:
+                  raise SystemExit("Screenshot size is outside the allowed range")
+              data = path.read_bytes()[:24]
+              if data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
+                  raise SystemExit("Screenshot is not a valid PNG container")
+              expected_files.add(filename)
+          if {path.name for path in files} != expected_files:
+              raise SystemExit("Artifact contains unexpected files")
+          PY
+
+      - name: Publish images and update pull request comment
+        uses: actions/github-script@v7
+        env:
+          ARTIFACT_DIR: ${{ runner.temp }}/ui-screenshot-artifact
+          REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            if (process.env.REPOSITORY_VISIBILITY !== 'public') {
+              core.setFailed('The ui-screenshots raw URL publishing design requires a public repository.');
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prNumber = Number(process.env.EXPECTED_PR_NUMBER);
+            const headSha = process.env.EXPECTED_HEAD_SHA;
+            const artifactDir = process.env.ARTIFACT_DIR;
+            const metadata = JSON.parse(fs.readFileSync(path.join(artifactDir, 'metadata.json'), 'utf8'));
+            const branch = 'ui-screenshots';
+
+            let branchSha;
+            let createdBranch = false;
+            try {
+              const ref = await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
+              branchSha = ref.data.object.sha;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              const repository = await github.rest.repos.get({ owner, repo });
+              const base = await github.rest.git.getRef({
+                owner,
+                repo,
+                ref: `heads/${repository.data.default_branch}`,
+              });
+              await github.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/heads/${branch}`,
+                sha: base.data.object.sha,
+              });
+              branchSha = base.data.object.sha;
+              createdBranch = true;
+            }
+
+            const overwritePaths = new Set();
+            const newEntries = [];
+            for (const screenshot of metadata.screenshots) {
+              const destination = `pr-${prNumber}/${headSha}/${screenshot.file}`;
+              overwritePaths.add(destination);
+              const blob = await github.rest.git.createBlob({
+                owner,
+                repo,
+                content: fs.readFileSync(path.join(artifactDir, screenshot.file)).toString('base64'),
+                encoding: 'base64',
+              });
+              newEntries.push({
+                path: destination,
+                mode: '100644',
+                type: 'blob',
+                sha: blob.data.sha,
+              });
+            }
+
+            let existingBlobEntries = [];
+            if (!createdBranch) {
+              const commit = await github.rest.git.getCommit({ owner, repo, commit_sha: branchSha });
+              const currentTree = await github.rest.git.getTree({
+                owner,
+                repo,
+                tree_sha: commit.data.tree.sha,
+                recursive: true,
+              });
+              if (currentTree.data.truncated) {
+                throw new Error('The ui-screenshots tree is truncated; refusing to publish a partial tree.');
+              }
+              existingBlobEntries = currentTree.data.tree
+                .filter((entry) => entry.type === 'blob' && !overwritePaths.has(entry.path))
+                .map((entry) => ({
+                  path: entry.path,
+                  mode: entry.mode,
+                  type: 'blob',
+                  sha: entry.sha,
+                }));
+            }
+
+            const tree = [...existingBlobEntries, ...newEntries];
+            const createdTree = await github.rest.git.createTree({ owner, repo, tree });
+            const createdCommit = await github.rest.git.createCommit({
+              owner,
+              repo,
+              message: `Add UI screenshot for PR #${prNumber} at ${headSha.slice(0, 7)}`,
+              tree: createdTree.data.sha,
+              parents: [],
+            });
+            await github.rest.git.updateRef({
+              owner,
+              repo,
+              ref: `heads/${branch}`,
+              sha: createdCommit.data.sha,
+              force: true,
+            });
+
+            const marker = '<!-- kasane-ui-screenshot-review -->';
+            const sections = metadata.screenshots.map((screenshot) => {
+              const encodedPath = `pr-${prNumber}/${headSha}/${screenshot.file}`
+                .split('/').map(encodeURIComponent).join('/');
+              const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${encodedPath}`;
+              return `### ${screenshot.name}\n\n<img src="${url}" width="390">`;
+            });
+            const body = [
+              marker,
+              '',
+              '## 📱 UI Screenshots',
+              '',
+              `Generated from \`${headSha.slice(0, 7)}\``,
+              '',
+              sections.join('\n\n'),
+              '',
+              `- Simulator: ${metadata.simulator}`,
+              `- iOS: ${metadata.ios}`,
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: prNumber, per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+            }

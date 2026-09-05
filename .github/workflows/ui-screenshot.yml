@@ -1,0 +1,206 @@
+name: UI Screenshot
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  capture-screenshot:
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode_path="$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' | sort | tail -1)"
+          test -n "$xcode_path"
+          sudo xcode-select --switch "$xcode_path"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Select available iPhone simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          simulator="$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          for runtime in sorted(devices, reverse=True):
+              if "iOS-26" not in runtime:
+                  continue
+              for device in devices[runtime]:
+                  if device["isAvailable"] and device["name"].startswith("iPhone"):
+                      print(device["udid"])
+                      print(device["name"], file=sys.stderr)
+                      raise SystemExit
+          raise SystemExit("No available iOS 26 iPhone simulator found")
+          ')"
+          simulator_info="$(xcrun simctl list devices --json | python3 -c '
+          import json, sys
+          target = sys.argv[1]
+          device = next(
+              device
+              for values in json.load(sys.stdin)["devices"].values()
+              for device in values
+              if device["udid"] == target
+          )
+          print("{}\t{}".format(device["name"], device["state"]))
+          ' "$simulator")"
+          IFS=$'\t' read -r simulator_name simulator_state <<< "$simulator_info"
+          echo "id=$simulator" >> "$GITHUB_OUTPUT"
+          echo "name=$simulator_name" >> "$GITHUB_OUTPUT"
+          case "$simulator_state" in
+            Shutdown)
+              xcrun simctl boot "$simulator"
+              ;;
+            Booted)
+              ;;
+            *)
+              echo "Simulator $simulator is in unexpected state: $simulator_state" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Run UI screenshot tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project KASANE.xcodeproj \
+            -scheme KASANEScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewEmptyScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewRecentWorkoutsScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewSearchResultsScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewSearchEmptyScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testActiveWorkoutPersistsAcrossTabSwitch \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutRootEmptyScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDynamicTypeScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutCompletedScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDetailEditModeScreenshot \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
+            -derivedDataPath build \
+            -resultBundlePath "$RUNNER_TEMP/ui-screenshots.xcresult" \
+            -configuration Debug \
+            -enableCodeCoverage NO \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
+      - name: Extract screenshot and metadata
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SIMULATOR_NAME: ${{ steps.simulator.outputs.name }}
+        run: |
+          set -euo pipefail
+          artifact_dir="$RUNNER_TEMP/ui-screenshot-artifact"
+          export_dir="$RUNNER_TEMP/ui-screenshot-attachments"
+          mkdir -p "$artifact_dir"
+          mkdir -p "$export_dir"
+          xcrun xcresulttool export attachments \
+            --path "$RUNNER_TEMP/ui-screenshots.xcresult" \
+            --output-path "$export_dir"
+          python3 - <<'PY'
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+
+          runner_temp = Path(os.environ["RUNNER_TEMP"])
+          export_dir = runner_temp / "ui-screenshot-attachments"
+          scenarios = [
+              ("overview-empty", "Overview — Empty"),
+              ("overview-recent-workouts", "Overview — Recent Workouts"),
+              ("overview-search-results", "Overview — Search Results"),
+              ("overview-search-empty", "Overview — Search Empty"),
+              ("workout-root-empty", "Workout — Empty"),
+              ("workout-root-active", "Workout — Active"),
+              ("workout-session-active", "Workout — Session Active"),
+              ("workout-weight-input", "Workout — Weight Input"),
+              ("workout-validation-error", "Workout — Validation Error"),
+              ("workout-dynamic-type", "Workout — Dynamic Type"),
+              ("exercise-picker", "Workout — Exercise Picker"),
+              ("workout-cancel-confirmation", "Workout — Cancel Confirmation"),
+              ("workout-history", "Workout — History"),
+              ("workout-detail", "Workout — Detail"),
+              ("workout-detail-edit-mode", "Workout — Detail Edit Mode"),
+              ("workout-completed", "Workout — Completed"),
+          ]
+          artifact_dir = runner_temp / "ui-screenshot-artifact"
+          manifest = json.loads((export_dir / "manifest.json").read_text())
+          attachments = [
+              attachment
+              for test in manifest
+              for attachment in test.get("attachments", [])
+          ]
+          metadata_screenshots = []
+          for result_name, display_name in scenarios:
+              matches = [
+                  attachment
+                  for attachment in attachments
+                  if isinstance(attachment.get("suggestedHumanReadableName"), str)
+                  and attachment["suggestedHumanReadableName"].startswith(f"{result_name}_")
+                  and attachment["suggestedHumanReadableName"].endswith(".png")
+              ]
+              if len(matches) != 1:
+                  raise SystemExit(
+                      f"Expected exactly one PNG attachment for {result_name}, "
+                      f"found {len(matches)}."
+                  )
+              exported_file = matches[0].get("exportedFileName")
+              if not isinstance(exported_file, str) or Path(exported_file).name != exported_file:
+                  raise SystemExit(f"Invalid exported attachment path for {result_name}.")
+              source = (export_dir / exported_file).resolve()
+              if source.parent != export_dir.resolve() or not source.is_file():
+                  raise SystemExit(f"Exported attachment is missing for {result_name}.")
+              filename = f"{result_name}.png"
+              shutil.copyfile(source, artifact_dir / filename)
+              metadata_screenshots.append({"name": display_name, "file": filename})
+
+          metadata = {
+              "pr_number": int(os.environ["PR_NUMBER"]),
+              "head_sha": os.environ["HEAD_SHA"],
+              "simulator": os.environ["SIMULATOR_NAME"],
+              "ios": "26.x",
+              "screenshots": metadata_screenshots,
+          }
+          path = artifact_dir / "metadata.json"
+          path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
+          PY
+
+      - name: Upload xcresult
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ui-screenshot-xcresult
+          path: ${{ runner.temp }}/*.xcresult
+          retention-days: 7
+
+      - name: Upload UI screenshot
+        uses: actions/upload-artifact@v6
+        with:
+          name: ui-screenshot-review
+          path: ${{ runner.temp }}/ui-screenshot-artifact
+          if-no-files-found: error
+          retention-days: 7
