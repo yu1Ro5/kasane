@@ -87,10 +87,16 @@ jobs:
             -scheme KASANEScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewEmptyScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewRecentWorkoutsScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewSearchResultsScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewSearchEmptyScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testActiveWorkoutPersistsAcrossTabSwitch \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutRootEmptyScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDynamicTypeScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutCompletedScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDetailEditingFlow \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -derivedDataPath build \
@@ -126,9 +132,14 @@ jobs:
           scenarios = [
               ("overview-empty", "Overview — Empty"),
               ("overview-recent-workouts", "Overview — Recent Workouts"),
+              ("overview-search-results", "Overview — Search Results"),
+              ("overview-search-empty", "Overview — Search Empty"),
               ("workout-root-empty", "Workout — Empty"),
               ("workout-root-active", "Workout — Active"),
+              ("workout-session-active", "Workout — Session Active"),
               ("workout-weight-input", "Workout — Weight Input"),
+              ("workout-validation-error", "Workout — Validation Error"),
+              ("workout-dynamic-type", "Workout — Dynamic Type"),
               ("exercise-picker", "Workout — Exercise Picker"),
               ("workout-cancel-confirmation", "Workout — Cancel Confirmation"),
               ("workout-history", "Workout — History"),
