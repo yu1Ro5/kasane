@@ -203,10 +203,24 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         let weightInput = app.textFields.matching(identifier: "draft-weight-input").firstMatch
         XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
+
+        let sessionAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        sessionAttachment.name = "workout-session-active"
+        sessionAttachment.lifetime = .keepAlways
+        add(sessionAttachment)
+
         weightInput.tap()
+        weightInput.typeText("47.5")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 1)
+        XCTAssertEqual(app.buttons.matching(identifier: "完了").count, 0)
+
+        app.buttons["次へ"].tap()
+        XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 0)
         XCTAssertEqual(app.buttons.matching(identifier: "完了").count, 1)
+        let repsInput = app.textFields.matching(identifier: "draft-reps-input").firstMatch
+        XCTAssertTrue(repsInput.waitForExistence(timeout: 5))
+        repsInput.typeText("8")
 
         let weightInputAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         weightInputAttachment.name = "workout-weight-input"
@@ -247,6 +261,57 @@ final class KASANEUIScreenshotTests: XCTestCase {
         cancelConfirmationAttachment.name = "workout-cancel-confirmation"
         cancelConfirmationAttachment.lifetime = .keepAlways
         add(cancelConfirmationAttachment)
+    }
+
+    @MainActor
+    func testWorkoutValidationScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["workout-resume-button"].tap()
+
+        let weightInput = app.textFields.matching(identifier: "draft-weight-input").firstMatch
+        XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
+        weightInput.tap()
+        weightInput.typeText("12.345")
+        app.buttons["次へ"].tap()
+        app.buttons["完了"].tap()
+
+        XCTAssertTrue(
+            app.staticTexts["draft-validation-message"].waitForExistence(timeout: 5)
+        )
+        XCTAssertFalse(app.buttons["セットを追加"].isEnabled)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "workout-validation-error"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testWorkoutDynamicTypeScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing", "--fixture", "workout-set-layout",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityLarge",
+        ]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["workout-resume-button"].tap()
+        XCTAssertTrue(
+            app.textFields.matching(identifier: "draft-weight-input").firstMatch
+                .waitForExistence(timeout: 10)
+        )
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "workout-dynamic-type"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     @MainActor

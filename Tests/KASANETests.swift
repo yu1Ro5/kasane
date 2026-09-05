@@ -935,7 +935,10 @@ final class KASANETests: XCTestCase {
         let setID = UUID()
 
         XCTAssertNil(WorkoutInputFocus.draftReps(exerciseID: exerciseID).nextInput)
-        XCTAssertNil(WorkoutInputFocus.savedWeight(exerciseID: exerciseID, setID: setID).nextInput)
+        XCTAssertEqual(
+            WorkoutInputFocus.savedWeight(exerciseID: exerciseID, setID: setID).nextInput,
+            .savedReps(exerciseID: exerciseID, setID: setID)
+        )
         XCTAssertNil(WorkoutInputFocus.savedReps(exerciseID: exerciseID, setID: setID).nextInput)
     }
 
