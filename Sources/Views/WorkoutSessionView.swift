@@ -7,6 +7,7 @@ struct WorkoutSessionView: View {
     @Bindable var session: WorkoutSession
     @Query(sort: \ExerciseEntry.order) private var observedExerciseEntries: [ExerciseEntry]
     @Query(sort: \SetEntry.order) private var observedSetEntries: [SetEntry]
+    @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var observedSessions: [WorkoutSession]
     @Bindable var draftStore: WorkoutDraftStore
     let onReturnHome: () -> Void
 
@@ -45,6 +46,11 @@ struct WorkoutSessionView: View {
                         WorkoutExerciseSection(
                             entry: entry,
                             setEntries: sortedSets(for: entry),
+                            previousRecord: PreviousWorkoutRecordContent.find(
+                                for: entry,
+                                in: session,
+                                sessions: observedSessions
+                            ),
                             draft: draftBinding(for: entry),
                             editDraft: editDraftBinding,
                             focusedInput: $focusedInput,
@@ -251,6 +257,7 @@ private struct WorkoutExerciseSection: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var entry: ExerciseEntry
     let setEntries: [SetEntry]
+    let previousRecord: PreviousWorkoutRecordContent?
     @Binding var draft: SetEntryDraft
     let editDraft: (SetEntry) -> Binding<SetEntryDraft>
     var focusedInput: FocusState<WorkoutInputFocus?>.Binding
@@ -261,6 +268,9 @@ private struct WorkoutExerciseSection: View {
 
     var body: some View {
         Section {
+            if let previousRecord {
+                PreviousWorkoutRecordView(entryID: entry.id, record: previousRecord)
+            }
             WorkoutSetColumnHeader()
             ForEach(setEntries) { setEntry in
                 WorkoutSetRow(
@@ -355,6 +365,46 @@ private struct WorkoutExerciseSection: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+private struct PreviousWorkoutRecordView: View {
+    let entryID: UUID
+    let record: PreviousWorkoutRecordContent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: "clock")
+                    .accessibilityHidden(true)
+                Text("前回")
+                Text(record.startedAt, format: .dateTime.year().month(.twoDigits).day(.twoDigits))
+            }
+            .font(.subheadline.weight(.semibold))
+
+            WorkoutSetColumnHeader()
+            ForEach(record.setEntries) { setEntry in
+                WorkoutSetColumns {
+                    Text(WorkoutSetDisplayFormatter.setNumber(setEntry.order + 1))
+                } weight: {
+                    WorkoutWeightText(weightKg: setEntry.weightKg)
+                } reps: {
+                    Text(WorkoutSetDisplayFormatter.reps(setEntry.reps))
+                        .monospacedDigit()
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    "\(record.exerciseNameSnapshot)、前回、セット \(setEntry.order + 1)、重量 \(WorkoutSetDisplayFormatter.displayWeight(setEntry.weightKg))、回数 \(setEntry.reps)"
+                )
+                .accessibilityIdentifier(
+                    "previous-set-row-\(entryID.uuidString)-\(setEntry.order)"
+                )
+            }
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("previous-workout-record-\(entryID.uuidString)")
     }
 }
 

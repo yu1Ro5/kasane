@@ -88,14 +88,15 @@ private enum AppModelContainer {
         }
         let fixtures: [(UUID, UUID, String, [(Double, Int)])] = [
             (
-                seatedRowExerciseID, seatedRowEntryID, "シーテッドロー",
-                [(40, 10), (42.5, 8), (45, 8)]
+                seatedRowExerciseID, seatedRowEntryID, "ラットプルダウン",
+                [(40, 10), (40, 10), (42.5, 8)]
             ),
             (
-                latPulldownExerciseID, latPulldownEntryID, "ラットプルダウン",
+                latPulldownExerciseID, latPulldownEntryID, "前回記録なし",
                 [(35, 10), (37.5, 10)]
             ),
         ]
+        var previousExercise: Exercise?
         for (entryOrder, fixture) in fixtures.enumerated() {
             let exercise = Exercise(
                 id: fixture.0,
@@ -103,6 +104,7 @@ private enum AppModelContainer {
                 primaryBodyPart: .back
             )
             context.insert(exercise)
+            if fixture.0 == seatedRowExerciseID { previousExercise = exercise }
             let entry = ExerciseEntry(
                 id: fixture.1,
                 workoutSession: session,
@@ -120,6 +122,29 @@ private enum AppModelContainer {
                     )
                 )
             }
+        }
+
+        guard let previousExercise else { throw FixtureError.invalidIdentifier }
+        let previousSession = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 1_766_793_600),
+            endedAt: Date(timeIntervalSince1970: 1_766_797_200)
+        )
+        context.insert(previousSession)
+        let previousEntry = ExerciseEntry(
+            workoutSession: previousSession,
+            exercise: previousExercise,
+            order: 0
+        )
+        context.insert(previousEntry)
+        for (order, values) in [(40.0, 10), (40.0, 10), (40.0, 8)].enumerated() {
+            context.insert(
+                SetEntry(
+                    exerciseEntry: previousEntry,
+                    order: order,
+                    weightKg: values.0,
+                    reps: values.1
+                )
+            )
         }
         try context.save()
     }
