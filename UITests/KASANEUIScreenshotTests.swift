@@ -3,6 +3,7 @@ import XCTest
 final class KASANEUIScreenshotTests: XCTestCase {
     private let historySessionID = "50000000-0000-4000-8000-000000000001"
     private let overviewNewestSessionID = "40000000-0000-4000-8000-000000000001"
+    private let workoutSeatedRowEntryID = "21000000-0000-4000-8000-000000000001"
 
     // UIが安定し、最前面ウィンドウのフレームが有限かつゼロでないことを確認してから進む
     @MainActor private func waitForAppToBeStable(_ app: XCUIApplication, timeout: TimeInterval = 5.0) {
@@ -201,7 +202,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         resumeButton.tap()
 
-        let weightInput = app.textFields.matching(identifier: "draft-weight-input").firstMatch
+        let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
         XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
 
         let sessionAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
@@ -218,7 +219,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.buttons["次へ"].tap()
         XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 0)
         XCTAssertEqual(app.buttons.matching(identifier: "完了").count, 1)
-        let repsInput = app.textFields.matching(identifier: "draft-reps-input").firstMatch
+        let repsInput = app.textFields["draft-reps-input-\(workoutSeatedRowEntryID)"]
         XCTAssertTrue(repsInput.waitForExistence(timeout: 5))
         repsInput.typeText("8")
 
@@ -273,7 +274,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.tabBars.buttons["ワークアウト"].tap()
         app.buttons["workout-resume-button"].tap()
 
-        let weightInput = app.textFields.matching(identifier: "draft-weight-input").firstMatch
+        let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
         XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
         weightInput.tap()
         weightInput.typeText("12.345")
@@ -283,7 +284,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["draft-validation-message"].waitForExistence(timeout: 5)
         )
-        XCTAssertFalse(app.buttons["セットを追加"].isEnabled)
+        let addSetButton = app.buttons["add-set-button-\(workoutSeatedRowEntryID)"]
+        XCTAssertTrue(addSetButton.exists)
+        XCTAssertFalse(addSetButton.isEnabled)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         attachment.name = "workout-validation-error"
@@ -304,7 +307,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.tabBars.buttons["ワークアウト"].tap()
         app.buttons["workout-resume-button"].tap()
         XCTAssertTrue(
-            app.textFields.matching(identifier: "draft-weight-input").firstMatch
+            app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
                 .waitForExistence(timeout: 10)
         )
 
@@ -483,7 +486,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
         resumeButton.tap()
 
-        let weightInput = app.textFields.matching(identifier: "draft-weight-input").firstMatch
+        let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
         XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
 
         app.tabBars.buttons["概要"].tap()

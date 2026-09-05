@@ -278,7 +278,7 @@ private struct WorkoutExerciseSection: View {
                     TextField("重量", text: $draft.weight, prompt: Text("0"))
                         .multilineTextAlignment(.trailing)
                         .monospacedDigit()
-                        .accessibilityIdentifier("draft-weight-input")
+                        .accessibilityIdentifier("draft-weight-input-\(entry.id.uuidString)")
                         .accessibilityLabel("\(entry.exerciseNameSnapshot)、次のセットの重量、kg")
                         .keyboardType(.decimalPad)
                         .focused(focusedInput, equals: .draftWeight(exerciseID: entry.id))
@@ -292,7 +292,7 @@ private struct WorkoutExerciseSection: View {
                 TextField("回数", text: $draft.reps, prompt: Text("0"))
                     .multilineTextAlignment(.trailing)
                     .monospacedDigit()
-                    .accessibilityIdentifier("draft-reps-input")
+                    .accessibilityIdentifier("draft-reps-input-\(entry.id.uuidString)")
                     .accessibilityLabel("\(entry.exerciseNameSnapshot)、次のセットの回数")
                     .keyboardType(.numberPad)
                     .focused(focusedInput, equals: .draftReps(exerciseID: entry.id))
@@ -310,6 +310,7 @@ private struct WorkoutExerciseSection: View {
             }
 
             Button("セットを追加", systemImage: "plus") { addSet() }
+                .accessibilityIdentifier("add-set-button-\(entry.id.uuidString)")
                 .disabled(draft.values() == nil || isSaving)
                 .accessibilityHint("入力した重量と回数を保存します")
         } header: {

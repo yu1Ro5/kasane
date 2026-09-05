@@ -70,27 +70,47 @@ private enum AppModelContainer {
             startedAt: Date(timeIntervalSince1970: 1_767_225_600)
         )
         context.insert(session)
-        guard let exerciseID = UUID(uuidString: "20000000-0000-4000-8000-000000000001") else {
+        guard
+            let seatedRowExerciseID = UUID(
+                uuidString: "20000000-0000-4000-8000-000000000001"
+            ),
+            let seatedRowEntryID = UUID(
+                uuidString: "21000000-0000-4000-8000-000000000001"
+            ),
+            let latPulldownExerciseID = UUID(
+                uuidString: "20000000-0000-4000-8000-000000000002"
+            ),
+            let latPulldownEntryID = UUID(
+                uuidString: "21000000-0000-4000-8000-000000000002"
+            )
+        else {
             throw FixtureError.invalidIdentifier
         }
-        let fixtures: [(UUID?, String, [(Double, Int)])] = [
-            (exerciseID, "シーテッドロー", [(40, 10), (42.5, 8), (45, 8)]),
-            (nil, "ラットプルダウン", [(35, 10), (37.5, 10)]),
+        let fixtures: [(UUID, UUID, String, [(Double, Int)])] = [
+            (
+                seatedRowExerciseID, seatedRowEntryID, "シーテッドロー",
+                [(40, 10), (42.5, 8), (45, 8)]
+            ),
+            (
+                latPulldownExerciseID, latPulldownEntryID, "ラットプルダウン",
+                [(35, 10), (37.5, 10)]
+            ),
         ]
         for (entryOrder, fixture) in fixtures.enumerated() {
             let exercise = Exercise(
-                id: fixture.0 ?? UUID(),
-                name: fixture.1,
+                id: fixture.0,
+                name: fixture.2,
                 primaryBodyPart: .back
             )
             context.insert(exercise)
             let entry = ExerciseEntry(
+                id: fixture.1,
                 workoutSession: session,
                 exercise: exercise,
                 order: entryOrder
             )
             context.insert(entry)
-            for (setOrder, values) in fixture.2.enumerated() {
+            for (setOrder, values) in fixture.3.enumerated() {
                 context.insert(
                     SetEntry(
                         exerciseEntry: entry,
