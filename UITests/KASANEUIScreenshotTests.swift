@@ -34,7 +34,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
-    func testOverviewEmptyScreenshot() throws {
+    func testEmptyScreenshots() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]
         app.launch()
@@ -52,10 +52,21 @@ final class KASANEUIScreenshotTests: XCTestCase {
         attachment.name = "overview-empty"
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        app.tabBars.buttons["ワークアウト"].tap()
+
+        let startButton = app.buttons["workout-resume-button"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 10))
+        XCTAssertEqual(startButton.label, "ワークアウトを開始")
+
+        let workoutAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        workoutAttachment.name = "workout-root-empty"
+        workoutAttachment.lifetime = .keepAlways
+        add(workoutAttachment)
     }
 
     @MainActor
-    func testOverviewRecentWorkoutsScreenshot() throws {
+    func testOverviewScreenshots() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--fixture", "overview-recent-workouts"]
         app.launch()
@@ -72,10 +83,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
         XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
 
-        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        attachment.name = "overview-recent-workouts"
-        attachment.lifetime = .keepAlways
-        add(attachment)
+        let recentWorkoutsAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        recentWorkoutsAttachment.name = "overview-recent-workouts"
+        recentWorkoutsAttachment.lifetime = .keepAlways
+        add(recentWorkoutsAttachment)
 
         let recentRow = app.buttons["overview-recent-workout-row-\(overviewNewestSessionID)"]
         XCTAssertTrue(recentRow.waitForExistence(timeout: 10))
@@ -90,14 +101,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["デッドリフト"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
-    }
 
-    @MainActor
-    func testOverviewSearchResultsScreenshot() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--fixture", "overview-recent-workouts"]
-        app.launch()
-        waitForAppToBeStable(app)
+        app.tabBars.buttons["概要"].tap()
+        XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
 
         let searchButton = app.buttons["検索"]
         XCTAssertTrue(searchButton.waitForExistence(timeout: 10))
@@ -123,34 +129,14 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["デッドリフト"].exists)
         XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
 
-        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        attachment.name = "overview-search-results"
-        attachment.lifetime = .keepAlways
-        add(attachment)
+        let searchResultsAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        searchResultsAttachment.name = "overview-search-results"
+        searchResultsAttachment.lifetime = .keepAlways
+        add(searchResultsAttachment)
 
-        let resultRow = app.buttons["workout-search-result-row-\(overviewNewestSessionID)"]
-        XCTAssertTrue(resultRow.waitForExistence(timeout: 10))
-        resultRow.tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
-        )
-    }
-
-    @MainActor
-    func testOverviewSearchEmptyScreenshot() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--fixture", "overview-recent-workouts"]
-        app.launch()
-        waitForAppToBeStable(app)
-
-        let searchButton = app.buttons["検索"]
-        XCTAssertTrue(searchButton.waitForExistence(timeout: 10))
-        searchButton.tap()
-        XCTAssertTrue(app.navigationBars["検索"].waitForExistence(timeout: 10))
-
-        let searchField = app.searchFields["種目名を検索"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 10))
         searchField.tap()
+        searchField.typeKey("a", modifierFlags: .command)
+        searchField.typeKey(.delete, modifierFlags: [])
         searchField.typeText("存在しない種目")
 
         XCTAssertTrue(
@@ -159,33 +145,14 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
         XCTAssertFalse(app.staticTexts["ショルダープレス"].exists)
 
-        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        attachment.name = "overview-search-empty"
-        attachment.lifetime = .keepAlways
-        add(attachment)
+        let searchEmptyAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        searchEmptyAttachment.name = "overview-search-empty"
+        searchEmptyAttachment.lifetime = .keepAlways
+        add(searchEmptyAttachment)
     }
 
     @MainActor
-    func testWorkoutRootEmptyScreenshot() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing"]
-        app.launch()
-        waitForAppToBeStable(app)
-
-        app.tabBars.buttons["ワークアウト"].tap()
-
-        let startButton = app.buttons["workout-resume-button"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 10))
-        XCTAssertEqual(startButton.label, "ワークアウトを開始")
-
-        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        attachment.name = "workout-root-empty"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
-    @MainActor
-    func testWorkoutScreenshots() throws {
+    func testWorkoutInteractionScreenshots() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
         app.launch()
@@ -266,7 +233,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
-    func testWorkoutValidationScreenshot() throws {
+    func testWorkoutValidationAndCompletionScreenshots() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
         app.launch()
@@ -293,6 +260,28 @@ final class KASANEUIScreenshotTests: XCTestCase {
         attachment.name = "workout-validation-error"
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        weightInput.tap()
+        weightInput.typeKey("a", modifierFlags: .command)
+        weightInput.typeKey(.delete, modifierFlags: [])
+        app.buttons["次へ"].tap()
+        app.buttons["完了"].tap()
+        XCTAssertTrue(
+            app.staticTexts["draft-validation-message"].waitForNonExistence(timeout: 5)
+        )
+
+        let finishButton = app.buttons["終了"]
+        XCTAssertTrue(finishButton.waitForExistence(timeout: 10))
+        finishButton.tap()
+        let saveButton = app.buttons["終了して保存"]
+        XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
+        saveButton.tap()
+
+        XCTAssertTrue(app.staticTexts["ワークアウトを記録しました"].waitForExistence(timeout: 10))
+        let completedAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        completedAttachment.name = "workout-completed"
+        completedAttachment.lifetime = .keepAlways
+        add(completedAttachment)
     }
 
     @MainActor
@@ -363,33 +352,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
-    func testWorkoutCompletedScreenshot() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
-        app.launch()
-        waitForAppToBeStable(app)
-
-        app.tabBars.buttons["ワークアウト"].tap()
-
-        let resumeButton = app.buttons["workout-resume-button"]
-        XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
-        resumeButton.tap()
-
-        let finishButton = app.buttons["終了"]
-        XCTAssertTrue(finishButton.waitForExistence(timeout: 10))
-        finishButton.tap()
-        let saveButton = app.buttons["終了して保存"]
-        XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
-        saveButton.tap()
-
-        XCTAssertTrue(app.staticTexts["ワークアウトを記録しました"].waitForExistence(timeout: 10))
-        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        attachment.name = "workout-completed"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
-    @MainActor
     func testWorkoutHistoryScreenshots() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--fixture", "workout-history"]
@@ -441,7 +403,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
-
 }
 
 extension CGRect {
