@@ -15,6 +15,23 @@ struct PreviousWorkoutRecordContent {
     ) -> PreviousWorkoutRecordContent? {
         guard let exerciseID = exerciseEntry.exercise?.id else { return nil }
 
+        return find(exerciseID: exerciseID, in: currentSession, sessions: sessions)
+    }
+
+    /// ExerciseEntryをまだ生成していない種目について、直近の完了記録を返す。
+    static func find(
+        for exercise: Exercise,
+        in currentSession: WorkoutSession,
+        sessions: [WorkoutSession]
+    ) -> PreviousWorkoutRecordContent? {
+        find(exerciseID: exercise.id, in: currentSession, sessions: sessions)
+    }
+
+    private static func find(
+        exerciseID: UUID,
+        in currentSession: WorkoutSession,
+        sessions: [WorkoutSession]
+    ) -> PreviousWorkoutRecordContent? {
         let match =
             sessions
             .filter { session in

@@ -12,6 +12,18 @@ struct WorkoutSessionContent {
         self.exerciseEntries = Self.unique(exerciseEntries).sorted { $0.order < $1.order }
     }
 
+    /// セッションで未記録の選択可能な種目を、名称順で返す。
+    func availableExercises(from exercises: [Exercise], matching searchText: String = "") -> [Exercise] {
+        let recordedExerciseIDs = Set(exerciseEntries.compactMap { $0.exercise?.id })
+        return
+            exercises
+            .filter {
+                $0.isSelectable && !recordedExerciseIDs.contains($0.id)
+                    && (searchText.isEmpty || $0.name.localizedStandardContains(searchText))
+            }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
     static func setEntries(for exerciseEntry: ExerciseEntry) -> [SetEntry] {
         unique(exerciseEntry.setEntries).sorted { $0.order < $1.order }
     }

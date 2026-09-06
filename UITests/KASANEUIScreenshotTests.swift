@@ -4,6 +4,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
     private let historySessionID = "50000000-0000-4000-8000-000000000001"
     private let overviewNewestSessionID = "40000000-0000-4000-8000-000000000001"
     private let overviewOldestSessionID = "40000000-0000-4000-8000-000000000004"
+    private let workoutSeatedRowExerciseID = "00000000-0000-4000-8000-000000000006"
+    private let workoutNoPreviousExerciseID = "20000000-0000-4000-8000-000000000002"
+    private let workoutShoulderPressExerciseID = "00000000-0000-4000-8000-000000000009"
     private let workoutSeatedRowEntryID = "21000000-0000-4000-8000-000000000001"
     private let workoutNoPreviousEntryID = "21000000-0000-4000-8000-000000000002"
 
@@ -279,13 +282,26 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         resumeButton.tap()
 
-        let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
-        XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["すべての種目"].exists)
+        XCTAssertTrue(app.searchFields["種目名を検索"].exists)
 
         let sessionAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         sessionAttachment.name = "workout-session-active"
         sessionAttachment.lifetime = .keepAlways
         add(sessionAttachment)
+
+        let currentExercise = app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"]
+        XCTAssertTrue(currentExercise.waitForExistence(timeout: 10))
+        currentExercise.tap()
+
+        let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
+        XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
+
+        let inputAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        inputAttachment.name = "workout-exercise-input"
+        inputAttachment.lifetime = .keepAlways
+        add(inputAttachment)
 
         weightInput.tap()
         weightInput.typeText("47.5")
@@ -307,19 +323,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.buttons["完了"].tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
 
-        let addExerciseButton = app.buttons["種目を追加"]
-        XCTAssertTrue(addExerciseButton.waitForExistence(timeout: 10))
-        addExerciseButton.tap()
-        let searchField = app.searchFields["種目名を検索"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
-
-        let exercisePickerAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        exercisePickerAttachment.name = "exercise-picker"
-        exercisePickerAttachment.lifetime = .keepAlways
-        add(exercisePickerAttachment)
-
-        app.buttons["キャンセル"].tap()
-        XCTAssertTrue(searchField.waitForNonExistence(timeout: 5))
+        app.navigationBars.buttons["ワークアウト"].tap()
 
         let moreButton = app.buttons["その他"]
         XCTAssertTrue(moreButton.waitForExistence(timeout: 10))
@@ -329,16 +333,53 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(cancelWorkoutButton.waitForExistence(timeout: 5))
         cancelWorkoutButton.tap()
 
-        XCTAssertTrue(
-            app.staticTexts["このワークアウトの記録は削除され、元に戻せません。"]
-                .waitForExistence(timeout: 5)
-        )
+        let cancelMessage = app.staticTexts["このワークアウトの記録は削除され、元に戻せません。"]
+        XCTAssertTrue(cancelMessage.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["中止する"].exists)
 
         let cancelConfirmationAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         cancelConfirmationAttachment.name = "workout-cancel-confirmation"
         cancelConfirmationAttachment.lifetime = .keepAlways
         add(cancelConfirmationAttachment)
+
+        let finishButton = app.buttons["終了"]
+        XCTAssertTrue(finishButton.waitForExistence(timeout: 10))
+        finishButton.tap()
+        XCTAssertTrue(cancelMessage.waitForNonExistence(timeout: 5))
+
+        let searchField = app.searchFields["種目名を検索"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("ショルダー")
+        XCTAssertTrue(app.staticTexts["ショルダープレス"].waitForExistence(timeout: 5))
+
+        let searchAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        searchAttachment.name = "workout-exercise-search"
+        searchAttachment.lifetime = .keepAlways
+        add(searchAttachment)
+
+        let availableExercise = app.buttons[
+            "available-exercise-\(workoutShoulderPressExerciseID)"
+        ]
+        XCTAssertTrue(availableExercise.exists)
+        availableExercise.tap()
+        let pendingWeightInput = app.textFields[
+            "draft-weight-input-\(workoutShoulderPressExerciseID)"
+        ]
+        XCTAssertTrue(pendingWeightInput.waitForExistence(timeout: 5))
+        pendingWeightInput.tap()
+        pendingWeightInput.typeText("14")
+        app.navigationBars.buttons["ワークアウト"].tap()
+        XCTAssertTrue(
+            app.buttons["available-exercise-\(workoutShoulderPressExerciseID)"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertFalse(app.buttons["current-exercise-\(workoutShoulderPressExerciseID)"].exists)
+
+        app.buttons["available-exercise-\(workoutShoulderPressExerciseID)"].tap()
+        XCTAssertTrue(pendingWeightInput.waitForExistence(timeout: 5))
+        XCTAssertEqual(pendingWeightInput.value as? String, "14")
+        app.navigationBars.buttons["ワークアウト"].tap()
     }
 
     @MainActor
@@ -350,6 +391,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         app.tabBars.buttons["ワークアウト"].tap()
         app.buttons["workout-resume-button"].tap()
+        app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
 
         let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
         XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
@@ -384,6 +426,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
             app.staticTexts["draft-validation-message"].waitForNonExistence(timeout: 5)
         )
 
+        app.navigationBars.buttons["ワークアウト"].tap()
         let finishButton = app.buttons["終了"]
         XCTAssertTrue(finishButton.waitForExistence(timeout: 10))
         finishButton.tap()
@@ -407,15 +450,18 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         app.tabBars.buttons["ワークアウト"].tap()
         app.buttons["workout-resume-button"].tap()
+        app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
+
+        app.swipeUp()
 
         let previousRecord = app.descendants(matching: .any)[
-            "previous-workout-record-\(workoutSeatedRowEntryID)"
+            "previous-workout-record-\(workoutSeatedRowExerciseID)"
         ]
         XCTAssertTrue(previousRecord.waitForExistence(timeout: 10))
         for order in 0..<3 {
             XCTAssertTrue(
                 app.descendants(matching: .any)[
-                    "previous-set-row-\(workoutSeatedRowEntryID)-\(order)"
+                    "previous-set-row-\(workoutSeatedRowExerciseID)-\(order)"
                 ].exists
             )
         }
@@ -425,14 +471,13 @@ final class KASANEUIScreenshotTests: XCTestCase {
         availableAttachment.lifetime = .keepAlways
         add(availableAttachment)
 
-        let noPreviousWeightInput = app.textFields[
-            "draft-weight-input-\(workoutNoPreviousEntryID)"
-        ]
+        app.navigationBars.buttons["ワークアウト"].tap()
+        app.buttons["current-exercise-\(workoutNoPreviousExerciseID)"].tap()
+        let noPreviousWeightInput = app.textFields["draft-weight-input-\(workoutNoPreviousEntryID)"]
         XCTAssertTrue(noPreviousWeightInput.waitForExistence(timeout: 10))
-        app.swipeUp()
         XCTAssertFalse(
             app.descendants(matching: .any)[
-                "previous-workout-record-\(workoutNoPreviousEntryID)"
+                "previous-workout-record-\(workoutNoPreviousExerciseID)"
             ].exists
         )
 
@@ -454,6 +499,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         app.tabBars.buttons["ワークアウト"].tap()
         app.buttons["workout-resume-button"].tap()
+        app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
         XCTAssertTrue(
             app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
                 .waitForExistence(timeout: 10)
