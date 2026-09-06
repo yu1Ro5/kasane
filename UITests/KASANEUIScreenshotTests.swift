@@ -342,9 +342,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
         cancelConfirmationAttachment.lifetime = .keepAlways
         add(cancelConfirmationAttachment)
 
-        let continueWorkoutButton = app.buttons["続ける"]
-        XCTAssertTrue(continueWorkoutButton.exists)
-        continueWorkoutButton.tap()
+        let finishButton = app.buttons["終了"]
+        XCTAssertTrue(finishButton.waitForExistence(timeout: 10))
+        finishButton.tap()
         XCTAssertTrue(cancelMessage.waitForNonExistence(timeout: 5))
 
         let searchField = app.searchFields["種目名を検索"]
