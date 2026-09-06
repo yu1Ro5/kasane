@@ -63,14 +63,7 @@ struct OverviewView: View {
             case .search:
                 WorkoutSearchView()
             case .workoutDetail(let sessionID):
-                if let session = completedSessions.first(where: { $0.id == sessionID }) {
-                    WorkoutDetailView(session: session)
-                } else {
-                    ContentUnavailableView(
-                        "ワークアウトを表示できません",
-                        systemImage: "exclamationmark.triangle"
-                    )
-                }
+                WorkoutDetailDestinationView(sessionID: sessionID)
             }
         }
     }
