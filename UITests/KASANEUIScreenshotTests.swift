@@ -154,8 +154,15 @@ final class KASANEUIScreenshotTests: XCTestCase {
         add(searchResultsAttachment)
 
         searchField.tap()
-        searchField.typeKey("a", modifierFlags: .command)
-        searchField.typeKey(.delete, modifierFlags: [])
+        // 現在入力されている文字を取得
+        guard let text = searchField.value as? String else { return }
+        // 取得した文字数分削除ボタンを押す
+        var delete = String(
+            repeating: XCUIKeyboardKey.delete.rawValue,
+            count: text.count
+        )
+        // 削除
+        searchField.typeText(delete)
         searchField.typeText("デッドリフト")
 
         let oldestSearchRow = app.buttons[
@@ -172,8 +179,12 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         XCTAssertTrue(searchField.waitForExistence(timeout: 10))
         searchField.tap()
-        searchField.typeKey("a", modifierFlags: .command)
-        searchField.typeKey(.delete, modifierFlags: [])
+        // 現在入力されている文字を取得
+        guard let text = searchField.value as? String else { return }
+        // 取得した文字数分削除ボタンを押す
+        delete = String(repeating: XCUIKeyboardKey.delete.rawValue, count: text.count)
+        // 削除
+        searchField.typeText(delete)
         searchField.typeText("存在しない種目")
 
         XCTAssertTrue(
