@@ -24,9 +24,16 @@ struct OverviewStats {
 
     /// 開始日時が当月内の完了済みWorkoutを集計する。種目はWorkout内で重複排除する。
     /// 同数時は名称、Exercise IDの順で固定し、参照先を失った種目は頻度から除外する。
-    init(sessions: [WorkoutSession], entries: [ExerciseEntry], now: Date, calendar: Calendar) {
+    /// 月単位に限定済みの入力を使う場合、履歴全体の有無は`hasCompletedWorkouts`で補う。
+    init(
+        sessions: [WorkoutSession],
+        entries: [ExerciseEntry],
+        now: Date,
+        calendar: Calendar,
+        hasCompletedWorkouts: Bool? = nil
+    ) {
         let completed = sessions.filter { $0.endedAt != nil }
-        hasCompletedWorkouts = !completed.isEmpty
+        self.hasCompletedWorkouts = hasCompletedWorkouts ?? !completed.isEmpty
         let interval = calendar.dateInterval(of: .month, for: now)
         month = interval?.start ?? now
         let included = completed.filter { session in

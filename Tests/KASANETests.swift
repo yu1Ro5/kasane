@@ -750,6 +750,183 @@ final class KASANETests: XCTestCase {
         )
     }
 
+    /// テスト概要: 多数の完了Workoutとactive WorkoutからOverviewの最近の履歴を取得する。
+    /// 期待値: 完了日時が新しい3件とその種目だけが返り、履歴総数やactive Workoutの種目は混入しない。
+    func testOverviewWorkoutLoaderFetchesOnlyLatestThreeCompletedWorkouts() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        var completedSessions: [WorkoutSession] = []
+
+        for index in 0..<8 {
+            let session = WorkoutSession(
+                startedAt: Date(timeIntervalSince1970: TimeInterval(index * 100)),
+                endedAt: Date(timeIntervalSince1970: TimeInterval(1_000 + index * 100))
+            )
+            let exercise = Exercise(name: "完了種目\(index)", primaryBodyPart: .other)
+            let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+            session.exerciseEntries.append(entry)
+            context.insert(session)
+            context.insert(exercise)
+            completedSessions.append(session)
+        }
+        let activeSession = WorkoutSession(startedAt: Date(timeIntervalSince1970: 10_000))
+        let activeExercise = Exercise(name: "active種目", primaryBodyPart: .other)
+        let activeEntry = ExerciseEntry(
+            workoutSession: activeSession,
+            exercise: activeExercise,
+            order: 0
+        )
+        activeSession.exerciseEntries.append(activeEntry)
+        context.insert(activeSession)
+        context.insert(activeExercise)
+        try context.save()
+
+        let fetched = try OverviewWorkoutLoader.fetchRecentWorkouts(
+            in: ModelContext(container)
+        )
+
+        XCTAssertEqual(
+            fetched.map(\.id),
+            completedSessions.reversed().prefix(3).map(\.id)
+        )
+        XCTAssertEqual(fetched.flatMap(\.exerciseEntries).count, 3)
+        XCTAssertEqual(
+            Set(fetched.flatMap(\.exerciseEntries).map(\.exerciseNameSnapshot)),
+            Set(["完了種目5", "完了種目6", "完了種目7"])
+        )
+        XCTAssertFalse(
+            fetched.flatMap(\.exerciseEntries).contains {
+                $0.exerciseNameSnapshot == "active種目"
+            }
+        )
+    }
+
+    /// テスト概要: Overviewの最近の履歴を0件と3件未満のストアから取得する。
+    /// 期待値: 空ストアでは空配列となり、2件では完了日時の降順で両方が返る。
+    func testOverviewWorkoutLoaderHandlesEmptyAndFewerThanThreeWorkouts() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+
+        XCTAssertTrue(try OverviewWorkoutLoader.fetchRecentWorkouts(in: context).isEmpty)
+
+        let older = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 100),
+            endedAt: Date(timeIntervalSince1970: 200)
+        )
+        let newer = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 300),
+            endedAt: Date(timeIntervalSince1970: 400)
+        )
+        context.insert(newer)
+        context.insert(older)
+        try context.save()
+
+        XCTAssertEqual(
+            try OverviewWorkoutLoader.fetchRecentWorkouts(in: context).map(\.id),
+            [newer.id, older.id]
+        )
+    }
+
+    /// テスト概要: 完了日時と開始日時が同じWorkoutをOverview用に取得する。
+    /// 期待値: UUID昇順を最終条件として毎回同じ3件が返る。
+    func testOverviewWorkoutLoaderUsesStableIDTieBreak() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let ids = try [
+            "10000000-0000-4000-8000-000000000004",
+            "10000000-0000-4000-8000-000000000002",
+            "10000000-0000-4000-8000-000000000001",
+            "10000000-0000-4000-8000-000000000003",
+        ].map { try XCTUnwrap(UUID(uuidString: $0)) }
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+        let endedAt = Date(timeIntervalSince1970: 2_000)
+        for id in ids {
+            context.insert(WorkoutSession(id: id, startedAt: startedAt, endedAt: endedAt))
+        }
+        try context.save()
+
+        XCTAssertEqual(
+            try OverviewWorkoutLoader.fetchRecentWorkouts(in: context).map(\.id.uuidString),
+            [
+                "10000000-0000-4000-8000-000000000001",
+                "10000000-0000-4000-8000-000000000002",
+                "10000000-0000-4000-8000-000000000003",
+            ]
+        )
+    }
+
+    /// テスト概要: 当月4件、前月1件、active 1件からOverviewの月間統計対象を取得する。
+    /// 期待値: 当月の完了4件とその種目だけで集計され、最近の履歴の3件制限を受けない。
+    func testOverviewWorkoutLoaderKeepsAllMonthlyWorkoutsForStats() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let referenceDate = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 9, day: 15))
+        )
+        var monthlySessions: [WorkoutSession] = []
+
+        for day in 1...4 {
+            let startedAt = try XCTUnwrap(
+                calendar.date(from: DateComponents(year: 2026, month: 9, day: day))
+            )
+            let session = WorkoutSession(
+                startedAt: startedAt,
+                endedAt: startedAt.addingTimeInterval(600)
+            )
+            let exercise = Exercise(name: "当月種目\(day)", primaryBodyPart: .other)
+            session.exerciseEntries.append(
+                ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+            )
+            context.insert(session)
+            context.insert(exercise)
+            monthlySessions.append(session)
+        }
+        let previousStart = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 8, day: 31))
+        )
+        let previous = WorkoutSession(
+            startedAt: previousStart,
+            endedAt: previousStart.addingTimeInterval(600)
+        )
+        let previousExercise = Exercise(name: "前月種目", primaryBodyPart: .other)
+        previous.exerciseEntries.append(
+            ExerciseEntry(workoutSession: previous, exercise: previousExercise, order: 0)
+        )
+        let active = WorkoutSession(startedAt: referenceDate)
+        let activeExercise = Exercise(name: "active種目", primaryBodyPart: .other)
+        active.exerciseEntries.append(
+            ExerciseEntry(workoutSession: active, exercise: activeExercise, order: 0)
+        )
+        context.insert(previous)
+        context.insert(previousExercise)
+        context.insert(active)
+        context.insert(activeExercise)
+        try context.save()
+
+        let fetched = try OverviewWorkoutLoader.fetchMonthlyWorkouts(
+            containing: referenceDate,
+            calendar: calendar,
+            in: ModelContext(container)
+        )
+        let entries = fetched.flatMap(\.exerciseEntries)
+        let stats = OverviewStats(
+            sessions: fetched,
+            entries: entries,
+            now: referenceDate,
+            calendar: calendar,
+            hasCompletedWorkouts: true
+        )
+
+        XCTAssertEqual(Set(fetched.map(\.id)), Set(monthlySessions.map(\.id)))
+        XCTAssertEqual(stats.workoutCount, 4)
+        XCTAssertEqual(stats.duration, 2_400)
+        XCTAssertEqual(entries.count, 4)
+        XCTAssertFalse(entries.contains { $0.exerciseNameSnapshot == "前月種目" })
+        XCTAssertFalse(entries.contains { $0.exerciseNameSnapshot == "active種目" })
+    }
+
     /// テスト概要: 完了Workoutの履歴行表示を生成する。
     /// 期待値: 種目はorder順のスナップショットから先頭2件と残数に要約され、所要時間と種目数が表示用文字列になる。
     func testWorkoutHistoryRowContentUsesSnapshotOrderAndSummarizesExercises() throws {
