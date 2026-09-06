@@ -171,6 +171,10 @@ struct WorkoutSessionView: View {
         draftStore.drafts(for: session.id)
     }
 
+    private var pendingExerciseDrafts: [UUID: SetEntryDraft] {
+        draftStore.pendingDrafts(for: session.id)
+    }
+
     private var completionCounts: (exerciseCount: Int, setCount: Int) {
         let entries = sortedEntries.filter {
             !sortedSets(for: $0).isEmpty || sessionDrafts[$0.id]?.values() != nil
@@ -207,7 +211,10 @@ struct WorkoutSessionView: View {
 
     private func requestFinish() {
         guard !isFinishing else { return }
-        if sessionDrafts.values.contains(where: { !$0.isEmpty && $0.values() == nil }) {
+        if !pendingExerciseDrafts.isEmpty {
+            errorTitle = "未保存のセットがあります"
+            errorMessage = "入力中の種目を開き、「セットを追加」を押すか入力を消してから終了してください。"
+        } else if sessionDrafts.values.contains(where: { !$0.isEmpty && $0.values() == nil }) {
             errorTitle = "未追加のセットがあります"
             errorMessage = "重量と回数を正しく入力するか、入力を消してから終了してください。"
         } else if completionCounts.setCount == 0 {

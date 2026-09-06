@@ -51,7 +51,9 @@ struct WorkoutExerciseService {
     func delete(_ entry: ExerciseEntry, from session: WorkoutSession) throws {
         let originalOrder = Self.orderSnapshot(in: session)
         context.delete(entry)
-        let remaining = session.exerciseEntries.filter { $0.id != entry.id }.sorted { $0.order < $1.order }
+        let remaining = Self.uniqueEntries(session.exerciseEntries)
+            .filter { $0.id != entry.id }
+            .sorted { $0.order < $1.order }
         for (order, item) in remaining.enumerated() {
             item.order = order
         }
@@ -66,7 +68,7 @@ struct WorkoutExerciseService {
 
     /// 指定した種目を先頭へ移し、同一セッション内のorderを0始まりの連番へ正規化する。
     static func moveToFront(_ entry: ExerciseEntry, in session: WorkoutSession) {
-        let remaining = session.exerciseEntries
+        let remaining = uniqueEntries(session.exerciseEntries)
             .filter { $0.id != entry.id }
             .sorted { $0.order < $1.order }
         let orderedEntries = [entry] + remaining
@@ -82,11 +84,17 @@ struct WorkoutExerciseService {
 
     /// 保存失敗時に表示順を復元するため、現在のorderを取得する。
     static func orderSnapshot(in session: WorkoutSession) -> [(entry: ExerciseEntry, order: Int)] {
-        session.exerciseEntries.map { (entry: $0, order: $0.order) }
+        uniqueEntries(session.exerciseEntries).map { (entry: $0, order: $0.order) }
     }
 
     /// `orderSnapshot(in:)`で取得した表示順をモデルへ戻す。
     static func restoreOrder(_ snapshot: [(entry: ExerciseEntry, order: Int)]) {
         snapshot.forEach { $0.entry.order = $0.order }
+    }
+
+    /// SwiftDataのRelationshipが再解決中に同じ論理IDを重複して返しても、orderを一度だけ割り当てる。
+    private static func uniqueEntries(_ entries: [ExerciseEntry]) -> [ExerciseEntry] {
+        var seenIDs = Set<UUID>()
+        return entries.filter { seenIDs.insert($0.id).inserted }
     }
 }

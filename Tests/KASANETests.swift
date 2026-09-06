@@ -100,6 +100,35 @@ final class KASANETests: XCTestCase {
         )
     }
 
+    /// テスト概要: ExerciseEntry生成前の入力を一覧へ戻った後に取得する。
+    /// 期待値: DraftはSessionとExerciseごとに分離され、同じ種目を開き直すと復元される。
+    func testWorkoutDraftStoreKeepsPendingDraftsScopedToSessionAndExercise() {
+        let store = WorkoutDraftStore()
+        let firstSessionID = UUID()
+        let secondSessionID = UUID()
+        let exerciseID = UUID()
+
+        store.updatePending(
+            SetEntryDraft(weight: "14", reps: ""),
+            for: exerciseID,
+            in: firstSessionID
+        )
+        store.updatePending(
+            SetEntryDraft(weight: "20", reps: "8"),
+            for: exerciseID,
+            in: secondSessionID
+        )
+
+        XCTAssertEqual(
+            store.pendingDraft(for: exerciseID, in: firstSessionID),
+            SetEntryDraft(weight: "14", reps: "")
+        )
+        XCTAssertEqual(
+            store.pendingDraft(for: exerciseID, in: secondSessionID),
+            SetEntryDraft(weight: "20", reps: "8")
+        )
+    }
+
     /// テスト概要: 空になったDraftと終了したWorkoutのDraftを消去する。
     /// 期待値: 空Draftは保持されず、Session単位で残りのDraftも消去できる。
     func testWorkoutDraftStoreRemovesEmptyAndCompletedSessionDrafts() {
@@ -107,17 +136,32 @@ final class KASANETests: XCTestCase {
         let sessionID = UUID()
         let firstEntryID = UUID()
         let secondEntryID = UUID()
+        let exerciseID = UUID()
         store.update(SetEntryDraft(weight: "20", reps: "5"), for: firstEntryID, in: sessionID)
         store.update(SetEntryDraft(weight: "40", reps: "8"), for: secondEntryID, in: sessionID)
+        store.updatePending(
+            SetEntryDraft(weight: "14", reps: ""),
+            for: exerciseID,
+            in: sessionID
+        )
 
         store.update(SetEntryDraft(), for: firstEntryID, in: sessionID)
+        store.updatePending(SetEntryDraft(), for: exerciseID, in: sessionID)
 
         XCTAssertEqual(store.draft(for: firstEntryID, in: sessionID), SetEntryDraft())
         XCTAssertEqual(store.drafts(for: sessionID).count, 1)
+        XCTAssertEqual(store.pendingDraft(for: exerciseID, in: sessionID), SetEntryDraft())
+
+        store.updatePending(
+            SetEntryDraft(weight: "14", reps: ""),
+            for: exerciseID,
+            in: sessionID
+        )
 
         store.removeAllDrafts(in: sessionID)
 
         XCTAssertTrue(store.drafts(for: sessionID).isEmpty)
+        XCTAssertTrue(store.pendingDrafts(for: sessionID).isEmpty)
     }
 
     /// テスト概要: 新しいアプリ起動に相当するStoreを生成する。
@@ -1613,6 +1657,28 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(fetched.map(\.order), [0, 1, 2, 3])
         XCTAssertEqual(Set(fetched.map(\.order)).count, fetched.count)
         XCTAssertFalse(context.hasChanges)
+    }
+
+    /// テスト概要: Relationshipが同じExerciseEntry IDを重複して返す状態で表示順を更新する。
+    /// 期待値: 論理IDごとに一度だけorderが割り当てられ、0始まりの連番になる。
+    func testMovingExerciseToFrontDeduplicatesRelationshipEntries() {
+        let session = WorkoutSession()
+        let first = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "スクワット", primaryBodyPart: .legs),
+            order: 0
+        )
+        let second = ExerciseEntry(
+            workoutSession: session,
+            exercise: Exercise(name: "ベンチプレス", primaryBodyPart: .chest),
+            order: 1
+        )
+        session.exerciseEntries = [first, second, first, second]
+
+        WorkoutExerciseService.moveToFront(second, in: session)
+
+        XCTAssertEqual(second.order, 0)
+        XCTAssertEqual(first.order, 1)
     }
 
     /// テスト概要: 同じ種目の最初のセットを同一セッションと別セッションへ保存する。

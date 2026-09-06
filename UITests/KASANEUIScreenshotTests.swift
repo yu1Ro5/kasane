@@ -340,16 +340,23 @@ final class KASANEUIScreenshotTests: XCTestCase {
         ]
         XCTAssertTrue(availableExercise.exists)
         availableExercise.tap()
-        XCTAssertTrue(
-            app.textFields["draft-weight-input-\(workoutShoulderPressExerciseID)"]
-                .waitForExistence(timeout: 5)
-        )
+        let pendingWeightInput = app.textFields[
+            "draft-weight-input-\(workoutShoulderPressExerciseID)"
+        ]
+        XCTAssertTrue(pendingWeightInput.waitForExistence(timeout: 5))
+        pendingWeightInput.tap()
+        pendingWeightInput.typeText("14")
         app.navigationBars.buttons["ワークアウト"].tap()
         XCTAssertTrue(
             app.buttons["available-exercise-\(workoutShoulderPressExerciseID)"]
                 .waitForExistence(timeout: 5)
         )
         XCTAssertFalse(app.buttons["current-exercise-\(workoutShoulderPressExerciseID)"].exists)
+
+        app.buttons["available-exercise-\(workoutShoulderPressExerciseID)"].tap()
+        XCTAssertTrue(pendingWeightInput.waitForExistence(timeout: 5))
+        XCTAssertEqual(pendingWeightInput.value as? String, "14")
+        app.navigationBars.buttons["ワークアウト"].tap()
 
         let cancelSearchButton = app.buttons["キャンセル"]
         if cancelSearchButton.waitForExistence(timeout: 2) {

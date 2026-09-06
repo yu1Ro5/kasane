@@ -13,7 +13,6 @@ struct WorkoutExerciseInputView: View {
     @Query(sort: \SetEntry.order) private var observedSetEntries: [SetEntry]
     @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var observedSessions: [WorkoutSession]
 
-    @State private var pendingDraft = SetEntryDraft()
     @State private var editDrafts: [UUID: SetEntryDraft] = [:]
     @State private var isSaving = false
     @State private var isConfirmingDeletion = false
@@ -123,10 +122,15 @@ struct WorkoutExerciseInputView: View {
     }
 
     private var draft: Binding<SetEntryDraft> {
-        guard let entry else { return $pendingDraft }
+        if let entry {
+            return Binding(
+                get: { draftStore.draft(for: entry.id, in: session.id) },
+                set: { draftStore.update($0, for: entry.id, in: session.id) }
+            )
+        }
         return Binding(
-            get: { draftStore.draft(for: entry.id, in: session.id) },
-            set: { draftStore.update($0, for: entry.id, in: session.id) }
+            get: { draftStore.pendingDraft(for: exercise.id, in: session.id) },
+            set: { draftStore.updatePending($0, for: exercise.id, in: session.id) }
         )
     }
 
@@ -191,11 +195,11 @@ struct WorkoutExerciseInputView: View {
                 focusedEntry = entry
             } else {
                 focusedEntry = try WorkoutExerciseService(context: modelContext).recordFirstSet(
-                    draft: pendingDraft,
+                    draft: draft.wrappedValue,
                     for: exercise,
                     in: session
                 )
-                pendingDraft = SetEntryDraft()
+                draftStore.removePendingDraft(for: exercise.id, in: session.id)
             }
             focusedInput = .draftWeight(exerciseID: focusedEntry.id)
         } catch {
