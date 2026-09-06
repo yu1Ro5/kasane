@@ -12,12 +12,15 @@ struct WorkoutSetService {
 
     @discardableResult
     func add(draft: SetEntryDraft, to exerciseEntry: ExerciseEntry) throws -> SetEntry {
+        let originalOrder = orderSnapshot(for: exerciseEntry)
         let setEntry = try insert(draft: draft, to: exerciseEntry)
+        moveExerciseToFront(exerciseEntry)
         do {
             try context.save()
             return setEntry
         } catch {
             context.rollback()
+            WorkoutExerciseService.restoreOrder(originalOrder)
             throw error
         }
     }
@@ -39,28 +42,48 @@ struct WorkoutSetService {
 
     func update(_ setEntry: SetEntry, draft: SetEntryDraft) throws {
         guard let values = draft.values() else { throw WorkoutSetError.invalidValues }
+        let originalOrder = setEntry.exerciseEntry.map { orderSnapshot(for: $0) } ?? []
         setEntry.weightKg = values.weight
         setEntry.reps = values.reps
+        if let exerciseEntry = setEntry.exerciseEntry {
+            moveExerciseToFront(exerciseEntry)
+        }
         do {
             try context.save()
         } catch {
             context.rollback()
+            WorkoutExerciseService.restoreOrder(originalOrder)
             throw error
         }
     }
 
     func delete(_ setEntry: SetEntry, from exerciseEntry: ExerciseEntry) throws {
+        let originalOrder = orderSnapshot(for: exerciseEntry)
         context.delete(setEntry)
         let remaining = exerciseEntry.setEntries.filter { $0.id != setEntry.id }.sorted { $0.order < $1.order }
         for (order, entry) in remaining.enumerated() {
             entry.order = order
         }
+        moveExerciseToFront(exerciseEntry)
         do {
             try context.save()
         } catch {
             context.rollback()
+            WorkoutExerciseService.restoreOrder(originalOrder)
             throw error
         }
+    }
+
+    private func moveExerciseToFront(_ exerciseEntry: ExerciseEntry) {
+        guard let session = exerciseEntry.workoutSession, session.endedAt == nil else { return }
+        WorkoutExerciseService.moveToFront(exerciseEntry, in: session)
+    }
+
+    private func orderSnapshot(
+        for exerciseEntry: ExerciseEntry
+    ) -> [(entry: ExerciseEntry, order: Int)] {
+        guard let session = exerciseEntry.workoutSession, session.endedAt == nil else { return [] }
+        return WorkoutExerciseService.orderSnapshot(in: session)
     }
 }
 

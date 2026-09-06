@@ -79,7 +79,7 @@ private enum AppModelContainer {
         context.insert(session)
         guard
             let seatedRowExerciseID = UUID(
-                uuidString: "20000000-0000-4000-8000-000000000001"
+                uuidString: "00000000-0000-4000-8000-000000000006"
             ),
             let seatedRowEntryID = UUID(
                 uuidString: "21000000-0000-4000-8000-000000000001"
@@ -89,6 +89,9 @@ private enum AppModelContainer {
             ),
             let latPulldownEntryID = UUID(
                 uuidString: "21000000-0000-4000-8000-000000000002"
+            ),
+            let shoulderPressExerciseID = UUID(
+                uuidString: "00000000-0000-4000-8000-000000000009"
             )
         else {
             throw FixtureError.invalidIdentifier
@@ -150,6 +153,29 @@ private enum AppModelContainer {
                     order: order,
                     weightKg: values.0,
                     reps: values.1
+                )
+            )
+        }
+
+        let shoulderPress = Exercise(
+            id: shoulderPressExerciseID,
+            name: "ショルダープレス",
+            primaryBodyPart: .shoulders
+        )
+        context.insert(shoulderPress)
+        let previousShoulderPressEntry = ExerciseEntry(
+            workoutSession: previousSession,
+            exercise: shoulderPress,
+            order: 1
+        )
+        context.insert(previousShoulderPressEntry)
+        for order in 0..<3 {
+            context.insert(
+                SetEntry(
+                    exerciseEntry: previousShoulderPressEntry,
+                    order: order,
+                    weightKg: 14,
+                    reps: 12
                 )
             )
         }
