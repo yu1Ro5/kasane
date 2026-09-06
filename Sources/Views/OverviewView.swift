@@ -7,43 +7,20 @@ struct OverviewView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Screenshot等で日時を固定する場合に指定する。通常はTimelineの現在日時を使う。
     var referenceDate: Date? = nil
-    @Query(
-        filter: #Predicate<WorkoutSession> { $0.endedAt != nil },
-        sort: \WorkoutSession.endedAt,
-        order: .reverse
-    ) private var completedSessions: [WorkoutSession]
-    @Query(sort: \ExerciseEntry.order) private var observedExerciseEntries: [ExerciseEntry]
+    @Query(OverviewWorkoutLoader.recentWorkoutDescriptor) private var completedSessions: [WorkoutSession]
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
-            let stats = OverviewStats(
-                sessions: completedSessions,
-                entries: observedExerciseEntries,
-                now: referenceDate ?? timeline.date,
-                calendar: calendar
-            )
+            let statsDate = referenceDate ?? timeline.date
+            let monthStart = calendar.dateInterval(of: .month, for: statsDate)?.start ?? statsDate
             List {
-                Section {
-                    monthlySummary(stats)
-                } header: {
-                    Text(stats.month, format: .dateTime.year().month())
-                }
-
-                if !stats.frequentExercises.isEmpty {
-                    Section {
-                        ForEach(stats.frequentExercises) { exercise in
-                            LabeledContent {
-                                Text("\(exercise.workoutCount)回")
-                                    .monospacedDigit()
-                            } label: {
-                                Text(exercise.name)
-                            }
-                            .accessibilityElement(children: .combine)
-                        }
-                    } header: {
-                        Text("今月よく行う種目")
-                    }
-                }
+                OverviewMonthlyStatsSections(
+                    referenceDate: statsDate,
+                    calendar: calendar,
+                    dynamicTypeSize: dynamicTypeSize,
+                    hasCompletedWorkouts: !completedSessions.isEmpty
+                )
+                .id(monthStart)
 
                 if completedSessions.isEmpty {
                     ContentUnavailableView(
@@ -54,13 +31,8 @@ struct OverviewView: View {
                     .listRowBackground(Color.clear)
                 } else {
                     Section("最近のワークアウト") {
-                        ForEach(completedSessions.prefix(3)) { session in
-                            if let content = WorkoutHistoryRowContent(
-                                session: session,
-                                exerciseEntries: observedExerciseEntries.filter {
-                                    $0.workoutSession?.id == session.id
-                                }
-                            ) {
+                        ForEach(completedSessions) { session in
+                            if let content = WorkoutHistoryRowContent(session: session) {
                                 NavigationLink(value: OverviewRoute.workoutDetail(session.id)) {
                                     WorkoutHistoryRow(content: content)
                                 }
@@ -91,14 +63,65 @@ struct OverviewView: View {
             case .search:
                 WorkoutSearchView()
             case .workoutDetail(let sessionID):
-                if let session = completedSessions.first(where: { $0.id == sessionID }) {
-                    WorkoutDetailView(session: session)
-                } else {
-                    ContentUnavailableView(
-                        "ワークアウトを表示できません",
-                        systemImage: "exclamationmark.triangle"
-                    )
+                WorkoutDetailDestinationView(sessionID: sessionID)
+            }
+        }
+    }
+}
+
+/// 対象月に限定したWorkoutからOverviewの月間統計Sectionを構築する。
+private struct OverviewMonthlyStatsSections: View {
+    let referenceDate: Date
+    let calendar: Calendar
+    let dynamicTypeSize: DynamicTypeSize
+    let hasCompletedWorkouts: Bool
+    @Query private var completedSessions: [WorkoutSession]
+
+    init(
+        referenceDate: Date,
+        calendar: Calendar,
+        dynamicTypeSize: DynamicTypeSize,
+        hasCompletedWorkouts: Bool
+    ) {
+        self.referenceDate = referenceDate
+        self.calendar = calendar
+        self.dynamicTypeSize = dynamicTypeSize
+        self.hasCompletedWorkouts = hasCompletedWorkouts
+        _completedSessions = Query(
+            OverviewWorkoutLoader.monthlyWorkoutDescriptor(
+                containing: referenceDate,
+                calendar: calendar
+            )
+        )
+    }
+
+    var body: some View {
+        let stats = OverviewStats(
+            sessions: completedSessions,
+            entries: completedSessions.flatMap(\.exerciseEntries),
+            now: referenceDate,
+            calendar: calendar,
+            hasCompletedWorkouts: hasCompletedWorkouts
+        )
+        Section {
+            monthlySummary(stats)
+        } header: {
+            Text(stats.month, format: .dateTime.year().month())
+        }
+
+        if !stats.frequentExercises.isEmpty {
+            Section {
+                ForEach(stats.frequentExercises) { exercise in
+                    LabeledContent {
+                        Text("\(exercise.workoutCount)回")
+                            .monospacedDigit()
+                    } label: {
+                        Text(exercise.name)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
+            } header: {
+                Text("今月よく行う種目")
             }
         }
     }

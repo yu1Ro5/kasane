@@ -1,6 +1,34 @@
 import SwiftData
 import SwiftUI
 
+/// Workout IDから詳細表示対象を個別取得し、取得結果に応じた画面を表示する。
+struct WorkoutDetailDestinationView: View {
+    @Query private var sessions: [WorkoutSession]
+
+    /// 詳細表示するWorkout IDで取得条件を構築する。
+    init(sessionID: UUID) {
+        let targetID = sessionID
+        var descriptor = FetchDescriptor<WorkoutSession>(
+            predicate: #Predicate {
+                $0.id == targetID
+            }
+        )
+        descriptor.fetchLimit = 1
+        _sessions = Query(descriptor)
+    }
+
+    var body: some View {
+        if let session = sessions.first {
+            WorkoutDetailView(session: session)
+        } else {
+            ContentUnavailableView(
+                "ワークアウトを表示できません",
+                systemImage: "exclamationmark.triangle"
+            )
+        }
+    }
+}
+
 struct WorkoutDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var session: WorkoutSession
