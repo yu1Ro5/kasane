@@ -324,6 +324,29 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
 
         app.navigationBars.buttons["ワークアウト"].tap()
+
+        let moreButton = app.buttons["その他"]
+        XCTAssertTrue(moreButton.waitForExistence(timeout: 10))
+        moreButton.tap()
+
+        let cancelWorkoutButton = app.buttons["ワークアウトを中止"]
+        XCTAssertTrue(cancelWorkoutButton.waitForExistence(timeout: 5))
+        cancelWorkoutButton.tap()
+
+        let cancelMessage = app.staticTexts["このワークアウトの記録は削除され、元に戻せません。"]
+        XCTAssertTrue(cancelMessage.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["中止する"].exists)
+
+        let cancelConfirmationAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        cancelConfirmationAttachment.name = "workout-cancel-confirmation"
+        cancelConfirmationAttachment.lifetime = .keepAlways
+        add(cancelConfirmationAttachment)
+
+        let continueWorkoutButton = app.buttons["続ける"]
+        XCTAssertTrue(continueWorkoutButton.exists)
+        continueWorkoutButton.tap()
+        XCTAssertTrue(cancelMessage.waitForNonExistence(timeout: 5))
+
         let searchField = app.searchFields["種目名を検索"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 5))
         searchField.tap()
@@ -357,30 +380,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(pendingWeightInput.waitForExistence(timeout: 5))
         XCTAssertEqual(pendingWeightInput.value as? String, "14")
         app.navigationBars.buttons["ワークアウト"].tap()
-
-        let cancelSearchButton = app.buttons["キャンセル"]
-        if cancelSearchButton.waitForExistence(timeout: 2) {
-            cancelSearchButton.tap()
-        }
-
-        let moreButton = app.buttons["その他"]
-        XCTAssertTrue(moreButton.waitForExistence(timeout: 10))
-        moreButton.tap()
-
-        let cancelWorkoutButton = app.buttons["ワークアウトを中止"]
-        XCTAssertTrue(cancelWorkoutButton.waitForExistence(timeout: 5))
-        cancelWorkoutButton.tap()
-
-        XCTAssertTrue(
-            app.staticTexts["このワークアウトの記録は削除され、元に戻せません。"]
-                .waitForExistence(timeout: 5)
-        )
-        XCTAssertTrue(app.buttons["中止する"].exists)
-
-        let cancelConfirmationAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        cancelConfirmationAttachment.name = "workout-cancel-confirmation"
-        cancelConfirmationAttachment.lifetime = .keepAlways
-        add(cancelConfirmationAttachment)
     }
 
     @MainActor
