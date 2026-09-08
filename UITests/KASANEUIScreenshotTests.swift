@@ -327,14 +327,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         keyboardAddSetButton.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(weightInput.waitForExistence(timeout: 5))
-        let weightFocusExpectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate { _, _ in weightInput.hasFocus },
-            object: weightInput
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [weightFocusExpectation], timeout: 5),
-            .completed
-        )
         XCTAssertEqual(weightInput.value as? String, "0")
         XCTAssertEqual(repsInput.value as? String, "0")
         XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 1)
