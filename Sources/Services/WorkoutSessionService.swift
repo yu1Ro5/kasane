@@ -74,6 +74,19 @@ struct WorkoutSessionService {
         }
     }
 
+    /// 完了済みセッションを削除し、削除を即時保存する。
+    func deleteCompleted(_ session: WorkoutSession) throws {
+        guard session.endedAt != nil else { throw WorkoutSessionError.notCompleted }
+
+        context.delete(session)
+        do {
+            try save()
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
     /// 保存済みセットを持つ種目だけを残し、セッションを終了して即時保存する。
     func finish(
         _ session: WorkoutSession,
@@ -132,6 +145,8 @@ enum WorkoutSessionError: LocalizedError, Equatable {
     case noSavedSets
     /// すでに終了済みのセッションに対する重複終了操作。
     case alreadyFinished
+    /// 進行中セッションに対する履歴削除操作。
+    case notCompleted
 
     /// ユーザーへ表示するエラー内容。
     var errorDescription: String? {
@@ -140,6 +155,8 @@ enum WorkoutSessionError: LocalizedError, Equatable {
             "記録されたセットがありません。"
         case .alreadyFinished:
             "このワークアウトはすでに終了しています。"
+        case .notCompleted:
+            "進行中のワークアウトは履歴から削除できません。"
         }
     }
 }

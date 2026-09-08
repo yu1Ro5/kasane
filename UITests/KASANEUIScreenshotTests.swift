@@ -202,6 +202,45 @@ final class KASANEUIScreenshotTests: XCTestCase {
         add(searchEmptyAttachment)
     }
 
+    /// 履歴のスワイプ削除をキャンセルでき、詳細からの削除後は履歴へ戻ることを確認する。
+    @MainActor
+    func testCompletedWorkoutDeletionFlow() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--fixture", "overview-recent-workouts"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        app.swipeUp()
+        XCTAssertTrue(app.buttons["すべて表示"].waitForExistence(timeout: 10))
+        app.buttons["すべて表示"].tap()
+        XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
+
+        let historyRow = app.buttons["workout-history-row-\(overviewOldestSessionID)"]
+        XCTAssertTrue(historyRow.waitForExistence(timeout: 10))
+        historyRow.swipeLeft()
+        let swipeDeleteButton = app.buttons["delete-workout-\(overviewOldestSessionID)"]
+        XCTAssertTrue(swipeDeleteButton.waitForExistence(timeout: 5))
+        swipeDeleteButton.tap()
+
+        XCTAssertTrue(app.staticTexts["このワークアウトを削除しますか？"].waitForExistence(timeout: 5))
+        app.buttons["キャンセル"].tap()
+        XCTAssertTrue(historyRow.waitForExistence(timeout: 5))
+
+        historyRow.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
+        )
+        app.buttons["その他"].tap()
+        let detailDeleteButton = app.buttons["delete-workout-from-detail"]
+        XCTAssertTrue(detailDeleteButton.waitForExistence(timeout: 5))
+        detailDeleteButton.tap()
+        XCTAssertTrue(app.staticTexts["このワークアウトを削除しますか？"].waitForExistence(timeout: 5))
+        app.buttons["削除"].tap()
+
+        XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
+        XCTAssertFalse(historyRow.exists)
+    }
+
     @MainActor
     func testOverviewPreviousMonthScreenshot() throws {
         let app = XCUIApplication()
