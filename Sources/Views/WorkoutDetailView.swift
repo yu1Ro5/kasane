@@ -30,6 +30,7 @@ struct WorkoutDetailDestinationView: View {
 }
 
 struct WorkoutDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Bindable var session: WorkoutSession
     @Query(sort: \ExerciseEntry.order) private var observedExerciseEntries: [ExerciseEntry]
@@ -38,7 +39,9 @@ struct WorkoutDetailView: View {
     @State private var editDraft: WorkoutHistoryEditDraft
     @State private var isShowingExercisePicker = false
     @State private var isConfirmingDiscard = false
+    @State private var isConfirmingDeletion = false
     @State private var isSaving = false
+    @State private var errorTitle = "変更を保存できませんでした"
     @State private var errorMessage: String?
 
     init(session: WorkoutSession) {
@@ -82,7 +85,13 @@ struct WorkoutDetailView: View {
                         .disabled(!editDraft.hasChanges || isSaving)
                 }
             } else if session.endedAt != nil {
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItemGroup(placement: .confirmationAction) {
+                    Menu("その他", systemImage: "ellipsis.circle") {
+                        Button("ワークアウトを削除", systemImage: "trash", role: .destructive) {
+                            isConfirmingDeletion = true
+                        }
+                        .accessibilityIdentifier("delete-workout-from-detail")
+                    }
                     Button("編集", systemImage: "pencil") { startEditing() }
                 }
             }
@@ -99,7 +108,16 @@ struct WorkoutDetailView: View {
         } message: {
             Text("保存していない変更は失われます。")
         }
-        .alert("変更を保存できませんでした", isPresented: errorIsPresented) {
+        .confirmationDialog(
+            "このワークアウトを削除しますか？",
+            isPresented: $isConfirmingDeletion
+        ) {
+            Button("削除", role: .destructive) { deleteWorkout() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("この操作は取り消せません。")
+        }
+        .alert(errorTitle, isPresented: errorIsPresented) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "不明なエラーが発生しました。")
@@ -143,6 +161,17 @@ struct WorkoutDetailView: View {
             try WorkoutHistoryEditService(context: modelContext).save(editDraft, to: session)
             finishEditing()
         } catch {
+            errorTitle = "変更を保存できませんでした"
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func deleteWorkout() {
+        do {
+            try WorkoutSessionService(context: modelContext).deleteCompleted(session)
+            dismiss()
+        } catch {
+            errorTitle = "ワークアウトを削除できませんでした"
             errorMessage = error.localizedDescription
         }
     }

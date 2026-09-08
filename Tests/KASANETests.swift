@@ -193,28 +193,62 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(exercise.exerciseEntries.count, 2)
     }
 
-    /// テスト概要: ExerciseEntryとSetEntryを持つWorkoutSessionを削除する。
-    /// 期待値: 配下の記録はcascade削除され、共有されるExerciseマスタは残る。
-    func testDeletingWorkoutSessionCascadesThroughItsGraph() throws {
+    /// テスト概要: 完了Workoutを履歴削除し、共有Exerciseを参照する別Workoutを取得する。
+    /// 期待値: 対象と配下だけがcascade削除され、別WorkoutとExerciseマスタは残る。
+    func testDeletingCompletedWorkoutCascadesOnlyThroughItsOwnedGraph() throws {
         let container = try makeContainer()
         let context = container.mainContext
-        let workoutSession = WorkoutSession()
+        let workoutSession = WorkoutSession(endedAt: Date(timeIntervalSince1970: 2_000))
+        let otherWorkoutSession = WorkoutSession(endedAt: Date(timeIntervalSince1970: 3_000))
         let exercise = Exercise(name: "Deadlift", primaryBodyPart: .back)
         let exerciseEntry = ExerciseEntry(workoutSession: workoutSession, exercise: exercise, order: 0)
+        let otherExerciseEntry = ExerciseEntry(
+            workoutSession: otherWorkoutSession,
+            exercise: exercise,
+            order: 0
+        )
         workoutSession.exerciseEntries.append(exerciseEntry)
         exerciseEntry.setEntries.append(
             SetEntry(exerciseEntry: exerciseEntry, order: 0, weightKg: 120, reps: 5)
         )
+        otherWorkoutSession.exerciseEntries.append(otherExerciseEntry)
+        otherExerciseEntry.setEntries.append(
+            SetEntry(exerciseEntry: otherExerciseEntry, order: 0, weightKg: 125, reps: 3)
+        )
         context.insert(workoutSession)
+        context.insert(otherWorkoutSession)
         context.insert(exercise)
         try context.save()
 
-        context.delete(workoutSession)
+        try WorkoutSessionService(context: context).deleteCompleted(workoutSession)
+
+        let sessions = try context.fetch(FetchDescriptor<WorkoutSession>())
+        XCTAssertEqual(sessions.map(\.id), [otherWorkoutSession.id])
+        XCTAssertEqual(
+            try context.fetch(FetchDescriptor<ExerciseEntry>()).map(\.id),
+            [
+                otherExerciseEntry.id
+            ])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Exercise>()).count, 1)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    /// テスト概要: 進行中Workoutに履歴削除を要求する。
+    /// 期待値: 専用エラーで拒否され、Workoutは永続ストアに残る。
+    func testDeletingActiveWorkoutAsCompletedIsRejected() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        context.insert(session)
         try context.save()
 
-        XCTAssertTrue(try context.fetch(FetchDescriptor<ExerciseEntry>()).isEmpty)
-        XCTAssertTrue(try context.fetch(FetchDescriptor<SetEntry>()).isEmpty)
-        XCTAssertEqual(try context.fetch(FetchDescriptor<Exercise>()).count, 1)
+        XCTAssertThrowsError(
+            try WorkoutSessionService(context: context).deleteCompleted(session)
+        ) { error in
+            XCTAssertEqual(error as? WorkoutSessionError, .notCompleted)
+        }
+        XCTAssertEqual(try context.fetch(FetchDescriptor<WorkoutSession>()).map(\.id), [session.id])
     }
 
     /// テスト概要: Exerciseの名称・部位・アーカイブ状態を保存後に変更する。
