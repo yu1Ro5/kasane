@@ -50,7 +50,12 @@ struct OverviewView: View {
         }
         .navigationTitle("概要")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                NavigationLink(value: OverviewRoute.about) {
+                    Label("KASANEについて", systemImage: "info.circle")
+                }
+                .accessibilityLabel("KASANEについて")
+
                 NavigationLink(value: OverviewRoute.search) {
                     Label("検索", systemImage: "magnifyingglass")
                 }
@@ -58,6 +63,8 @@ struct OverviewView: View {
         }
         .navigationDestination(for: OverviewRoute.self) { route in
             switch route {
+            case .about:
+                AboutView()
             case .history:
                 WorkoutHistoryView()
             case .search:
@@ -174,6 +181,7 @@ private struct OverviewMonthlyStatsSections: View {
 }
 
 enum OverviewRoute: Hashable {
+    case about
     case history
     case search
     case workoutDetail(UUID)

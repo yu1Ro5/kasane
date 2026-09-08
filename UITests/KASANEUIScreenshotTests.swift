@@ -72,6 +72,30 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testAboutScreenshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+        waitForAppToBeStable(app)
+
+        XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
+        let aboutButton = app.buttons["KASANEについて"]
+        XCTAssertTrue(aboutButton.waitForExistence(timeout: 10))
+        aboutButton.tap()
+
+        XCTAssertTrue(app.navigationBars["KASANEについて"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["KASANE"].exists)
+        XCTAssertTrue(app.staticTexts["サポート"].exists)
+        XCTAssertTrue(app.staticTexts["プライバシーポリシー"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["about-version"].exists)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "about"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     func testOverviewScreenshots() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--fixture", "overview-recent-workouts"]

@@ -19,6 +19,35 @@ final class KASANETests: XCTestCase {
         )
     }
 
+    /// テスト概要: アプリ内の公開リンク定義を取得する。
+    /// 期待値: SupportとPrivacy PolicyがIssueで確定したHTTPS URLに一致する。
+    func testAppLinksUsePublishedURLs() {
+        XCTAssertEqual(
+            AppLinks.support?.absoluteString,
+            "https://yu1ro5.github.io/kasane/support/"
+        )
+        XCTAssertEqual(
+            AppLinks.privacyPolicy?.absoluteString,
+            "https://yu1ro5.github.io/kasane/privacy/"
+        )
+    }
+
+    /// テスト概要: CFBundleShortVersionStringが存在しないBundle情報を読み取る。
+    /// 期待値: クラッシュせず、表示可能な代替文字列を返す。
+    func testAppVersionSafelyHandlesMissingValue() {
+        XCTAssertEqual(AppVersion.shortVersion(from: nil), "—")
+        XCTAssertEqual(AppVersion.shortVersion(from: [:]), "—")
+    }
+
+    /// テスト概要: CFBundleShortVersionStringをBundle情報から読み取る。
+    /// 期待値: ビルド設定から展開された値をそのまま返す。
+    func testAppVersionReadsShortVersion() {
+        XCTAssertEqual(
+            AppVersion.shortVersion(from: ["CFBundleShortVersionString": "1.2.3"]),
+            "1.2.3"
+        )
+    }
+
     /// テスト概要: WorkoutSessionをin-memoryストアへ保存し、再取得できることを検証する。
     /// 期待値: 取得件数が1件で、IDとメモが保存時の値に一致する。
     func testWorkoutSessionCanBeSavedAndFetched() throws {
