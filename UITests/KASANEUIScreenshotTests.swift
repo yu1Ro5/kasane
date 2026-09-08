@@ -351,14 +351,30 @@ final class KASANEUIScreenshotTests: XCTestCase {
         app.buttons["次へ"].tap()
         XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 0)
         XCTAssertEqual(app.buttons.matching(identifier: "完了").count, 1)
+        let keyboardAddSetButton = app.buttons["keyboard-add-set-button"]
+        XCTAssertTrue(keyboardAddSetButton.exists)
+        XCTAssertFalse(keyboardAddSetButton.isEnabled)
         let repsInput = app.textFields["draft-reps-input-\(workoutSeatedRowEntryID)"]
         XCTAssertTrue(repsInput.waitForExistence(timeout: 5))
         repsInput.typeText("8")
+        XCTAssertTrue(keyboardAddSetButton.isEnabled)
 
         let weightInputAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         weightInputAttachment.name = "workout-weight-input"
         weightInputAttachment.lifetime = .keepAlways
         add(weightInputAttachment)
+        keyboardAddSetButton.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(weightInput.waitForExistence(timeout: 5))
+        XCTAssertEqual(weightInput.value as? String, "0")
+        XCTAssertEqual(repsInput.value as? String, "0")
+        XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 1)
+        XCTAssertEqual(app.buttons.matching(identifier: "keyboard-add-set-button").count, 0)
+
+        weightInput.typeText("50")
+        XCTAssertEqual(weightInput.value as? String, "50")
+        app.buttons["次へ"].tap()
+        repsInput.typeText("6")
         app.buttons["完了"].tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
 

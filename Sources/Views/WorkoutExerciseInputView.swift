@@ -40,81 +40,95 @@ struct WorkoutExerciseInputView: View {
     }
 
     var body: some View {
-        List {
-            Section("今回の記録") {
-                WorkoutSetColumnHeader()
-                if let entry {
-                    ForEach(setEntries) { setEntry in
-                        WorkoutSetRow(
-                            setEntry: setEntry,
-                            exerciseEntry: entry,
-                            editDraft: editDraftBinding(for: setEntry),
-                            focusedInput: $focusedInput
-                        )
-                    }
-                }
-                draftRow
-
-                if showsDraftValidation {
-                    Label(
-                        "重量は0以上（小数点以下2桁まで）、回数は1以上で入力してください。",
-                        systemImage: "exclamationmark.circle"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("draft-validation-message")
-                }
-
-                Button("セットを追加", systemImage: "plus") { addSet() }
-                    .accessibilityIdentifier("add-set-button-\(inputIdentity.uuidString)")
-                    .disabled(draft.wrappedValue.values() == nil || isSaving)
-                    .accessibilityHint("入力した重量と回数を保存します")
-            }
-
-            Section("前回の記録") {
-                if let previousRecord {
-                    PreviousWorkoutRecordView(exerciseID: exercise.id, record: previousRecord)
-                } else {
-                    Text("記録なし")
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .navigationTitle(exercise.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if entry != nil {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button("種目を削除", systemImage: "trash", role: .destructive) {
-                            requestDeletion()
+        ScrollViewReader { proxy in
+            List {
+                Section("今回の記録") {
+                    WorkoutSetColumnHeader()
+                    if let entry {
+                        ForEach(setEntries) { setEntry in
+                            WorkoutSetRow(
+                                setEntry: setEntry,
+                                exerciseEntry: entry,
+                                editDraft: editDraftBinding(for: setEntry),
+                                focusedInput: $focusedInput
+                            )
                         }
-                    } label: {
-                        Label("その他", systemImage: "ellipsis.circle")
+                    }
+                    draftRow
+                        .id(draftScrollTarget)
+
+                    if showsDraftValidation {
+                        Label(
+                            "重量は0以上（小数点以下2桁まで）、回数は1以上で入力してください。",
+                            systemImage: "exclamationmark.circle"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("draft-validation-message")
+                    }
+
+                    Button("セットを追加", systemImage: "plus") { addSet(using: proxy) }
+                        .accessibilityIdentifier("add-set-button-\(inputIdentity.uuidString)")
+                        .disabled(!canAddSet)
+                        .accessibilityHint("入力した重量と回数を保存します")
+                }
+
+                Section("前回の記録") {
+                    if let previousRecord {
+                        PreviousWorkoutRecordView(exerciseID: exercise.id, record: previousRecord)
+                    } else {
+                        Text("記録なし")
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                if focusedInput?.nextInput != nil {
-                    Button("次へ") { focusedInput = focusedInput?.nextInput }
-                } else {
-                    Button("完了") { focusedInput = nil }
+            .navigationTitle(exercise.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if entry != nil {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button("種目を削除", systemImage: "trash", role: .destructive) {
+                                requestDeletion()
+                            }
+                        } label: {
+                            Label("その他", systemImage: "ellipsis.circle")
+                        }
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    if focusedInput?.nextInput != nil {
+                        Button("次へ") { focusedInput = focusedInput?.nextInput }
+                        Spacer()
+                    } else {
+                        if showsAddSetShortcut {
+                            Button {
+                                addSet(using: proxy)
+                            } label: {
+                                Image(systemName: "plus")
+                            }
+                            .accessibilityLabel("次のセットを追加")
+                            .accessibilityIdentifier("keyboard-add-set-button")
+                            .disabled(!canAddSet)
+                        }
+                        Spacer()
+                        Button("完了") { focusedInput = nil }
+                    }
                 }
             }
+            .confirmationDialog("この種目を削除しますか？", isPresented: $isConfirmingDeletion) {
+                Button("種目を削除", role: .destructive) { deleteExercise() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("保存済みのセットもすべて削除されます。")
+            }
+            .alert(errorTitle, isPresented: errorIsPresented) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "不明なエラーが発生しました。")
+            }
+            .onDisappear { focusedInput = nil }
         }
-        .confirmationDialog("この種目を削除しますか？", isPresented: $isConfirmingDeletion) {
-            Button("種目を削除", role: .destructive) { deleteExercise() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("保存済みのセットもすべて削除されます。")
-        }
-        .alert(errorTitle, isPresented: errorIsPresented) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage ?? "不明なエラーが発生しました。")
-        }
-        .onDisappear { focusedInput = nil }
     }
 
     private var inputIdentity: UUID {
@@ -169,6 +183,18 @@ struct WorkoutExerciseInputView: View {
         !draft.wrappedValue.isEmpty && draft.wrappedValue.values() == nil
     }
 
+    private var showsAddSetShortcut: Bool {
+        focusedInput?.isDraftReps(exerciseID: inputIdentity) == true
+    }
+
+    private var canAddSet: Bool {
+        draft.wrappedValue.values() != nil && !isSaving
+    }
+
+    private var draftScrollTarget: String {
+        "draft-set-\(exercise.id.uuidString)"
+    }
+
     private func editDraftBinding(for setEntry: SetEntry) -> Binding<SetEntryDraft> {
         Binding(
             get: { editDrafts[setEntry.id] ?? .savedValues(from: setEntry) },
@@ -180,10 +206,9 @@ struct WorkoutExerciseInputView: View {
         Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
     }
 
-    private func addSet() {
-        guard !isSaving else { return }
+    private func addSet(using proxy: ScrollViewProxy) {
+        guard canAddSet else { return }
         isSaving = true
-        defer { isSaving = false }
         do {
             let focusedEntry: ExerciseEntry
             if let entry {
@@ -201,8 +226,16 @@ struct WorkoutExerciseInputView: View {
                 )
                 draftStore.removePendingDraft(for: exercise.id, in: session.id)
             }
-            focusedInput = .draftWeight(exerciseID: focusedEntry.id)
+            Task { @MainActor in
+                await Task.yield()
+                focusedInput = .draftWeight(exerciseID: focusedEntry.id)
+                withAnimation {
+                    proxy.scrollTo(draftScrollTarget, anchor: .center)
+                }
+                isSaving = false
+            }
         } catch {
+            isSaving = false
             errorTitle = "セットを保存できませんでした"
             errorMessage = error.localizedDescription
         }
@@ -419,5 +452,9 @@ enum WorkoutInputFocus: Hashable {
         case .draftReps, .savedReps:
             nil
         }
+    }
+
+    func isDraftReps(exerciseID: UUID) -> Bool {
+        self == .draftReps(exerciseID: exerciseID)
     }
 }
