@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Resolve associated pull request
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const pullRequests = context.payload.workflow_run.pull_requests ?? [];
@@ -105,12 +105,13 @@ jobs:
           PY
 
       - name: Publish images and update pull request comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           ARTIFACT_DIR: ${{ runner.temp }}/ui-screenshot-artifact
           REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
         with:
           github-token: ${{ github.token }}
+          retries: 3
           script: |
             const fs = require('fs');
             const path = require('path');
@@ -129,7 +130,6 @@ jobs:
             const branch = 'ui-screenshots';
 
             let branchSha;
-            let createdBranch = false;
             try {
               const ref = await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
               branchSha = ref.data.object.sha;
@@ -148,14 +148,11 @@ jobs:
                 sha: base.data.object.sha,
               });
               branchSha = base.data.object.sha;
-              createdBranch = true;
             }
 
-            const overwritePaths = new Set();
             const newEntries = [];
             for (const screenshot of metadata.screenshots) {
               const destination = `pr-${prNumber}/${headSha}/${screenshot.file}`;
-              overwritePaths.add(destination);
               const blob = await github.rest.git.createBlob({
                 owner,
                 repo,
@@ -170,43 +167,29 @@ jobs:
               });
             }
 
-            let existingBlobEntries = [];
-            if (!createdBranch) {
-              const commit = await github.rest.git.getCommit({ owner, repo, commit_sha: branchSha });
-              const currentTree = await github.rest.git.getTree({
-                owner,
-                repo,
-                tree_sha: commit.data.tree.sha,
-                recursive: true,
-              });
-              if (currentTree.data.truncated) {
-                throw new Error('The ui-screenshots tree is truncated; refusing to publish a partial tree.');
-              }
-              existingBlobEntries = currentTree.data.tree
-                .filter((entry) => entry.type === 'blob' && !overwritePaths.has(entry.path))
-                .map((entry) => ({
-                  path: entry.path,
-                  mode: entry.mode,
-                  type: 'blob',
-                  sha: entry.sha,
-                }));
-            }
-
-            const tree = [...existingBlobEntries, ...newEntries];
-            const createdTree = await github.rest.git.createTree({ owner, repo, tree });
+            const baseCommit = await github.rest.git.getCommit({
+              owner,
+              repo,
+              commit_sha: branchSha,
+            });
+            const createdTree = await github.rest.git.createTree({
+              owner,
+              repo,
+              base_tree: baseCommit.data.tree.sha,
+              tree: newEntries,
+            });
             const createdCommit = await github.rest.git.createCommit({
               owner,
               repo,
               message: `Add UI screenshot for PR #${prNumber} at ${headSha.slice(0, 7)}`,
               tree: createdTree.data.sha,
-              parents: [],
+              parents: [branchSha],
             });
             await github.rest.git.updateRef({
               owner,
               repo,
               ref: `heads/${branch}`,
               sha: createdCommit.data.sha,
-              force: true,
             });
 
             const marker = '<!-- kasane-ui-screenshot-review -->';
