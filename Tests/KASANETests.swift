@@ -1563,6 +1563,31 @@ final class KASANETests: XCTestCase {
         XCTAssertNil(WorkoutInputFocus.savedReps(exerciseID: exerciseID, setID: setID).nextInput)
     }
 
+    /// テスト概要: 最後に表示されるDraftセットの回数入力かを判定する。
+    /// 期待値: 対象ExerciseのDraft回数だけが該当し、別Exerciseや保存済みセットは該当しない。
+    func testAddSetShortcutOnlyMatchesCurrentDraftReps() {
+        let exerciseID = UUID()
+        let otherExerciseID = UUID()
+        let setID = UUID()
+
+        XCTAssertTrue(
+            WorkoutInputFocus.draftReps(exerciseID: exerciseID)
+                .isDraftReps(exerciseID: exerciseID)
+        )
+        XCTAssertFalse(
+            WorkoutInputFocus.draftReps(exerciseID: otherExerciseID)
+                .isDraftReps(exerciseID: exerciseID)
+        )
+        XCTAssertFalse(
+            WorkoutInputFocus.draftWeight(exerciseID: exerciseID)
+                .isDraftReps(exerciseID: exerciseID)
+        )
+        XCTAssertFalse(
+            WorkoutInputFocus.savedReps(exerciseID: exerciseID, setID: setID)
+                .isDraftReps(exerciseID: exerciseID)
+        )
+    }
+
     /// テスト概要: 保存済みセットのフォーカス識別情報を複数種目間で比較する。
     /// 期待値: SetEntry IDだけでなくExerciseEntry IDも含めて編集対象を区別できる。
     func testSavedSetFocusIdentityIncludesExerciseAndSetIDs() {
