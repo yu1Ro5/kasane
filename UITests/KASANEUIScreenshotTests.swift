@@ -325,15 +325,23 @@ final class KASANEUIScreenshotTests: XCTestCase {
         weightInputAttachment.lifetime = .keepAlways
         add(weightInputAttachment)
         keyboardAddSetButton.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.exists)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(weightInput.waitForExistence(timeout: 5))
-        XCTAssertTrue(weightInput.hasKeyboardFocus)
+        let weightFocusExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in weightInput.hasFocus },
+            object: weightInput
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [weightFocusExpectation], timeout: 5),
+            .completed
+        )
         XCTAssertEqual(weightInput.value as? String, "0")
         XCTAssertEqual(repsInput.value as? String, "0")
         XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 1)
         XCTAssertEqual(app.buttons.matching(identifier: "keyboard-add-set-button").count, 0)
 
         weightInput.typeText("50")
+        XCTAssertEqual(weightInput.value as? String, "50")
         app.buttons["次へ"].tap()
         repsInput.typeText("6")
         app.buttons["完了"].tap()
