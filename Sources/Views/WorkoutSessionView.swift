@@ -39,39 +39,37 @@ struct WorkoutSessionView: View {
 
     var body: some View {
         List {
-            if searchText.isEmpty {
-                Section("今回のワークアウト") {
-                    if sortedEntries.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("まだ記録した種目はありません")
-                            Text(
-                                "開始: \(session.startedAt.formatted(date: .abbreviated, time: .shortened))"
-                            )
-                            .font(.subheadline)
-                        }
-                        .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(sortedEntries) { entry in
-                            if let exercise = entry.exercise {
-                                Button {
-                                    selectedExerciseID = exercise.id
-                                } label: {
-                                    WorkoutExerciseListRow(
-                                        name: entry.exerciseNameSnapshot,
-                                        detail: currentSummary(for: entry)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityIdentifier(
-                                    "current-exercise-\(exercise.id.uuidString)"
-                                )
-                            } else {
+            Section("今回のワークアウト") {
+                if sortedEntries.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("まだ記録した種目はありません")
+                        Text(
+                            "開始: \(session.startedAt.formatted(date: .abbreviated, time: .shortened))"
+                        )
+                        .font(.subheadline)
+                    }
+                    .foregroundStyle(.secondary)
+                } else {
+                    ForEach(sortedEntries) { entry in
+                        if let exercise = entry.exercise {
+                            Button {
+                                selectedExerciseID = exercise.id
+                            } label: {
                                 WorkoutExerciseListRow(
                                     name: entry.exerciseNameSnapshot,
-                                    detail: currentSummary(for: entry),
-                                    showsDisclosureIndicator: false
+                                    detail: currentSummary(for: entry)
                                 )
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier(
+                                "current-exercise-\(exercise.id.uuidString)"
+                            )
+                        } else {
+                            WorkoutExerciseListRow(
+                                name: entry.exerciseNameSnapshot,
+                                detail: currentSummary(for: entry),
+                                showsDisclosureIndicator: false
+                            )
                         }
                     }
                 }
