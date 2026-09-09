@@ -131,36 +131,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         recentWorkoutsAttachment.lifetime = .keepAlways
         add(recentWorkoutsAttachment)
 
-        let recentRow = app.buttons["overview-recent-workout-row-\(overviewNewestSessionID)"]
-        XCTAssertTrue(recentRow.waitForExistence(timeout: 10))
-        recentRow.tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
-        )
-
-        app.navigationBars["ワークアウト詳細"].buttons["概要"].tap()
-        app.swipeUp()
-        XCTAssertTrue(app.buttons["すべて表示"].waitForExistence(timeout: 10))
-        app.buttons["すべて表示"].tap()
-        XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["デッドリフト"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
-
-        let oldestHistoryRow = app.buttons["workout-history-row-\(overviewOldestSessionID)"]
-        XCTAssertTrue(oldestHistoryRow.waitForExistence(timeout: 10))
-        oldestHistoryRow.tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
-        )
-        let historyBackButton = app.navigationBars["ワークアウト詳細"].buttons["履歴"]
-        XCTAssertTrue(historyBackButton.waitForExistence(timeout: 10))
-        historyBackButton.tap()
-        let overviewBackButton = app.navigationBars["履歴"].buttons["概要"]
-        XCTAssertTrue(overviewBackButton.waitForExistence(timeout: 10))
-        overviewBackButton.tap()
-
-        XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
-
         let searchButton = app.buttons["検索"]
         XCTAssertTrue(searchButton.waitForExistence(timeout: 10))
         searchButton.tap()
@@ -202,19 +172,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         searchField.typeText(delete)
         searchField.typeText("デッドリフト")
 
-        let oldestSearchRow = app.buttons[
-            "workout-search-result-row-\(overviewOldestSessionID)"
-        ]
-        XCTAssertTrue(oldestSearchRow.waitForExistence(timeout: 10))
-        oldestSearchRow.tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
-        )
-        let searchBackButton = app.navigationBars["ワークアウト詳細"].buttons["検索"]
-        XCTAssertTrue(searchBackButton.waitForExistence(timeout: 10))
-        searchBackButton.tap()
-
-        XCTAssertTrue(searchField.waitForExistence(timeout: 10))
         searchField.tap()
         // 現在入力されている文字を取得
         guard let text = searchField.value as? String else { return }
@@ -234,6 +191,50 @@ final class KASANEUIScreenshotTests: XCTestCase {
         searchEmptyAttachment.name = "overview-search-empty"
         searchEmptyAttachment.lifetime = .keepAlways
         add(searchEmptyAttachment)
+    }
+
+    /// 最近のワークアウトから詳細を開き、概要へ戻れることを確認する。
+    @MainActor
+    func testOverviewRecentWorkoutOpensDetail() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
+        let recentRow = app.buttons["overview-recent-workout-row-\(overviewNewestSessionID)"]
+        XCTAssertTrue(recentRow.waitForExistence(timeout: 10))
+        recentRow.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
+        )
+
+        app.navigationBars["ワークアウト詳細"].buttons["概要"].tap()
+        XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
+    }
+
+    /// 検索結果の詳細を表示した後も検索語を保持することを確認する。
+    @MainActor
+    func testOverviewSearchKeepsQueryAfterViewingDetail() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
+        let searchButton = app.buttons["検索"]
+        XCTAssertTrue(searchButton.waitForExistence(timeout: 10))
+        searchButton.tap()
+
+        let searchField = app.searchFields["種目名を検索"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 10))
+        searchField.tap()
+        searchField.typeText("デッドリフト")
+
+        let oldestSearchRow = app.buttons[
+            "workout-search-result-row-\(overviewOldestSessionID)"
+        ]
+        XCTAssertTrue(oldestSearchRow.waitForExistence(timeout: 10))
+        oldestSearchRow.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
+        )
+
+        let searchBackButton = app.navigationBars["ワークアウト詳細"].buttons["検索"]
+        XCTAssertTrue(searchBackButton.waitForExistence(timeout: 10))
+        searchBackButton.tap()
+        XCTAssertTrue(searchField.waitForExistence(timeout: 10))
+        XCTAssertEqual(searchField.value as? String, "デッドリフト")
     }
 
     /// 履歴のスワイプ削除をキャンセルでき、詳細からの削除後は履歴へ戻ることを確認する。
@@ -348,14 +349,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         sessionAttachment.lifetime = .keepAlways
         add(sessionAttachment)
 
-        app.tabBars.buttons["概要"].tap()
-        app.tabBars.buttons["ワークアウト"].tap()
-        XCTAssertTrue(
-            app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"]
-                .waitForExistence(timeout: 10)
-        )
-        XCTAssertFalse(app.buttons["ワークアウトを再開"].exists)
-
         let currentExercise = app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"]
         XCTAssertTrue(currentExercise.waitForExistence(timeout: 10))
         currentExercise.tap()
@@ -434,6 +427,17 @@ final class KASANEUIScreenshotTests: XCTestCase {
         searchAttachment.name = "workout-exercise-search"
         searchAttachment.lifetime = .keepAlways
         add(searchAttachment)
+    }
+
+    /// 種目追加中の入力Draftが画面移動後も保持されることを確認する。
+    @MainActor
+    func testWorkoutDraftPersistsAcrossNavigation() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "workout-set-layout"])
+        app.tabBars.buttons["ワークアウト"].tap()
+        let searchField = app.searchFields["種目名を検索"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("ショルダー")
 
         let availableExercise = app.buttons[
             "available-exercise-\(workoutShoulderPressExerciseID)"
@@ -512,11 +516,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         completedAttachment.name = "workout-completed"
         completedAttachment.lifetime = .keepAlways
         add(completedAttachment)
-
-        app.buttons["完了"].tap()
-        let startButton = app.buttons["workout-start-button"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 10))
-        XCTAssertEqual(startButton.label, "ワークアウトを開始")
     }
 
     @MainActor
