@@ -12,9 +12,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
     // UIが安定し、最前面ウィンドウのフレームが有限かつゼロでないことを確認してから進む
     @MainActor private func waitForAppToBeStable(_ app: XCUIApplication, timeout: TimeInterval = 5.0) {
-        // ウィンドウが存在するまで待機
+        // Windowが未生成の場合だけ存在を待機する
         let window = app.windows.firstMatch
-        XCTAssertTrue(window.waitForExistence(timeout: timeout))
+        if !window.exists {
+            XCTAssertTrue(window.waitForExistence(timeout: timeout))
+        }
 
         // フレームが安定するまでポーリング
         let deadline = Date().addingTimeInterval(timeout)
