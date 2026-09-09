@@ -2,7 +2,6 @@ import SwiftData
 import SwiftUI
 
 struct WorkoutSessionView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Bindable var session: WorkoutSession
     @Bindable var draftStore: WorkoutDraftStore
@@ -136,7 +135,7 @@ struct WorkoutSessionView: View {
             }
         }
         .navigationDestination(item: $completionSummary) { summary in
-            WorkoutCompletedView(summary: summary, onReturnHome: onReturnHome)
+            WorkoutCompletedView(summary: summary, onReturnHome: returnHomeAfterCompletion)
         }
         .confirmationDialog("ワークアウトを中止しますか？", isPresented: $isConfirmingDiscard) {
             Button("中止する", role: .destructive) { discardWorkout() }
@@ -244,11 +243,16 @@ struct WorkoutSessionView: View {
         do {
             try WorkoutSessionService(context: modelContext).discard(session)
             draftStore.removeAllDrafts(in: session.id)
-            dismiss()
+            onReturnHome()
         } catch {
             errorTitle = "ワークアウトを中止できませんでした"
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func returnHomeAfterCompletion() {
+        completionSummary = nil
+        onReturnHome()
     }
 }
 

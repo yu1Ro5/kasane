@@ -7,42 +7,16 @@ struct WorkoutRootView: View {
     let draftStore: WorkoutDraftStore
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-
-            Image(
-                systemName: viewModel.activeSession == nil
-                    ? "figure.strengthtraining.traditional" : "clock.arrow.circlepath"
-            )
-            .font(.system(size: 52))
-            .foregroundStyle(.tint)
-            .accessibilityHidden(true)
-
-            VStack(spacing: 8) {
-                Text(viewModel.activeSession == nil ? "ワークアウトを始めましょう" : "進行中のワークアウト")
-                    .font(.title2.bold())
-
-                if let activeSession = viewModel.activeSession {
-                    Text(activeSession.startedAt, format: .dateTime.year().month().day().hour().minute())
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+        Group {
+            if let activeSession = viewModel.activeSession {
+                WorkoutSessionView(
+                    session: activeSession,
+                    draftStore: draftStore,
+                    onReturnHome: refreshActiveSession
+                )
+            } else {
+                startContent
             }
-
-            Button(viewModel.activeSession == nil ? "ワークアウトを開始" : "ワークアウトを再開") {
-                openWorkout()
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .accessibilityIdentifier("workout-resume-button")
-
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .navigationTitle("ワークアウト")
-        .navigationDestination(item: selectedSession) { session in
-            WorkoutSessionView(session: session, draftStore: draftStore) { closeWorkout() }
         }
         .alert("ワークアウトを開けませんでした", isPresented: errorIsPresented) {
             Button("OK", role: .cancel) {}
@@ -55,6 +29,32 @@ struct WorkoutRootView: View {
         }
     }
 
+    private var startContent: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            Image(systemName: "figure.strengthtraining.traditional")
+                .font(.system(size: 52))
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+
+            Text("ワークアウトを始めましょう")
+                .font(.title2.bold())
+
+            Button("ワークアウトを開始") {
+                startWorkout()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .accessibilityIdentifier("workout-start-button")
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .navigationTitle("ワークアウト")
+    }
+
     private var errorIsPresented: Binding<Bool> {
         Binding(
             get: { viewModel.errorMessage != nil },
@@ -62,22 +62,10 @@ struct WorkoutRootView: View {
         )
     }
 
-    private var selectedSession: Binding<WorkoutSession?> {
-        Binding(
-            get: { viewModel.selectedSession },
-            set: { if $0 == nil { closeWorkout() } }
-        )
-    }
-
-    private func openWorkout() {
-        viewModel.openWorkout {
+    private func startWorkout() {
+        viewModel.startWorkout {
             try WorkoutSessionService(context: modelContext).startOrResume()
         }
-    }
-
-    private func closeWorkout() {
-        viewModel.closeWorkout()
-        refreshActiveSession()
     }
 
     private func refreshActiveSession() {
