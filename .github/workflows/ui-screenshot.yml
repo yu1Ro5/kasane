@@ -35,6 +35,12 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Restore UI screenshot DerivedData cache
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: ui-screenshot-derived-data-${{ runner.os }}-xcode26-${{ hashFiles('project.yml', 'Sources/**/*.swift', 'UITests/**/*.swift') }}
+
       - name: Select and boot 6.9-inch iPhone simulator
         id: simulator
         shell: bash
