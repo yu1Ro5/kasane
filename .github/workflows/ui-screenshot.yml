@@ -100,7 +100,34 @@ jobs:
             echo "total_seconds=$((simulator_total_end - simulator_total_start))"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Run UI screenshot tests
+      - name: Build UI screenshot tests for testing
+        id: build_for_testing
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild_start="$(date +%s)"
+          xcodebuild -project KASANE.xcodeproj \
+            -scheme KASANEScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testEmptyScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewPreviousMonthScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewDarkModeScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewDynamicTypeScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutInteractionScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDynamicTypeScreenshot \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
+            -derivedDataPath build \
+            -configuration Debug \
+            -enableCodeCoverage NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build-for-testing
+          xcodebuild_end="$(date +%s)"
+          echo "total_seconds=$((xcodebuild_end - xcodebuild_start))" >> "$GITHUB_OUTPUT"
+
+      - name: Run UI screenshot tests without building
         id: test
         shell: bash
         run: |
@@ -124,7 +151,7 @@ jobs:
             -configuration Debug \
             -enableCodeCoverage NO \
             CODE_SIGNING_ALLOWED=NO \
-            test
+            test-without-building
           xcodebuild_end="$(date +%s)"
           xctest_reported_seconds="$(
             xcrun xcresulttool get test-results summary \
@@ -252,7 +279,8 @@ jobs:
             echo "| 日本語／locale設定 | ${{ steps.simulator.outputs.locale_seconds || 'n/a' }} |"
             echo "| Simulator再起動 | ${{ steps.simulator.outputs.restart_seconds || 'n/a' }} |"
             echo "| Simulator合計 | ${{ steps.simulator.outputs.total_seconds || 'n/a' }} |"
-            echo "| xcodebuild合計 | ${{ steps.test.outputs.total_seconds || 'n/a' }} |"
+            echo "| build-for-testing | ${{ steps.build_for_testing.outputs.total_seconds || 'n/a' }} |"
+            echo "| test-without-building | ${{ steps.test.outputs.total_seconds || 'n/a' }} |"
             echo "| XCTest reported duration | ${{ steps.test.outputs.xctest_reported_seconds || 'n/a' }} |"
             echo "| xcresult screenshot export | ${{ steps.extract.outputs.export_seconds || 'n/a' }} |"
             echo "| Screenshot枚数 | ${{ steps.extract.outputs.screenshot_count || 'n/a' }} |"
