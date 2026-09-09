@@ -35,7 +35,7 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Select available iPhone simulator
+      - name: Select and configure 6.9-inch iPhone simulator
         id: simulator
         shell: bash
         run: |
@@ -43,15 +43,20 @@ jobs:
           simulator="$(xcrun simctl list devices available --json | python3 -c '
           import json, sys
           devices = json.load(sys.stdin)["devices"]
-          for runtime in sorted(devices, reverse=True):
-              if "iOS-26" not in runtime:
-                  continue
-              for device in devices[runtime]:
-                  if device["isAvailable"] and device["name"].startswith("iPhone"):
-                      print(device["udid"])
-                      print(device["name"], file=sys.stderr)
-                      raise SystemExit
-          raise SystemExit("No available iOS 26 iPhone simulator found")
+          preferred_names = ("iPhone 17 Pro Max", "iPhone 16 Pro Max")
+          for preferred_name in preferred_names:
+              for runtime in sorted(devices, reverse=True):
+                  if "iOS-26" not in runtime:
+                      continue
+                  for device in devices[runtime]:
+                      if device["isAvailable"] and device["name"] == preferred_name:
+                          print(device["udid"])
+                          print(device["name"], file=sys.stderr)
+                          raise SystemExit
+          raise SystemExit(
+              "No available 6.9-inch iOS 26 simulator found "
+              "(expected iPhone 17 Pro Max or iPhone 16 Pro Max)"
+          )
           ')"
           simulator_info="$(xcrun simctl list devices --json | python3 -c '
           import json, sys
@@ -78,6 +83,12 @@ jobs:
               exit 1
               ;;
           esac
+          xcrun simctl bootstatus "$simulator" -b
+          xcrun simctl spawn "$simulator" defaults write NSGlobalDomain AppleLanguages -array ja
+          xcrun simctl spawn "$simulator" defaults write NSGlobalDomain AppleLocale -string ja_JP
+          xcrun simctl shutdown "$simulator"
+          xcrun simctl boot "$simulator"
+          xcrun simctl bootstatus "$simulator" -b
 
       - name: Run UI screenshot tests
         shell: bash
