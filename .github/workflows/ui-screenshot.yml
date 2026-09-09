@@ -40,6 +40,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          simulator_total_start="$(date +%s)"
+          simulator_search_start="$(date +%s)"
           simulator="$(xcrun simctl list devices available --json | python3 -c '
           import json, sys
           devices = json.load(sys.stdin)["devices"]
@@ -58,6 +60,7 @@ jobs:
               "(expected iPhone 17 Pro Max or iPhone 16 Pro Max)"
           )
           ')"
+          simulator_search_end="$(date +%s)"
           simulator_info="$(xcrun simctl list devices --json | python3 -c '
           import json, sys
           target = sys.argv[1]
@@ -72,6 +75,7 @@ jobs:
           IFS=$'\t' read -r simulator_name simulator_state <<< "$simulator_info"
           echo "id=$simulator" >> "$GITHUB_OUTPUT"
           echo "name=$simulator_name" >> "$GITHUB_OUTPUT"
+          simulator_boot_start="$(date +%s)"
           case "$simulator_state" in
             Shutdown)
               xcrun simctl boot "$simulator"
@@ -84,16 +88,34 @@ jobs:
               ;;
           esac
           xcrun simctl bootstatus "$simulator" -b
+          simulator_boot_end="$(date +%s)"
+
+          simulator_locale_start="$(date +%s)"
           xcrun simctl spawn "$simulator" defaults write NSGlobalDomain AppleLanguages -array ja
           xcrun simctl spawn "$simulator" defaults write NSGlobalDomain AppleLocale -string ja_JP
+          simulator_locale_end="$(date +%s)"
+
+          simulator_restart_start="$(date +%s)"
           xcrun simctl shutdown "$simulator"
           xcrun simctl boot "$simulator"
           xcrun simctl bootstatus "$simulator" -b
+          simulator_restart_end="$(date +%s)"
+          simulator_total_end="$(date +%s)"
+
+          {
+            echo "search_seconds=$((simulator_search_end - simulator_search_start))"
+            echo "first_boot_seconds=$((simulator_boot_end - simulator_boot_start))"
+            echo "locale_seconds=$((simulator_locale_end - simulator_locale_start))"
+            echo "restart_seconds=$((simulator_restart_end - simulator_restart_start))"
+            echo "total_seconds=$((simulator_total_end - simulator_total_start))"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Run UI screenshot tests
+        id: test
         shell: bash
         run: |
           set -euo pipefail
+          xcodebuild_start="$(date +%s)"
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANEScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testEmptyScreenshots \
@@ -113,8 +135,26 @@ jobs:
             -enableCodeCoverage NO \
             CODE_SIGNING_ALLOWED=NO \
             test
+          xcodebuild_end="$(date +%s)"
+          xctest_reported_seconds="$(
+            xcrun xcresulttool get test-results summary \
+              --path "$RUNNER_TEMP/ui-screenshots.xcresult" \
+              --format json | python3 -c '
+          import json
+          import sys
+
+          summary = json.load(sys.stdin)
+          duration = summary["finishTime"] - summary["startTime"]
+          print(f"{duration:.3f}")
+          '
+          )"
+          {
+            echo "total_seconds=$((xcodebuild_end - xcodebuild_start))"
+            echo "xctest_reported_seconds=$xctest_reported_seconds"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Extract screenshot and metadata
+        id: extract
         shell: bash
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -126,9 +166,11 @@ jobs:
           export_dir="$RUNNER_TEMP/ui-screenshot-attachments"
           mkdir -p "$artifact_dir"
           mkdir -p "$export_dir"
+          screenshot_export_start="$(date +%s)"
           xcrun xcresulttool export attachments \
             --path "$RUNNER_TEMP/ui-screenshots.xcresult" \
             --output-path "$export_dir"
+          screenshot_export_end="$(date +%s)"
           python3 - <<'PY'
           import json
           import os
@@ -200,6 +242,31 @@ jobs:
           path = artifact_dir / "metadata.json"
           path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
           PY
+          screenshot_count="$(find "$artifact_dir" -maxdepth 1 -type f -name '*.png' | wc -l | tr -d ' ')"
+          {
+            echo "export_seconds=$((screenshot_export_end - screenshot_export_start))"
+            echo "screenshot_count=$screenshot_count"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Summarize UI screenshot timings
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## UI Screenshot Timing"
+            echo
+            echo "| 区間 | 秒 |"
+            echo "| --- | ---: |"
+            echo "| Simulator検索 | ${{ steps.simulator.outputs.search_seconds || 'n/a' }} |"
+            echo "| Simulator初回boot | ${{ steps.simulator.outputs.first_boot_seconds || 'n/a' }} |"
+            echo "| 日本語／locale設定 | ${{ steps.simulator.outputs.locale_seconds || 'n/a' }} |"
+            echo "| Simulator再起動 | ${{ steps.simulator.outputs.restart_seconds || 'n/a' }} |"
+            echo "| Simulator合計 | ${{ steps.simulator.outputs.total_seconds || 'n/a' }} |"
+            echo "| xcodebuild合計 | ${{ steps.test.outputs.total_seconds || 'n/a' }} |"
+            echo "| XCTest reported duration | ${{ steps.test.outputs.xctest_reported_seconds || 'n/a' }} |"
+            echo "| xcresult screenshot export | ${{ steps.extract.outputs.export_seconds || 'n/a' }} |"
+            echo "| Screenshot枚数 | ${{ steps.extract.outputs.screenshot_count || 'n/a' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload xcresult
         if: failure()
