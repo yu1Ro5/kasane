@@ -35,7 +35,7 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Select and configure 6.9-inch iPhone simulator
+      - name: Select and boot 6.9-inch iPhone simulator
         id: simulator
         shell: bash
         run: |
@@ -90,23 +90,13 @@ jobs:
           xcrun simctl bootstatus "$simulator" -b
           simulator_boot_end="$(date +%s)"
 
-          simulator_locale_start="$(date +%s)"
-          xcrun simctl spawn "$simulator" defaults write NSGlobalDomain AppleLanguages -array ja
-          xcrun simctl spawn "$simulator" defaults write NSGlobalDomain AppleLocale -string ja_JP
-          simulator_locale_end="$(date +%s)"
-
-          simulator_restart_start="$(date +%s)"
-          xcrun simctl shutdown "$simulator"
-          xcrun simctl boot "$simulator"
-          xcrun simctl bootstatus "$simulator" -b
-          simulator_restart_end="$(date +%s)"
           simulator_total_end="$(date +%s)"
 
           {
             echo "search_seconds=$((simulator_search_end - simulator_search_start))"
             echo "first_boot_seconds=$((simulator_boot_end - simulator_boot_start))"
-            echo "locale_seconds=$((simulator_locale_end - simulator_locale_start))"
-            echo "restart_seconds=$((simulator_restart_end - simulator_restart_start))"
+            echo "locale_seconds=0"
+            echo "restart_seconds=0"
             echo "total_seconds=$((simulator_total_end - simulator_total_start))"
           } >> "$GITHUB_OUTPUT"
 

@@ -37,12 +37,23 @@ final class KASANEUIScreenshotTests: XCTestCase {
         return XCUIScreen.main.screenshot()
     }
 
-    @MainActor
-    func testEmptyScreenshots() throws {
+    /// Launches the app with the Japanese language and locale required by screenshot scenarios.
+    @MainActor private func launchApp(additionalArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing"]
+        app.launchArguments =
+            [
+                "--ui-testing",
+                "-AppleLanguages", "(ja)",
+                "-AppleLocale", "ja_JP",
+            ] + additionalArguments
         app.launch()
         waitForAppToBeStable(app)
+        return app
+    }
+
+    @MainActor
+    func testEmptyScreenshots() throws {
+        let app = launchApp()
 
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
@@ -78,10 +89,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
     @MainActor
     func testAboutScreenshot() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing"]
-        app.launch()
-        waitForAppToBeStable(app)
+        let app = launchApp()
 
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
         let aboutButton = app.buttons["KASANEについて"]
@@ -102,10 +110,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
     @MainActor
     func testOverviewScreenshots() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--fixture", "overview-recent-workouts"]
-        app.launch()
-        waitForAppToBeStable(app)
+        let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
 
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["overview-workout-count"].exists)
@@ -234,10 +239,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
     /// 履歴のスワイプ削除をキャンセルでき、詳細からの削除後は履歴へ戻ることを確認する。
     @MainActor
     func testCompletedWorkoutDeletionFlow() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--fixture", "overview-recent-workouts"]
-        app.launch()
-        waitForAppToBeStable(app)
+        let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
 
         app.swipeUp()
         XCTAssertTrue(app.buttons["すべて表示"].waitForExistence(timeout: 10))
@@ -272,10 +274,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
     @MainActor
     func testOverviewPreviousMonthScreenshot() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--fixture", "overview-previous-month"]
-        app.launch()
-        waitForAppToBeStable(app)
+        let app = launchApp(additionalArguments: ["--fixture", "overview-previous-month"])
 
         XCTAssertTrue(app.staticTexts["今月の記録はまだありません"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
@@ -290,13 +289,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
     @MainActor
     func testOverviewDarkModeScreenshot() throws {
-        let app = XCUIApplication()
-        app.launchArguments = [
-            "--ui-testing", "--fixture", "overview-recent-workouts",
+        let app = launchApp(additionalArguments: [
+            "--fixture", "overview-recent-workouts",
             "-AppleInterfaceStyle", "Dark",
-        ]
-        app.launch()
-        waitForAppToBeStable(app)
+        ])
 
         XCTAssertTrue(
             app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10)
@@ -312,13 +308,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
     @MainActor
     func testOverviewDynamicTypeScreenshot() throws {
-        let app = XCUIApplication()
-        app.launchArguments = [
-            "--ui-testing", "--fixture", "overview-recent-workouts",
+        let app = launchApp(additionalArguments: [
+            "--fixture", "overview-recent-workouts",
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityLarge",
-        ]
-        app.launch()
-        waitForAppToBeStable(app)
+        ])
 
         XCTAssertTrue(
             app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10)
@@ -333,10 +326,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
     @MainActor
     func testWorkoutInteractionScreenshots() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
-        app.launch()
-        waitForAppToBeStable(app)
+        let app = launchApp(additionalArguments: ["--fixture", "workout-set-layout"])
 
         app.tabBars.buttons["ワークアウト"].tap()
 
@@ -471,10 +461,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
     @MainActor
     func testWorkoutValidationAndCompletionScreenshots() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
-        app.launch()
-        waitForAppToBeStable(app)
+        let app = launchApp(additionalArguments: ["--fixture", "workout-set-layout"])
 
         app.tabBars.buttons["ワークアウト"].tap()
         app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
@@ -534,10 +521,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
     @MainActor
     func testWorkoutPreviousRecordScreenshots() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--fixture", "workout-set-layout"]
-        app.launch()
-        waitForAppToBeStable(app)
+        let app = launchApp(additionalArguments: ["--fixture", "workout-set-layout"])
 
         app.tabBars.buttons["ワークアウト"].tap()
         app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
@@ -579,13 +563,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
     @MainActor
     func testWorkoutDynamicTypeScreenshot() throws {
-        let app = XCUIApplication()
-        app.launchArguments = [
-            "--ui-testing", "--fixture", "workout-set-layout",
+        let app = launchApp(additionalArguments: [
+            "--fixture", "workout-set-layout",
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityLarge",
-        ]
-        app.launch()
-        waitForAppToBeStable(app)
+        ])
 
         app.tabBars.buttons["ワークアウト"].tap()
         app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
@@ -602,10 +583,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
     @MainActor
     func testWorkoutHistoryScreenshots() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--fixture", "workout-history"]
-        app.launch()
-        waitForAppToBeStable(app)
+        let app = launchApp(additionalArguments: ["--fixture", "workout-history"])
 
         let historyLink = app.buttons["すべて表示"]
         XCTAssertTrue(historyLink.waitForExistence(timeout: 10))
