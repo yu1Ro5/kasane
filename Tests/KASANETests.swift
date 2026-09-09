@@ -1606,24 +1606,109 @@ final class KASANETests: XCTestCase {
         let focusedExerciseID = UUID()
         let otherExerciseID = UUID()
 
-        let nextInput = WorkoutInputFocus.draftWeight(exerciseID: focusedExerciseID).nextInput
+        let nextInput = WorkoutInputFocus.draftWeight(exerciseID: focusedExerciseID).nextInput(
+            savedSetIDs: [],
+            draftExerciseID: focusedExerciseID
+        )
 
         XCTAssertEqual(nextInput, .draftReps(exerciseID: focusedExerciseID))
         XCTAssertNotEqual(nextInput, .draftReps(exerciseID: otherExerciseID))
     }
 
-    /// テスト概要: Draft回数欄と保存済みセット欄の次フォーカスを求める。
-    /// 期待値: 「次へ」を表示しない入力欄では次フォーカスが返されない。
-    func testWorkoutInputWithoutNextActionReturnsNoNextInput() {
+    /// テスト概要: 保存済みセットと未保存Draftを含む次フォーカスを順に求める。
+    /// 期待値: 重量、回数、次セット重量の順で進み、最後の保存済みセットからDraftへ接続する。
+    func testWorkoutInputFocusAdvancesContinuouslyAcrossSets() {
         let exerciseID = UUID()
-        let setID = UUID()
+        let setIDs = [UUID(), UUID()]
 
-        XCTAssertNil(WorkoutInputFocus.draftReps(exerciseID: exerciseID).nextInput)
         XCTAssertEqual(
-            WorkoutInputFocus.savedWeight(exerciseID: exerciseID, setID: setID).nextInput,
-            .savedReps(exerciseID: exerciseID, setID: setID)
+            WorkoutInputFocus.savedWeight(exerciseID: exerciseID, setID: setIDs[0]).nextInput(
+                savedSetIDs: setIDs,
+                draftExerciseID: exerciseID
+            ),
+            .savedReps(exerciseID: exerciseID, setID: setIDs[0])
         )
-        XCTAssertNil(WorkoutInputFocus.savedReps(exerciseID: exerciseID, setID: setID).nextInput)
+        XCTAssertEqual(
+            WorkoutInputFocus.savedReps(exerciseID: exerciseID, setID: setIDs[0]).nextInput(
+                savedSetIDs: setIDs,
+                draftExerciseID: exerciseID
+            ),
+            .savedWeight(exerciseID: exerciseID, setID: setIDs[1])
+        )
+        XCTAssertEqual(
+            WorkoutInputFocus.savedReps(exerciseID: exerciseID, setID: setIDs[1]).nextInput(
+                savedSetIDs: setIDs,
+                draftExerciseID: exerciseID
+            ),
+            .draftWeight(exerciseID: exerciseID)
+        )
+        XCTAssertEqual(
+            WorkoutInputFocus.draftWeight(exerciseID: exerciseID).nextInput(
+                savedSetIDs: setIDs,
+                draftExerciseID: exerciseID
+            ),
+            .draftReps(exerciseID: exerciseID)
+        )
+        XCTAssertEqual(
+            WorkoutInputFocus.draftReps(exerciseID: exerciseID).nextInput(
+                savedSetIDs: setIDs,
+                draftExerciseID: exerciseID
+            ),
+            .draftWeight(exerciseID: exerciseID)
+        )
+    }
+
+    /// テスト概要: 保存済みセット内外へのフォーカス移動から保存境界を判定する。
+    /// 期待値: 同じセットの重量から回数では保存せず、別セットまたはDraftへ移る場合だけ元セットを保存する。
+    func testSavedSetCommitBoundaryIsLeavingTheSet() {
+        let exerciseID = UUID()
+        let firstSetID = UUID()
+        let secondSetID = UUID()
+        let weight = WorkoutInputFocus.savedWeight(exerciseID: exerciseID, setID: firstSetID)
+        let reps = WorkoutInputFocus.savedReps(exerciseID: exerciseID, setID: firstSetID)
+
+        XCTAssertNil(weight.savedSetToCommit(whenMovingTo: reps))
+        XCTAssertEqual(
+            reps.savedSetToCommit(
+                whenMovingTo: .savedWeight(exerciseID: exerciseID, setID: secondSetID)
+            )?.setID,
+            firstSetID
+        )
+        XCTAssertEqual(
+            reps.savedSetToCommit(whenMovingTo: .draftWeight(exerciseID: exerciseID))?.setID,
+            firstSetID
+        )
+        XCTAssertEqual(reps.savedSetToCommit(whenMovingTo: nil)?.setID, firstSetID)
+        XCTAssertNil(
+            WorkoutInputFocus.draftReps(exerciseID: exerciseID)
+                .savedSetToCommit(whenMovingTo: nil)
+        )
+    }
+
+    /// テスト概要: 複数の保存済みセットを個別のDraftとして編集する。
+    /// 期待値: 入力中は永続モデルが変化せず、Draft同士の値も混ざらない。
+    func testSavedSetDraftEditingDoesNotMutateOrMixPersistentValues() {
+        let entry = ExerciseEntry(
+            workoutSession: WorkoutSession(),
+            exercise: Exercise(name: "スクワット", primaryBodyPart: .legs),
+            order: 0
+        )
+        let first = SetEntry(exerciseEntry: entry, order: 0, weightKg: 40, reps: 10)
+        let second = SetEntry(exerciseEntry: entry, order: 1, weightKg: 50, reps: 8)
+        var drafts = [
+            first.id: SetEntryDraft.savedValues(from: first),
+            second.id: SetEntryDraft.savedValues(from: second),
+        ]
+
+        drafts[first.id]?.weight = "42.5"
+        drafts[second.id]?.reps = "6"
+
+        XCTAssertEqual(first.weightKg, 40)
+        XCTAssertEqual(first.reps, 10)
+        XCTAssertEqual(second.weightKg, 50)
+        XCTAssertEqual(second.reps, 8)
+        XCTAssertEqual(drafts[first.id], SetEntryDraft(weight: "42.5", reps: "10"))
+        XCTAssertEqual(drafts[second.id], SetEntryDraft(weight: "50", reps: "6"))
     }
 
     /// テスト概要: 最後に表示されるDraftセットの回数入力かを判定する。
