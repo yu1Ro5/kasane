@@ -338,27 +338,26 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<WorkoutSession>()).count, 1)
     }
 
-    /// テスト概要: Homeから新しいWorkoutの開始に成功する。
-    /// 期待値: 保存済みセッションだけが遷移先になり、Homeの表示状態は遷移中に変更されない。
-    func testWorkoutRootNavigatesToSavedSessionWithoutChangingHomeState() throws {
+    /// テスト概要: Rootから新しいWorkoutの開始に成功する。
+    /// 期待値: 保存に成功したセッションが、その場でRootの進行中状態になる。
+    func testWorkoutRootShowsSavedSessionAfterStarting() throws {
         let container = try makeContainer()
         let context = container.mainContext
         let viewModel = WorkoutRootViewModel()
 
-        viewModel.openWorkout {
+        viewModel.startWorkout {
             try WorkoutSessionService(context: context).startOrResume()
         }
 
-        let selected = try XCTUnwrap(viewModel.selectedSession)
+        let active = try XCTUnwrap(viewModel.activeSession)
         let saved = try XCTUnwrap(try context.fetch(FetchDescriptor<WorkoutSession>()).first)
-        XCTAssertEqual(selected.id, saved.id)
-        XCTAssertNil(viewModel.activeSession)
+        XCTAssertEqual(active.id, saved.id)
         XCTAssertFalse(context.hasChanges)
     }
 
-    /// テスト概要: HomeからWorkoutを開始した際の保存が失敗する。
-    /// 期待値: 遷移先を設定せず、作成途中のセッションを残さない。
-    func testWorkoutRootDoesNotNavigateWhenStartingSessionFailsToSave() throws {
+    /// テスト概要: RootからWorkoutを開始した際の保存が失敗する。
+    /// 期待値: 進行中表示へ切り替えず、作成途中のセッションを残さない。
+    func testWorkoutRootDoesNotShowSessionWhenStartingFailsToSave() throws {
         struct SaveError: LocalizedError {
             var errorDescription: String? { "保存できませんでした" }
         }
@@ -367,17 +366,17 @@ final class KASANETests: XCTestCase {
         let context = container.mainContext
         let viewModel = WorkoutRootViewModel()
 
-        viewModel.openWorkout {
+        viewModel.startWorkout {
             try WorkoutSessionService(context: context, save: { throw SaveError() }).startOrResume()
         }
 
-        XCTAssertNil(viewModel.selectedSession)
+        XCTAssertNil(viewModel.activeSession)
         XCTAssertEqual(viewModel.errorMessage, "保存できませんでした")
         XCTAssertTrue(try context.fetch(FetchDescriptor<WorkoutSession>()).isEmpty)
     }
 
-    /// テスト概要: Homeの表示状態を保存済みの進行中Workoutから更新する。
-    /// 期待値: 画面へ戻った場合やアプリ再起動後に、保存済みセッションを再開対象として表示できる。
+    /// テスト概要: Rootの表示状態を保存済みの進行中Workoutから更新する。
+    /// 期待値: 画面へ戻った場合やアプリ再起動後に、保存済みセッションを直接表示できる。
     func testWorkoutRootRefreshesSavedActiveSession() throws {
         let container = try makeContainer()
         let context = container.mainContext
@@ -391,9 +390,26 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(viewModel.activeSession?.id, saved.id)
     }
 
-    /// テスト概要: 進行中WorkoutがあるHomeから開始操作を行う。
-    /// 期待値: 既存セッションへ遷移し、新しいセッションを作成しない。
-    func testWorkoutRootResumesWithoutCreatingDuplicateActiveSession() throws {
+    /// テスト概要: Rootで表示中のWorkoutを破棄した後に進行中状態を更新する。
+    /// 期待値: 削除済みSessionを表示し続けず、開始前状態へ戻る。
+    func testWorkoutRootClearsActiveSessionAfterDiscard() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let service = WorkoutSessionService(context: context)
+        let saved = try service.startOrResume()
+        let viewModel = WorkoutRootViewModel()
+        viewModel.refreshActiveSession { try service.activeSession() }
+        XCTAssertEqual(viewModel.activeSession?.id, saved.id)
+
+        try service.discard(saved)
+        viewModel.refreshActiveSession { try service.activeSession() }
+
+        XCTAssertNil(viewModel.activeSession)
+    }
+
+    /// テスト概要: 進行中Workoutがある状態で開始処理が重複して呼ばれる。
+    /// 期待値: 既存セッションを表示し、新しいセッションを作成しない。
+    func testWorkoutRootKeepsExistingSessionWithoutCreatingDuplicate() throws {
         let container = try makeContainer()
         let context = container.mainContext
         let existing = try WorkoutSessionService(context: context).startOrResume()
@@ -402,11 +418,11 @@ final class KASANETests: XCTestCase {
             try WorkoutSessionService(context: context).activeSession()
         }
 
-        viewModel.openWorkout {
+        viewModel.startWorkout {
             try WorkoutSessionService(context: context).startOrResume()
         }
 
-        XCTAssertEqual(viewModel.selectedSession?.id, existing.id)
+        XCTAssertEqual(viewModel.activeSession?.id, existing.id)
         XCTAssertEqual(try context.fetch(FetchDescriptor<WorkoutSession>()).count, 1)
     }
 

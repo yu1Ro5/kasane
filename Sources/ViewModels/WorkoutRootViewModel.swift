@@ -5,7 +5,6 @@ import Observation
 @Observable
 final class WorkoutRootViewModel {
     private(set) var activeSession: WorkoutSession?
-    private(set) var selectedSession: WorkoutSession?
     var errorMessage: String?
 
     func refreshActiveSession(fetch: () throws -> WorkoutSession?) {
@@ -16,15 +15,11 @@ final class WorkoutRootViewModel {
         }
     }
 
-    func openWorkout(startOrResume: () throws -> WorkoutSession) {
+    func startWorkout(startOrResume: () throws -> WorkoutSession) {
         do {
-            selectedSession = try startOrResume()
+            activeSession = try startOrResume()
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-
-    func closeWorkout() {
-        selectedSession = nil
     }
 }

@@ -61,7 +61,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         app.tabBars.buttons["ワークアウト"].tap()
 
-        let startButton = app.buttons["workout-resume-button"]
+        let startButton = app.buttons["workout-start-button"]
         XCTAssertTrue(startButton.waitForExistence(timeout: 10))
         XCTAssertEqual(startButton.label, "ワークアウトを開始")
 
@@ -69,6 +69,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         workoutAttachment.name = "workout-root-empty"
         workoutAttachment.lifetime = .keepAlways
         add(workoutAttachment)
+
+        startButton.tap()
+        XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["すべての種目"].exists)
+        XCTAssertFalse(app.navigationBars["ワークアウト"].buttons["ワークアウト"].exists)
     }
 
     @MainActor
@@ -335,24 +340,31 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         app.tabBars.buttons["ワークアウト"].tap()
 
-        let resumeButton = app.buttons["workout-resume-button"]
-        XCTAssertTrue(resumeButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["すべての種目"].exists)
+        XCTAssertTrue(app.buttons["終了"].exists)
+        XCTAssertFalse(app.buttons["ワークアウトを再開"].exists)
+        XCTAssertFalse(app.navigationBars["ワークアウト"].buttons["ワークアウト"].exists)
 
         let activeRootAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         activeRootAttachment.name = "workout-root-active"
         activeRootAttachment.lifetime = .keepAlways
         add(activeRootAttachment)
 
-        resumeButton.tap()
-
-        XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["すべての種目"].exists)
         XCTAssertTrue(app.searchFields["種目名を検索"].exists)
 
         let sessionAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         sessionAttachment.name = "workout-session-active"
         sessionAttachment.lifetime = .keepAlways
         add(sessionAttachment)
+
+        app.tabBars.buttons["概要"].tap()
+        app.tabBars.buttons["ワークアウト"].tap()
+        XCTAssertTrue(
+            app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"]
+                .waitForExistence(timeout: 10)
+        )
+        XCTAssertFalse(app.buttons["ワークアウトを再開"].exists)
 
         let currentExercise = app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"]
         XCTAssertTrue(currentExercise.waitForExistence(timeout: 10))
@@ -465,7 +477,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         waitForAppToBeStable(app)
 
         app.tabBars.buttons["ワークアウト"].tap()
-        app.buttons["workout-resume-button"].tap()
         app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
 
         let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
@@ -514,6 +525,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         completedAttachment.name = "workout-completed"
         completedAttachment.lifetime = .keepAlways
         add(completedAttachment)
+
+        app.buttons["完了"].tap()
+        let startButton = app.buttons["workout-start-button"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 10))
+        XCTAssertEqual(startButton.label, "ワークアウトを開始")
     }
 
     @MainActor
@@ -524,7 +540,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         waitForAppToBeStable(app)
 
         app.tabBars.buttons["ワークアウト"].tap()
-        app.buttons["workout-resume-button"].tap()
         app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
 
         app.swipeUp()
@@ -573,7 +588,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         waitForAppToBeStable(app)
 
         app.tabBars.buttons["ワークアウト"].tap()
-        app.buttons["workout-resume-button"].tap()
         app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
         XCTAssertTrue(
             app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
