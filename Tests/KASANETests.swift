@@ -1678,6 +1678,11 @@ final class KASANETests: XCTestCase {
             reps.savedSetToCommit(whenMovingTo: .draftWeight(exerciseID: exerciseID))?.setID,
             firstSetID
         )
+        XCTAssertEqual(reps.savedSetToCommit(whenMovingTo: nil)?.setID, firstSetID)
+        XCTAssertNil(
+            WorkoutInputFocus.draftReps(exerciseID: exerciseID)
+                .savedSetToCommit(whenMovingTo: nil)
+        )
     }
 
     /// テスト概要: 複数の保存済みセットを個別のDraftとして編集する。

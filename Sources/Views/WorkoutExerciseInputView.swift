@@ -101,6 +101,7 @@ struct WorkoutExerciseInputView: View {
                     if focusedInput != nil {
                         Button("次へ") { advanceFocus(using: proxy) }
                         Spacer()
+                        Button("完了") { focusedInput = nil }
                     }
                 }
             }
