@@ -50,7 +50,8 @@ struct WorkoutExerciseInputView: View {
                                 setEntry: setEntry,
                                 exerciseEntry: entry,
                                 editDraft: editDraftBinding(for: setEntry),
-                                focusedInput: $focusedInput
+                                focusedInput: $focusedInput,
+                                onDelete: { deleteSet(setEntry, from: entry) }
                             )
                         }
                     }
@@ -97,22 +98,9 @@ struct WorkoutExerciseInputView: View {
                     }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
-                    if focusedInput?.nextInput != nil {
-                        Button("次へ") { focusedInput = focusedInput?.nextInput }
+                    if focusedInput != nil {
+                        Button("次へ") { advanceFocus(using: proxy) }
                         Spacer()
-                    } else {
-                        if showsAddSetShortcut {
-                            Button {
-                                addSet(using: proxy)
-                            } label: {
-                                Image(systemName: "plus")
-                            }
-                            .accessibilityLabel("次のセットを追加")
-                            .accessibilityIdentifier("keyboard-add-set-button")
-                            .disabled(!canAddSet)
-                        }
-                        Spacer()
-                        Button("完了") { focusedInput = nil }
                     }
                 }
             }
@@ -126,6 +114,9 @@ struct WorkoutExerciseInputView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "不明なエラーが発生しました。")
+            }
+            .onChange(of: focusedInput) { oldValue, newValue in
+                saveSetWhenLeaving(oldValue, for: newValue)
             }
             .onDisappear { focusedInput = nil }
         }
@@ -183,10 +174,6 @@ struct WorkoutExerciseInputView: View {
         !draft.wrappedValue.isEmpty && draft.wrappedValue.values() == nil
     }
 
-    private var showsAddSetShortcut: Bool {
-        focusedInput?.isDraftReps(exerciseID: inputIdentity) == true
-    }
-
     private var canAddSet: Bool {
         draft.wrappedValue.values() != nil && !isSaving
     }
@@ -237,6 +224,70 @@ struct WorkoutExerciseInputView: View {
         } catch {
             isSaving = false
             errorTitle = "セットを保存できませんでした"
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func advanceFocus(using proxy: ScrollViewProxy) {
+        guard let currentFocus = focusedInput else { return }
+        if currentFocus.isDraftReps(exerciseID: inputIdentity) {
+            addSet(using: proxy)
+            return
+        }
+
+        guard
+            let nextFocus = currentFocus.nextInput(
+                savedSetIDs: setEntries.map(\.id),
+                draftExerciseID: inputIdentity
+            )
+        else { return }
+        if let identity = currentFocus.savedSetToCommit(whenMovingTo: nextFocus) {
+            guard saveSetIfNeeded(for: identity) else { return }
+        }
+        focusedInput = nextFocus
+    }
+
+    private func saveSetWhenLeaving(
+        _ oldFocus: WorkoutInputFocus?,
+        for newFocus: WorkoutInputFocus?
+    ) {
+        guard let identity = oldFocus?.savedSetToCommit(whenMovingTo: newFocus) else { return }
+        if !saveSetIfNeeded(for: identity) {
+            focusedInput = oldFocus
+        }
+    }
+
+    @discardableResult
+    private func saveSetIfNeeded(
+        for identity: WorkoutInputFocus.SavedSetIdentity?
+    ) -> Bool {
+        guard
+            let identity,
+            let setEntry = setEntries.first(where: { $0.id == identity.setID }),
+            let editDraft = editDrafts[setEntry.id],
+            editDraft.hasChanges(from: setEntry)
+        else { return true }
+
+        do {
+            try WorkoutSetService(context: modelContext).update(setEntry, draft: editDraft)
+            editDrafts[setEntry.id] = .savedValues(from: setEntry)
+            return true
+        } catch {
+            errorTitle = "セットを更新できませんでした"
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    private func deleteSet(_ setEntry: SetEntry, from exerciseEntry: ExerciseEntry) {
+        do {
+            try WorkoutSetService(context: modelContext).delete(setEntry, from: exerciseEntry)
+            editDrafts[setEntry.id] = nil
+            if focusedInput?.savedSetIdentity?.setID == setEntry.id {
+                focusedInput = nil
+            }
+        } catch {
+            errorTitle = "セットを削除できませんでした"
             errorMessage = error.localizedDescription
         }
     }
@@ -302,76 +353,45 @@ private struct PreviousWorkoutRecordView: View {
 }
 
 private struct WorkoutSetRow: View {
-    @Environment(\.modelContext) private var modelContext
     @Bindable var setEntry: SetEntry
     let exerciseEntry: ExerciseEntry
 
     @Binding var editDraft: SetEntryDraft
     var focusedInput: FocusState<WorkoutInputFocus?>.Binding
-    @State private var errorMessage: String?
+    let onDelete: () -> Void
 
     var body: some View {
         WorkoutSetColumns {
             Text(WorkoutSetDisplayFormatter.setNumber(setEntry.order + 1))
                 .accessibilityLabel("セット \(setEntry.order + 1)")
         } weight: {
-            if focusedInput.wrappedValue == savedWeightFocus {
-                HStack(spacing: 4) {
-                    TextField("重量", text: $editDraft.weight, prompt: Text("0"))
-                        .multilineTextAlignment(.trailing)
-                        .monospacedDigit()
-                        .keyboardType(.decimalPad)
-                        .accessibilityLabel("セット \(setEntry.order + 1)の重量、kg")
-                        .focused(focusedInput, equals: savedWeightFocus)
-                    Text("kg")
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                }
-            } else {
-                WorkoutWeightText(weightKg: displayedWeight)
-                    .contentShape(Rectangle())
-                    .onTapGesture { focusedInput.wrappedValue = savedWeightFocus }
-                    .accessibilityLabel(
-                        "重量、\(WorkoutSetDisplayFormatter.displayWeight(displayedWeight))"
-                    )
-                    .accessibilityHint("ダブルタップして編集")
-                    .accessibilityAddTraits(.isButton)
-            }
-        } reps: {
-            if focusedInput.wrappedValue == savedRepsFocus {
-                TextField("回数", text: $editDraft.reps, prompt: Text("0"))
+            HStack(spacing: 4) {
+                TextField("重量", text: $editDraft.weight, prompt: Text("0"))
                     .multilineTextAlignment(.trailing)
                     .monospacedDigit()
-                    .keyboardType(.numberPad)
-                    .accessibilityLabel("セット \(setEntry.order + 1)の回数")
-                    .focused(focusedInput, equals: savedRepsFocus)
-            } else {
-                Text(displayedReps, format: .number)
-                    .monospacedDigit()
-                    .contentShape(Rectangle())
-                    .onTapGesture { focusedInput.wrappedValue = savedRepsFocus }
-                    .accessibilityLabel("回数、\(displayedReps)")
-                    .accessibilityHint("ダブルタップして編集")
-                    .accessibilityAddTraits(.isButton)
+                    .keyboardType(.decimalPad)
+                    .submitLabel(.next)
+                    .accessibilityIdentifier("saved-set-weight-input-\(setEntry.id.uuidString)")
+                    .accessibilityLabel("セット \(setEntry.order + 1)の重量、kg")
+                    .focused(focusedInput, equals: savedWeightFocus)
+                    .onSubmit { focusedInput.wrappedValue = savedRepsFocus }
+                Text("kg")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
+        } reps: {
+            TextField("回数", text: $editDraft.reps, prompt: Text("0"))
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .keyboardType(.numberPad)
+                .submitLabel(.next)
+                .accessibilityIdentifier("saved-set-reps-input-\(setEntry.id.uuidString)")
+                .accessibilityLabel("セット \(setEntry.order + 1)の回数")
+                .focused(focusedInput, equals: savedRepsFocus)
         }
         .textFieldStyle(.roundedBorder)
-        .onChange(of: focusedInput.wrappedValue) { oldValue, newValue in
-            let rowIdentity = WorkoutInputFocus.SavedSetIdentity(
-                exerciseID: exerciseEntry.id,
-                setID: setEntry.id
-            )
-            if oldValue?.savedSetIdentity == rowIdentity && newValue?.savedSetIdentity != rowIdentity {
-                saveEdits()
-            }
-        }
         .swipeActions {
-            Button("削除", systemImage: "trash", role: .destructive) { deleteSet() }
-        }
-        .alert("セットを更新できませんでした", isPresented: errorIsPresented) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage ?? "不明なエラーが発生しました。")
+            Button("削除", systemImage: "trash", role: .destructive, action: onDelete)
         }
     }
 
@@ -383,36 +403,6 @@ private struct WorkoutSetRow: View {
         .savedReps(exerciseID: exerciseEntry.id, setID: setEntry.id)
     }
 
-    private var displayedWeight: Double {
-        editDraft.values()?.weight ?? setEntry.weightKg
-    }
-
-    private var displayedReps: Int {
-        editDraft.values()?.reps ?? setEntry.reps
-    }
-
-    private var errorIsPresented: Binding<Bool> {
-        Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
-    }
-
-    private func saveEdits() {
-        guard editDraft.hasChanges(from: setEntry) else { return }
-        do {
-            try WorkoutSetService(context: modelContext).update(setEntry, draft: editDraft)
-            editDraft = .savedValues(from: setEntry)
-        } catch {
-            editDraft = .savedValues(from: setEntry)
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func deleteSet() {
-        do {
-            try WorkoutSetService(context: modelContext).delete(setEntry, from: exerciseEntry)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
 }
 
 enum WorkoutInputFocus: Hashable {
@@ -443,14 +433,28 @@ enum WorkoutInputFocus: Hashable {
         }
     }
 
-    var nextInput: WorkoutInputFocus? {
+    func savedSetToCommit(whenMovingTo nextInput: WorkoutInputFocus?) -> SavedSetIdentity? {
+        guard
+            let savedSetIdentity,
+            nextInput?.savedSetIdentity != savedSetIdentity
+        else { return nil }
+        return savedSetIdentity
+    }
+
+    func nextInput(savedSetIDs: [UUID], draftExerciseID: UUID) -> WorkoutInputFocus? {
         switch self {
         case .draftWeight(let exerciseID):
             .draftReps(exerciseID: exerciseID)
         case .savedWeight(let exerciseID, let setID):
             .savedReps(exerciseID: exerciseID, setID: setID)
-        case .draftReps, .savedReps:
-            nil
+        case .savedReps(let exerciseID, let setID):
+            if let index = savedSetIDs.firstIndex(of: setID), savedSetIDs.indices.contains(index + 1) {
+                .savedWeight(exerciseID: exerciseID, setID: savedSetIDs[index + 1])
+            } else {
+                .draftWeight(exerciseID: draftExerciseID)
+            }
+        case .draftReps:
+            .draftWeight(exerciseID: draftExerciseID)
         }
     }
 
