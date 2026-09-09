@@ -35,7 +35,7 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Select 6.9-inch iPhone simulator
+      - name: Select and configure 6.9-inch iPhone simulator
         id: simulator
         shell: bash
         run: |
@@ -83,6 +83,12 @@ jobs:
               exit 1
               ;;
           esac
+          xcrun simctl bootstatus "$simulator" -b
+          xcrun simctl spawn "$simulator" defaults write NSGlobalDomain AppleLanguages -array ja
+          xcrun simctl spawn "$simulator" defaults write NSGlobalDomain AppleLocale -string ja_JP
+          xcrun simctl shutdown "$simulator"
+          xcrun simctl boot "$simulator"
+          xcrun simctl bootstatus "$simulator" -b
 
       - name: Run UI screenshot tests
         shell: bash
