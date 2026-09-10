@@ -424,6 +424,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         searchField.tap()
         searchField.typeText("ショルダー")
         XCTAssertTrue(app.staticTexts["ショルダープレス"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["今回のワークアウト"].exists)
+        XCTAssertTrue(app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].exists)
 
         let searchAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         searchAttachment.name = "workout-exercise-search"
