@@ -514,6 +514,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         saveButton.tap()
 
         XCTAssertTrue(app.staticTexts["今日も積み重ねました"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.tabBars.buttons["ワークアウト"].exists)
         RunLoop.current.run(until: Date().addingTimeInterval(0.8))
         let completedAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         completedAttachment.name = "workout-completed"

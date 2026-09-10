@@ -62,6 +62,7 @@ struct WorkoutCompletedView: View {
             .accessibilitySortPriority(1)
         }
         .navigationBarBackButtonHidden()
+        .toolbar(.hidden, for: .tabBar)
         .sensoryFeedback(.success, trigger: hasAppeared)
         .onAppear {
             guard !hasAppeared else { return }
