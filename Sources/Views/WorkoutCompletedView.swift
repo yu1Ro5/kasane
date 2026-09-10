@@ -136,3 +136,17 @@ private extension View {
             .animation(.easeOut(duration: 0.28).delay(delay), value: isVisible)
     }
 }
+
+#Preview {
+    NavigationStack {
+        WorkoutCompletedView(
+            summary: WorkoutCompletionSummary(
+                startedAt: .now.addingTimeInterval(-4_320),
+                endedAt: .now,
+                exerciseCount: 5,
+                setCount: 15
+            ),
+            onReturnHome: {}
+        )
+    }
+}
