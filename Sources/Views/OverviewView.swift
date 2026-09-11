@@ -138,7 +138,7 @@ private struct OverviewMonthlyStatsSections: View {
 
         Section {
             monthlySummary(stats)
-                .listRowInsets(EdgeInsets())
+                .listRowInsets(nil)
                 .listRowBackground(Color.clear)
         } header: {
             Text(stats.month, format: .dateTime.year().month())
