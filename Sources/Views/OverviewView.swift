@@ -22,14 +22,7 @@ struct OverviewView: View {
                 )
                 .id(monthStart)
 
-                if completedSessions.isEmpty {
-                    ContentUnavailableView(
-                        "ワークアウトがありません",
-                        systemImage: "clock.arrow.circlepath",
-                        description: Text("完了したワークアウトがここに表示されます。")
-                    )
-                    .listRowBackground(Color.clear)
-                } else {
+                if !completedSessions.isEmpty {
                     Section {
                         ForEach(completedSessions) { session in
                             if let content = WorkoutHistoryRowContent(session: session) {
