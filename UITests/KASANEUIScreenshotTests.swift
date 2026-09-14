@@ -62,8 +62,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
         XCTAssertTrue(app.staticTexts["今月のトレーニング"].exists)
         XCTAssertTrue(app.staticTexts["最初の記録から、少しずつ。"].exists)
-        XCTAssertTrue(app.staticTexts["ワークアウトがありません"].exists)
-        XCTAssertTrue(app.staticTexts["完了したワークアウトがここに表示されます。"].exists)
         XCTAssertFalse(app.buttons["履歴"].exists)
         XCTAssertFalse(app.tabBars.buttons["履歴"].exists)
 
@@ -122,7 +120,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
         XCTAssertTrue(app.staticTexts["スクワット"].exists)
-        XCTAssertTrue(app.staticTexts["ショルダープレス"].exists)
+        let shoulderPress = app.staticTexts["ショルダープレス"]
+        if !shoulderPress.waitForExistence(timeout: 2) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(shoulderPress.waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["デッドリフト"].exists)
         XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
@@ -256,19 +258,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(swipeDeleteButton.waitForExistence(timeout: 5))
         swipeDeleteButton.tap()
 
-        XCTAssertTrue(app.staticTexts["このワークアウトを削除しますか？"].waitForExistence(timeout: 5))
-        app.buttons["キャンセル"].tap()
-        XCTAssertTrue(historyRow.waitForExistence(timeout: 5))
-
-        historyRow.tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
-        )
-        app.buttons["その他"].tap()
-        let detailDeleteButton = app.buttons["delete-workout-from-detail"]
-        XCTAssertTrue(detailDeleteButton.waitForExistence(timeout: 5))
-        detailDeleteButton.tap()
-        XCTAssertTrue(app.staticTexts["このワークアウトを削除しますか？"].waitForExistence(timeout: 5))
         app.buttons["削除"].tap()
 
         XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))

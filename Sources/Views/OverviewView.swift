@@ -22,31 +22,43 @@ struct OverviewView: View {
                 )
                 .id(monthStart)
 
-                if completedSessions.isEmpty {
-                    ContentUnavailableView(
-                        "ワークアウトがありません",
-                        systemImage: "clock.arrow.circlepath",
-                        description: Text("完了したワークアウトがここに表示されます。")
-                    )
-                    .listRowBackground(Color.clear)
-                } else {
-                    Section("最近のワークアウト") {
+                if !completedSessions.isEmpty {
+                    Section {
                         ForEach(completedSessions) { session in
                             if let content = WorkoutHistoryRowContent(session: session) {
                                 NavigationLink(value: OverviewRoute.workoutDetail(session.id)) {
                                     WorkoutHistoryRow(content: content)
+                                        .padding(.vertical, 6)
                                 }
                                 .accessibilityIdentifier(
                                     "overview-recent-workout-row-\(session.id.uuidString)"
                                 )
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(Color(.secondarySystemGroupedBackground))
+                                        .padding(.vertical, 4)
+                                )
                             }
                         }
-                        NavigationLink(value: OverviewRoute.history) {
-                            Text("すべて表示")
+                    } header: {
+                        HStack {
+                            Text("最近のワークアウト")
+                            Spacer()
+                            NavigationLink(value: OverviewRoute.history) {
+                                HStack(spacing: 3) {
+                                    Text("すべて表示")
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2.bold())
+                                }
+                                .font(.subheadline)
+                                .textCase(nil)
+                            }
                         }
                     }
                 }
             }
+            .listSectionSpacing(20)
         }
         .navigationTitle("概要")
         .toolbar {
@@ -111,22 +123,41 @@ private struct OverviewMonthlyStatsSections: View {
             hasCompletedWorkouts: hasCompletedWorkouts
         )
         Section {
+            OverviewHeroCard()
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+        }
+
+        Section {
             monthlySummary(stats)
+                .listRowInsets(nil)
+                .listRowBackground(Color.clear)
         } header: {
             Text(stats.month, format: .dateTime.year().month())
         }
 
         if !stats.frequentExercises.isEmpty {
             Section {
-                ForEach(stats.frequentExercises) { exercise in
-                    LabeledContent {
-                        Text("\(exercise.workoutCount)回")
-                            .monospacedDigit()
-                    } label: {
-                        Text(exercise.name)
+                VStack(spacing: 0) {
+                    ForEach(Array(stats.frequentExercises.enumerated()), id: \.element.id) {
+                        index, exercise in
+                        OverviewFrequentExerciseRow(
+                            name: exercise.name,
+                            workoutCount: exercise.workoutCount
+                        )
+                        if index < stats.frequentExercises.count - 1 {
+                            Divider()
+                                .padding(.leading, 36)
+                        }
                     }
-                    .accessibilityElement(children: .combine)
                 }
+                .padding(.horizontal, 16)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             } header: {
                 Text("今月よく行う種目")
             }
@@ -138,37 +169,35 @@ private struct OverviewMonthlyStatsSections: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("今月のトレーニング")
                 .font(.headline)
-            if stats.workoutCount > 0 {
-                let layout =
-                    dynamicTypeSize.isAccessibilitySize
-                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
-                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 24))
-                layout {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("\(stats.workoutCount)")
-                            .font(.largeTitle.bold())
-                        Text("回")
-                            .font(.body)
-                    }
-                    .accessibilityLabel("ワークアウト \(stats.workoutCount)回")
-                    .accessibilityIdentifier("overview-workout-count")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(stats.durationText)
-                            .font(.title2.bold())
-                        Text("トレーニング時間")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("overview-duration")
-                }
+            let layout =
+                dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+            layout {
+                OverviewStatCard(
+                    title: "ワークアウト",
+                    value: "\(stats.workoutCount)",
+                    accessibilityValue: "\(stats.workoutCount)回",
+                    systemImage: "dumbbell.fill",
+                    identifier: "overview-workout-count"
+                )
+                OverviewStatCard(
+                    title: "合計時間",
+                    value: stats.durationText,
+                    accessibilityValue: stats.durationText,
+                    systemImage: "clock.fill",
+                    identifier: "overview-duration"
+                )
+                OverviewStatCard(
+                    title: "活動日数",
+                    value: "\(stats.activeDayCount)",
+                    accessibilityValue: "\(stats.activeDayCount)日",
+                    systemImage: "calendar",
+                    identifier: "overview-active-days"
+                )
+            }
+            if stats.workoutCount == 0 {
                 Divider()
-                Text("活動日数 \(stats.activeDayCount)日")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("overview-active-days")
-            } else {
                 Text(stats.hasCompletedWorkouts ? "今月の記録はまだありません" : "最初の記録から、少しずつ。")
                     .font(.body)
                 Text("完了したワークアウトの回数と時間がここに表示されます。")
@@ -176,7 +205,81 @@ private struct OverviewMonthlyStatsSections: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 8)
+    }
+}
+
+private struct OverviewHeroCard: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("積み重ねが、\n今日の自信になる。")
+                    .font(.title2.bold())
+                    .foregroundStyle(.primary)
+                Text("少しずつでも、続けることが未来の自分をつくる。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "square.stack.3d.up.fill")
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+        }
+        .padding(20)
+        .background(Color.accentColor.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private struct OverviewStatCard: View {
+    let title: String
+    let value: String
+    let accessibilityValue: String
+    let systemImage: String
+    let identifier: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+            Text(value)
+                .font(.title2.bold())
+                .monospacedDigit()
+                .accessibilityLabel("\(title) \(accessibilityValue)")
+                .accessibilityIdentifier(identifier)
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct OverviewFrequentExerciseRow: View {
+    let name: String
+    let workoutCount: Int
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "figure.strengthtraining.traditional")
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+            Text(name)
+                .font(.body.weight(.medium))
+            Spacer(minLength: 12)
+            Text("\(workoutCount)回")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
     }
 }
 
