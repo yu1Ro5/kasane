@@ -239,7 +239,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertEqual(searchField.value as? String, "デッドリフト")
     }
 
-    /// 履歴のスワイプ削除をキャンセルでき、詳細からの削除後は履歴へ戻ることを確認する。
+    /// 履歴のスワイプ削除確認を閉じ、詳細からの削除後は履歴へ戻ることを確認する。
     @MainActor
     func testCompletedWorkoutDeletionFlow() throws {
         let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
@@ -256,8 +256,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(swipeDeleteButton.waitForExistence(timeout: 5))
         swipeDeleteButton.tap()
 
-        XCTAssertTrue(app.staticTexts["このワークアウトを削除しますか？"].waitForExistence(timeout: 5))
-        app.buttons["キャンセル"].tap()
+        let deletionConfirmation = app.staticTexts["このワークアウトを削除しますか？"]
+        XCTAssertTrue(deletionConfirmation.waitForExistence(timeout: 5))
+        // iPhoneの確認ダイアログには取消ボタンが表示されないため、外側タップで閉じる。
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
+        XCTAssertTrue(deletionConfirmation.waitForNonExistence(timeout: 5))
         XCTAssertTrue(historyRow.waitForExistence(timeout: 5))
 
         historyRow.tap()

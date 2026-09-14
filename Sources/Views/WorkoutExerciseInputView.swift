@@ -73,7 +73,7 @@ struct WorkoutExerciseInputView: View {
                     } label: {
                         Label("セットを追加", systemImage: "plus")
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
+//                            .padding(.vertical, 10)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
@@ -523,4 +523,90 @@ enum WorkoutInputFocus: Hashable {
     func isDraftReps(exerciseID: UUID) -> Bool {
         self == .draftReps(exerciseID: exerciseID)
     }
+}
+
+@MainActor
+private struct WorkoutExerciseInputPreview: View {
+    @State private var fixture = WorkoutExerciseInputPreviewFixture()
+
+    var body: some View {
+        NavigationStack {
+            WorkoutExerciseInputView(
+                session: fixture.session,
+                exercise: fixture.exercise,
+                draftStore: fixture.draftStore
+            )
+        }
+        .modelContainer(fixture.container)
+    }
+}
+
+/// ワークアウト入力画面のPreviewで使う、保存済みセットと前回記録を含む固定データ。
+@MainActor
+private final class WorkoutExerciseInputPreviewFixture {
+    let container: ModelContainer
+    let session: WorkoutSession
+    let exercise: Exercise
+    let draftStore = WorkoutDraftStore()
+
+    init() {
+        do {
+            container = try ModelContainer(
+                for: WorkoutSession.self,
+                Exercise.self,
+                ExerciseEntry.self,
+                SetEntry.self,
+                configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            )
+        } catch {
+            fatalError("Preview用のSwiftDataコンテナを作成できませんでした: \(error)")
+        }
+
+        exercise = Exercise(name: "ラットプルダウン", primaryBodyPart: .back)
+        session = WorkoutSession(startedAt: .now)
+        let currentEntry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        let previousSession = WorkoutSession(
+            startedAt: .now.addingTimeInterval(-86_400 * 3),
+            endedAt: .now.addingTimeInterval(-86_400 * 3 + 3_600)
+        )
+        let previousEntry = ExerciseEntry(
+            workoutSession: previousSession,
+            exercise: exercise,
+            order: 0
+        )
+
+        let context = container.mainContext
+        context.insert(session)
+        context.insert(previousSession)
+        context.insert(exercise)
+        context.insert(currentEntry)
+        context.insert(previousEntry)
+        context.insert(SetEntry(exerciseEntry: currentEntry, order: 0, weightKg: 40, reps: 10))
+        context.insert(SetEntry(exerciseEntry: currentEntry, order: 1, weightKg: 40, reps: 10))
+        context.insert(SetEntry(exerciseEntry: currentEntry, order: 2, weightKg: 42.5, reps: 8))
+        context.insert(SetEntry(exerciseEntry: previousEntry, order: 0, weightKg: 40, reps: 10))
+        context.insert(SetEntry(exerciseEntry: previousEntry, order: 1, weightKg: 40, reps: 10))
+        context.insert(SetEntry(exerciseEntry: previousEntry, order: 2, weightKg: 42.5, reps: 8))
+
+        do {
+            try context.save()
+        } catch {
+            fatalError("Preview用データを保存できませんでした: \(error)")
+        }
+
+        draftStore.update(
+            SetEntryDraft(weight: "45", reps: "10"),
+            for: currentEntry.id,
+            in: session.id
+        )
+    }
+}
+
+#Preview("入力") {
+    WorkoutExerciseInputPreview()
+}
+
+#Preview("入力（Dark）") {
+    WorkoutExerciseInputPreview()
+        .preferredColorScheme(.dark)
 }
