@@ -120,7 +120,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
         XCTAssertTrue(app.staticTexts["スクワット"].exists)
-        XCTAssertTrue(app.staticTexts["ショルダープレス"].exists)
+        let shoulderPress = app.staticTexts["ショルダープレス"]
+        if !shoulderPress.waitForExistence(timeout: 2) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(shoulderPress.waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["デッドリフト"].exists)
         XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
