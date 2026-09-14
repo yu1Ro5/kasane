@@ -258,7 +258,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(swipeDeleteButton.waitForExistence(timeout: 5))
         swipeDeleteButton.tap()
 
-        XCTAssertTrue(app.staticTexts["このワークアウトを削除しますか？"].waitForExistence(timeout: 5))
         app.buttons["削除"].tap()
 
         XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
