@@ -221,12 +221,14 @@ struct WorkoutExerciseInputView: View {
 
     private func addSet(using proxy: ScrollViewProxy) {
         guard canAddSet else { return }
+        let entryIDBeforeCommit = entry?.id
+        let draftToCommit = draft.wrappedValue
         isSaving = true
         do {
             guard
                 let focusedEntry = try WorkoutExerciseService(context: modelContext)
                     .commitCurrentSetIfNeeded(
-                        draft: draft.wrappedValue,
+                        draft: draftToCommit,
                         for: exercise,
                         in: session
                     )
@@ -234,11 +236,11 @@ struct WorkoutExerciseInputView: View {
                 isSaving = false
                 return
             }
-            if let entry {
-                draft.wrappedValue = SetEntryDraft()
-            } else {
-                draftStore.removePendingDraft(for: exercise.id, in: session.id)
-            }
+            draftStore.removeCommittedDraft(
+                for: exercise.id,
+                entryIDBeforeCommit: entryIDBeforeCommit,
+                in: session.id
+            )
             Task { @MainActor in
                 await Task.yield()
                 focusedInput = .draftWeight(exerciseID: focusedEntry.id)

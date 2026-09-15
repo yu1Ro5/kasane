@@ -193,6 +193,58 @@ final class KASANETests: XCTestCase {
         XCTAssertTrue(store.pendingDrafts(for: sessionID).isEmpty)
     }
 
+    /// テスト概要: Set確定前に未記録だった種目のDraftを削除する。
+    /// 期待値: pending Draftだけが削除され、新規Entry側にDraftは作られない。
+    func testWorkoutDraftStoreRemovesPendingDraftAfterFirstSetCommit() {
+        let store = WorkoutDraftStore()
+        let sessionID = UUID()
+        let exerciseID = UUID()
+        let createdEntryID = UUID()
+        store.updatePending(
+            SetEntryDraft(weight: "5", reps: "5"),
+            for: exerciseID,
+            in: sessionID
+        )
+
+        store.removeCommittedDraft(
+            for: exerciseID,
+            entryIDBeforeCommit: nil,
+            in: sessionID
+        )
+
+        XCTAssertTrue(store.pendingDrafts(for: sessionID).isEmpty)
+        XCTAssertEqual(store.draft(for: createdEntryID, in: sessionID), SetEntryDraft())
+        XCTAssertTrue(store.drafts(for: sessionID).isEmpty)
+    }
+
+    /// テスト概要: Set確定前から記録済みだった種目のDraftを削除する。
+    /// 期待値: Entry側のDraftだけが削除され、pending Draftには影響しない。
+    func testWorkoutDraftStoreRemovesExistingEntryDraftAfterSetCommit() {
+        let store = WorkoutDraftStore()
+        let sessionID = UUID()
+        let exerciseID = UUID()
+        let entryID = UUID()
+        let unrelatedPendingExerciseID = UUID()
+        store.update(SetEntryDraft(weight: "10", reps: "8"), for: entryID, in: sessionID)
+        store.updatePending(
+            SetEntryDraft(weight: "20", reps: "10"),
+            for: unrelatedPendingExerciseID,
+            in: sessionID
+        )
+
+        store.removeCommittedDraft(
+            for: exerciseID,
+            entryIDBeforeCommit: entryID,
+            in: sessionID
+        )
+
+        XCTAssertTrue(store.drafts(for: sessionID).isEmpty)
+        XCTAssertEqual(
+            store.pendingDraft(for: unrelatedPendingExerciseID, in: sessionID),
+            SetEntryDraft(weight: "20", reps: "10")
+        )
+    }
+
     /// テスト概要: 新しいアプリ起動に相当するStoreを生成する。
     /// 期待値: 以前の起動中に入力したDraftは復元されない。
     func testWorkoutDraftStoreDoesNotRestoreDraftAfterStoreRecreation() {

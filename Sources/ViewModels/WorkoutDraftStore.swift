@@ -64,6 +64,19 @@ final class WorkoutDraftStore {
         }
     }
 
+    /// Set確定前の保存先に基づいて、確定済みのDraftを削除する。
+    func removeCommittedDraft(
+        for exerciseID: UUID,
+        entryIDBeforeCommit: UUID?,
+        in sessionID: UUID
+    ) {
+        if let entryIDBeforeCommit {
+            removeDraft(for: entryIDBeforeCommit, in: sessionID)
+        } else {
+            removePendingDraft(for: exerciseID, in: sessionID)
+        }
+    }
+
     /// 指定したセッションの全Draftを削除する。
     func removeAllDrafts(in sessionID: UUID) {
         draftsBySessionID[sessionID] = nil
