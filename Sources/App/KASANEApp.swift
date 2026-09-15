@@ -259,7 +259,7 @@ private enum AppModelContainer {
                 "40000000-0000-4000-8000-000000000004",
                 1_787_878_800,
                 1_787_880_600,
-                [("デッドリフト", .back)]
+                [("デッドリフト", .back), ("ベンチプレス", .chest), ("ショルダープレス", .shoulders)]
             ),
             (
                 "40000000-0000-4000-8000-000000000005",
@@ -269,7 +269,8 @@ private enum AppModelContainer {
             ),
         ]
 
-        for fixture in fixtures {
+        var exercisesByName: [String: Exercise] = [:]
+        for (sessionIndex, fixture) in fixtures.enumerated() {
             guard let sessionID = UUID(uuidString: fixture.0) else {
                 throw FixtureError.invalidIdentifier
             }
@@ -280,13 +281,26 @@ private enum AppModelContainer {
             )
             context.insert(session)
             for (order, exerciseFixture) in fixture.3.enumerated() {
-                let exercise = Exercise(
-                    name: exerciseFixture.0,
-                    primaryBodyPart: exerciseFixture.1
-                )
-                context.insert(exercise)
+                let exercise: Exercise
+                if let existing = exercisesByName[exerciseFixture.0] {
+                    exercise = existing
+                } else {
+                    exercise = Exercise(
+                        name: exerciseFixture.0,
+                        primaryBodyPart: exerciseFixture.1
+                    )
+                    exercisesByName[exerciseFixture.0] = exercise
+                    context.insert(exercise)
+                }
+                let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: order)
+                context.insert(entry)
                 context.insert(
-                    ExerciseEntry(workoutSession: session, exercise: exercise, order: order)
+                    SetEntry(
+                        exerciseEntry: entry,
+                        order: 0,
+                        weightKg: Double(65 - sessionIndex * 5 + order * 5),
+                        reps: 10
+                    )
                 )
             }
         }

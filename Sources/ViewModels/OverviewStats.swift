@@ -1,83 +1,173 @@
 import Foundation
 
-/// Workout記録から都度算出する当月のサマリー。派生データは永続化しない。
+/// 完了済みWorkoutの履歴から、選択月のダッシュボード表示を一度に算出する。
 struct OverviewStats {
-    /// 同じExerciseを含むWorkout数。表示名は最新の実施記録のsnapshotを使う。
-    struct ExerciseFrequency: Identifiable {
-        let id: UUID
-        let name: String
-        let workoutCount: Int
+    struct Highlight: Identifiable, Equatable {
+        enum Kind { case personalRecord, improvement }
+
+        let kind: Kind
+        let exerciseID: UUID
+        let exerciseName: String
+        let weight: Double
+        let improvement: Double
+        let date: Date
+
+        var id: String { "\(exerciseID.uuidString)-\(date.timeIntervalSince1970)-\(kind)" }
     }
 
-    /// 集計対象月の開始日時。
     let month: Date
-    /// 当月に開始した完了済みWorkout数。
     let workoutCount: Int
-    /// 当月Workoutの開始から終了までの合計時間。
     let duration: TimeInterval
-    /// 当月Workoutの開始日の重複を除いた日数。
-    let activeDayCount: Int
-    /// 当月Workout数の多い順に並べた最大3種目。
-    let frequentExercises: [ExerciseFrequency]
-    /// 対象月を問わず完了済みWorkoutが存在するか。
-    let hasCompletedWorkouts: Bool
+    let totalVolume: Double
+    let dailyWorkoutCounts: [Date: Int]
+    let streak: Int
+    let personalRecord: Highlight?
+    let improvement: Highlight?
 
-    /// 開始日時が当月内の完了済みWorkoutを集計する。種目はWorkout内で重複排除する。
-    /// 同数時は名称、Exercise IDの順で固定し、参照先を失った種目は頻度から除外する。
-    /// 月単位に限定済みの入力を使う場合、履歴全体の有無は`hasCompletedWorkouts`で補う。
     init(
         sessions: [WorkoutSession],
-        entries: [ExerciseEntry],
         now: Date,
-        calendar: Calendar,
-        hasCompletedWorkouts: Bool? = nil
+        referenceDate: Date? = nil,
+        calendar: Calendar
     ) {
-        let completed = sessions.filter { $0.endedAt != nil }
-        self.hasCompletedWorkouts = hasCompletedWorkouts ?? !completed.isEmpty
         let interval = calendar.dateInterval(of: .month, for: now)
         month = interval?.start ?? now
-        let included = completed.filter { session in
+        let completed = sessions.filter { $0.endedAt != nil }
+        let included = completed.filter {
             guard let interval else { return false }
-            return session.startedAt >= interval.start && session.startedAt < interval.end
+            return $0.startedAt >= interval.start && $0.startedAt < interval.end
         }
+
         workoutCount = included.count
-        duration = included.reduce(0) { total, session in
-            total + max(session.endedAt?.timeIntervalSince(session.startedAt) ?? 0, 0)
+        duration = included.reduce(0) {
+            $0 + max($1.endedAt?.timeIntervalSince($1.startedAt) ?? 0, 0)
         }
-        activeDayCount = Set(included.map { calendar.startOfDay(for: $0.startedAt) }).count
-        let includedSessionIDs = Set(included.map(\.id))
-        let orderedEntries = entries.filter {
-            guard let id = $0.workoutSession?.id else { return false }
-            return includedSessionIDs.contains(id) && $0.exercise != nil
-        }.sorted { lhs, rhs in
-            let left = lhs.workoutSession?.startedAt ?? .distantPast
-            let right = rhs.workoutSession?.startedAt ?? .distantPast
-            if left != right { return left > right }
-            if lhs.order != rhs.order { return lhs.order < rhs.order }
-            return lhs.id.uuidString < rhs.id.uuidString
+        totalVolume = included.reduce(0) { total, session in
+            total
+                + session.exerciseEntries.flatMap(\.setEntries).reduce(0) {
+                    $0 + max($1.weightKg, 0) * Double(max($1.reps, 0))
+                }
         }
-        var names: [UUID: String] = [:]
-        var workouts: [UUID: Set<UUID>] = [:]
-        for entry in orderedEntries {
-            guard let exerciseID = entry.exercise?.id, let sessionID = entry.workoutSession?.id else {
-                continue
-            }
-            if names[exerciseID] == nil { names[exerciseID] = entry.exerciseNameSnapshot }
-            workouts[exerciseID, default: []].insert(sessionID)
-        }
-        frequentExercises = workouts.map { id, sessions in
-            ExerciseFrequency(id: id, name: names[id] ?? "", workoutCount: sessions.count)
-        }.sorted {
-            if $0.workoutCount != $1.workoutCount { return $0.workoutCount > $1.workoutCount }
-            if $0.name != $1.name { return $0.name < $1.name }
-            return $0.id.uuidString < $1.id.uuidString
-        }.prefix(3).map { $0 }
+        dailyWorkoutCounts = Dictionary(grouping: included) {
+            calendar.startOfDay(for: $0.startedAt)
+        }.mapValues(\.count)
+        streak = Self.weeklyStreak(
+            sessions: completed,
+            selectedMonth: now,
+            referenceDate: referenceDate ?? now,
+            calendar: calendar
+        )
+        let highlights = Self.highlights(
+            sessions: completed,
+            monthInterval: interval,
+            calendar: calendar
+        )
+        personalRecord = highlights.personalRecord
+        improvement = highlights.improvement
     }
 
-    /// 合計秒数を分単位で切り捨てる。1分未満は0分と区別する。
     var durationText: String {
         if duration > 0 && duration < 60 { return "1分未満" }
         let minutes = Int(duration / 60)
         return minutes >= 60 ? "\(minutes / 60)時間\(minutes % 60)分" : "\(minutes)分"
+    }
+
+    var totalVolumeText: String {
+        totalVolume.formatted(.number.precision(.fractionLength(0...1))) + "kg"
+    }
+
+    static func weeklyStreak(
+        sessions: [WorkoutSession],
+        selectedMonth: Date,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> Int {
+        guard let month = calendar.dateInterval(of: .month, for: selectedMonth) else { return 0 }
+        let currentMonth = calendar.isDate(selectedMonth, equalTo: referenceDate, toGranularity: .month)
+        let cutoff = currentMonth ? referenceDate : month.end.addingTimeInterval(-1)
+        let activeWeeks = Set(
+            sessions.compactMap { session -> Date? in
+                guard session.endedAt != nil, session.startedAt <= cutoff else { return nil }
+                return calendar.dateInterval(of: .weekOfYear, for: session.startedAt)?.start
+            })
+        guard var week = calendar.dateInterval(of: .weekOfYear, for: cutoff)?.start else { return 0 }
+        if !activeWeeks.contains(week),
+            let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: week)
+        {
+            week = previous
+        }
+        var count = 0
+        while activeWeeks.contains(week) {
+            count += 1
+            guard let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: week) else {
+                break
+            }
+            week = previous
+        }
+        return count
+    }
+
+    private static func highlights(
+        sessions: [WorkoutSession],
+        monthInterval: DateInterval?,
+        calendar: Calendar
+    ) -> (personalRecord: Highlight?, improvement: Highlight?) {
+        guard let monthInterval else { return (nil, nil) }
+        var allTimeBest: [UUID: Double] = [:]
+        var previousWorkoutBest: [UUID: Double] = [:]
+        var records: [Highlight] = []
+        var improvements: [Highlight] = []
+
+        let ordered = sessions.filter { $0.endedAt != nil }.sorted {
+            if $0.startedAt != $1.startedAt { return $0.startedAt < $1.startedAt }
+            return $0.id.uuidString < $1.id.uuidString
+        }
+        for session in ordered {
+            var workoutBest: [UUID: (name: String, weight: Double)] = [:]
+            for entry in session.exerciseEntries {
+                guard let exerciseID = entry.exercise?.id,
+                    let maximum = entry.setEntries.map(\.weightKg).max()
+                else { continue }
+                let existing = workoutBest[exerciseID]?.weight ?? -.infinity
+                if maximum > existing {
+                    workoutBest[exerciseID] = (entry.exerciseNameSnapshot, maximum)
+                }
+            }
+            for (exerciseID, value) in workoutBest {
+                let previous = previousWorkoutBest[exerciseID]
+                let best = allTimeBest[exerciseID]
+                if monthInterval.contains(session.startedAt), let previous {
+                    if let best, value.weight > best {
+                        records.append(
+                            Highlight(
+                                kind: .personalRecord,
+                                exerciseID: exerciseID,
+                                exerciseName: value.name,
+                                weight: value.weight,
+                                improvement: value.weight - best,
+                                date: session.startedAt
+                            ))
+                    } else if value.weight > previous {
+                        improvements.append(
+                            Highlight(
+                                kind: .improvement,
+                                exerciseID: exerciseID,
+                                exerciseName: value.name,
+                                weight: value.weight,
+                                improvement: value.weight - previous,
+                                date: session.startedAt
+                            ))
+                    }
+                }
+                allTimeBest[exerciseID] = max(best ?? -.infinity, value.weight)
+                previousWorkoutBest[exerciseID] = value.weight
+            }
+        }
+        let record = records.max { $0.date < $1.date }
+        let improvement = improvements.filter {
+            guard let record else { return true }
+            return $0.exerciseID != record.exerciseID || !calendar.isDate($0.date, inSameDayAs: record.date)
+        }.max { $0.date < $1.date }
+        return (record, improvement)
     }
 }

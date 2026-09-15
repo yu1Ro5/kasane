@@ -60,8 +60,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
         XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
-        XCTAssertTrue(app.staticTexts["今月のトレーニング"].exists)
-        XCTAssertTrue(app.staticTexts["最初の記録から、少しずつ。"].exists)
+        XCTAssertTrue(app.staticTexts["今月の積み重ね"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
         XCTAssertFalse(app.buttons["履歴"].exists)
         XCTAssertFalse(app.tabBars.buttons["履歴"].exists)
 
@@ -115,8 +115,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["overview-workout-count"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
-        XCTAssertTrue(app.staticTexts["overview-active-days"].exists)
-        XCTAssertTrue(app.staticTexts["今月よく行う種目"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-total-volume"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-streak"].exists)
         XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
         XCTAssertTrue(app.staticTexts["スクワット"].exists)
@@ -247,8 +247,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
 
         app.swipeUp()
-        XCTAssertTrue(app.buttons["すべて表示"].waitForExistence(timeout: 10))
-        app.buttons["すべて表示"].tap()
+        XCTAssertTrue(app.buttons["すべて見る"].waitForExistence(timeout: 10))
+        app.buttons["すべて見る"].tap()
         XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
 
         let historyRow = app.buttons["workout-history-row-\(overviewOldestSessionID)"]
@@ -268,10 +268,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
     func testOverviewPreviousMonthScreenshot() throws {
         let app = launchApp(additionalArguments: ["--fixture", "overview-previous-month"])
 
-        XCTAssertTrue(app.staticTexts["今月の記録はまだありません"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
         XCTAssertTrue(app.staticTexts["デッドリフト"].exists)
-        XCTAssertFalse(app.staticTexts["今月よく行う種目"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-month-selector"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         attachment.name = "overview-previous-month"
@@ -290,7 +290,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
             app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10)
         )
         XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
-        XCTAssertTrue(app.staticTexts["今月よく行う種目"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         attachment.name = "overview-dark-mode"
@@ -577,7 +577,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
     func testWorkoutHistoryScreenshots() throws {
         let app = launchApp(additionalArguments: ["--fixture", "workout-history"])
 
-        let historyLink = app.buttons["すべて表示"]
+        let historyLink = app.buttons["すべて見る"]
         XCTAssertTrue(historyLink.waitForExistence(timeout: 10))
         historyLink.tap()
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン、ほか1種目"].waitForExistence(timeout: 10))

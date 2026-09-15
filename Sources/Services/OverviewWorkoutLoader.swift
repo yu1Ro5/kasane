@@ -6,6 +6,19 @@ enum OverviewWorkoutLoader {
     /// Overviewに表示する最近のWorkout件数。
     static let recentWorkoutLimit = 3
 
+    /// 選択月の集計、週次継続、記録比較に使う完了履歴を一度だけ取得する。
+    static func dashboardDescriptor(through date: Date) -> FetchDescriptor<WorkoutSession> {
+        var descriptor = FetchDescriptor<WorkoutSession>(
+            predicate: #Predicate { $0.endedAt != nil && $0.startedAt <= date },
+            sortBy: [
+                SortDescriptor(\WorkoutSession.startedAt, order: .reverse),
+                SortDescriptor(\WorkoutSession.id, order: .forward),
+            ]
+        )
+        descriptor.relationshipKeyPathsForPrefetching = [\WorkoutSession.exerciseEntries]
+        return descriptor
+    }
+
     /// 完了日時が新しいWorkoutを最大3件取得し、履歴行で使う種目記録を先読みする。
     static var recentWorkoutDescriptor: FetchDescriptor<WorkoutSession> {
         var descriptor = FetchDescriptor<WorkoutSession>(
