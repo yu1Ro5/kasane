@@ -73,7 +73,7 @@ struct WorkoutExerciseInputView: View {
                     } label: {
                         Label("セットを追加", systemImage: "plus")
                             .frame(maxWidth: .infinity)
-//                            .padding(.vertical, 10)
+                        //                            .padding(.vertical, 10)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
@@ -223,20 +223,20 @@ struct WorkoutExerciseInputView: View {
         guard canAddSet else { return }
         isSaving = true
         do {
-            let focusedEntry: ExerciseEntry
+            guard
+                let focusedEntry = try WorkoutExerciseService(context: modelContext)
+                    .commitCurrentSetIfNeeded(
+                        draft: draft.wrappedValue,
+                        for: exercise,
+                        in: session
+                    )
+            else {
+                isSaving = false
+                return
+            }
             if let entry {
-                _ = try WorkoutSetService(context: modelContext).add(
-                    draft: draft.wrappedValue,
-                    to: entry
-                )
                 draft.wrappedValue = SetEntryDraft()
-                focusedEntry = entry
             } else {
-                focusedEntry = try WorkoutExerciseService(context: modelContext).recordFirstSet(
-                    draft: draft.wrappedValue,
-                    for: exercise,
-                    in: session
-                )
                 draftStore.removePendingDraft(for: exercise.id, in: session.id)
             }
             Task { @MainActor in

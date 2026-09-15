@@ -18,6 +18,25 @@ struct WorkoutExerciseService {
         self.context = context
     }
 
+    /// 有効な未確定Draftがあれば、既存種目への追加または最初のセットとして保存する。
+    ///
+    /// 空または不完全なDraftは保存せず、`nil`を返す。
+    @discardableResult
+    func commitCurrentSetIfNeeded(
+        draft: SetEntryDraft,
+        for exercise: Exercise,
+        in session: WorkoutSession
+    ) throws -> ExerciseEntry? {
+        guard draft.values() != nil else { return nil }
+
+        if let entry = session.exerciseEntries.first(where: { $0.exercise?.id == exercise.id }) {
+            _ = try WorkoutSetService(context: context).add(draft: draft, to: entry)
+            return entry
+        }
+
+        return try recordFirstSet(draft: draft, for: exercise, in: session)
+    }
+
     /// 未記録種目の最初のセットとExerciseEntryを同一トランザクションで保存する。
     ///
     /// 入力画面を開いただけでは呼び出さず、有効なセットが確定した時点で使用する。

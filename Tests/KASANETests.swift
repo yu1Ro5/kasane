@@ -1820,6 +1820,108 @@ final class KASANETests: XCTestCase {
         XCTAssertFalse(context.hasChanges)
     }
 
+    /// テスト概要: 未記録種目から戻る際に有効なDraftを確定する。
+    /// 期待値: ExerciseEntryとSetEntryが1件ずつ永続化される。
+    func testCommittingCurrentSetCreatesFirstEntry() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercise = Exercise(name: "カーフレイズ", primaryBodyPart: .legs)
+        context.insert(session)
+        context.insert(exercise)
+        try context.save()
+
+        let entry = try XCTUnwrap(
+            WorkoutExerciseService(context: context).commitCurrentSetIfNeeded(
+                draft: SetEntryDraft(weight: "5", reps: "5"),
+                for: exercise,
+                in: session
+            )
+        )
+
+        XCTAssertEqual(entry.setEntries.count, 1)
+        XCTAssertEqual(entry.setEntries.first?.weightKg, 5)
+        XCTAssertEqual(entry.setEntries.first?.reps, 5)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ExerciseEntry>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 1)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    /// テスト概要: 1セット確定済みの種目で、次の有効なDraftを確定する。
+    /// 期待値: 既存セットを重複させず、2番目のセットだけが追加される。
+    func testCommittingCurrentSetAppendsOnlyDraftToExistingEntry() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercise = Exercise(name: "カーフレイズ", primaryBodyPart: .legs)
+        context.insert(session)
+        context.insert(exercise)
+        try context.save()
+        let service = WorkoutExerciseService(context: context)
+        let entry = try XCTUnwrap(
+            service.commitCurrentSetIfNeeded(
+                draft: SetEntryDraft(weight: "5", reps: "5"),
+                for: exercise,
+                in: session
+            )
+        )
+        XCTAssertNil(
+            try service.commitCurrentSetIfNeeded(
+                draft: SetEntryDraft(),
+                for: exercise,
+                in: session
+            )
+        )
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 1)
+
+        let committedEntry = try XCTUnwrap(
+            service.commitCurrentSetIfNeeded(
+                draft: SetEntryDraft(weight: "10", reps: "8"),
+                for: exercise,
+                in: session
+            )
+        )
+
+        XCTAssertEqual(committedEntry.id, entry.id)
+        let sets = try context.fetch(FetchDescriptor<SetEntry>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(sets.map(\.order), [0, 1])
+        XCTAssertEqual(sets.map(\.weightKg), [5, 10])
+        XCTAssertEqual(sets.map(\.reps), [5, 8])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ExerciseEntry>()).count, 1)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    /// テスト概要: 空または片方だけ入力されたDraftを確定しようとする。
+    /// 期待値: 不完全なSetも空のExerciseEntryも保存されない。
+    func testCommittingCurrentSetIgnoresEmptyAndIncompleteDrafts() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercise = Exercise(name: "カーフレイズ", primaryBodyPart: .legs)
+        context.insert(session)
+        context.insert(exercise)
+        try context.save()
+        let service = WorkoutExerciseService(context: context)
+
+        for draft in [
+            SetEntryDraft(),
+            SetEntryDraft(weight: "5", reps: ""),
+            SetEntryDraft(weight: "", reps: "5"),
+        ] {
+            XCTAssertNil(
+                try service.commitCurrentSetIfNeeded(
+                    draft: draft,
+                    for: exercise,
+                    in: session
+                )
+            )
+        }
+
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ExerciseEntry>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SetEntry>()).isEmpty)
+        XCTAssertFalse(context.hasChanges)
+    }
+
     /// テスト概要: 複数種目の最初のセットを順番に保存し、再取得する。
     /// 期待値: 最後に記録した種目が先頭になり、既存種目の相対順を保った連番が永続化される。
     func testRecordingFirstSetsPrependsAndPersistsContiguousOrder() throws {
