@@ -13,6 +13,7 @@ struct WorkoutSessionView: View {
     @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var observedSessions: [WorkoutSession]
 
     @State private var selectedExerciseID: UUID?
+    @State private var isShowingQuickInput = false
     @State private var searchText = ""
     @State private var isConfirmingDiscard = false
     @State private var isConfirmingFinish = false
@@ -39,6 +40,35 @@ struct WorkoutSessionView: View {
     var body: some View {
         List {
             if searchText.isEmpty {
+                Section {
+                    Button {
+                        isShowingQuickInput = true
+                    } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: "sparkles")
+                                .font(.title2)
+                                .foregroundStyle(.tint)
+                                .frame(width: 44, height: 44)
+                                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("AIでまとめて入力")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text(quickInputAvailability.unavailableMessage ?? "文章から複数セットを追加")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.forward")
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(quickInputAvailability != .available)
+                    .accessibilityIdentifier("workout-ai-quick-input-button")
+                }
+
                 Section("今回のワークアウト") {
                     if sortedEntries.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
@@ -134,6 +164,14 @@ struct WorkoutSessionView: View {
                 ContentUnavailableView("種目を開けません", systemImage: "exclamationmark.triangle")
             }
         }
+        .navigationDestination(isPresented: $isShowingQuickInput) {
+            WorkoutQuickInputView(
+                session: session,
+                draftStore: draftStore,
+                exercises: exercises,
+                parser: quickInputParser
+            )
+        }
         .onChange(of: selectedExerciseID) { oldValue, newValue in
             guard newValue == nil, let exerciseID = oldValue else { return }
             commitCurrentSetIfNeeded(for: exerciseID)
@@ -168,6 +206,19 @@ struct WorkoutSessionView: View {
 
     private var errorIsPresented: Binding<Bool> {
         Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
+    }
+
+    private var usesQuickInputFixture: Bool {
+        ProcessInfo.processInfo.arguments.contains("--workout-ai-fixture")
+    }
+
+    private var quickInputAvailability: WorkoutQuickInputAvailability {
+        usesQuickInputFixture ? .available : AppleIntelligenceWorkoutQuickInputParser.availability()
+    }
+
+    private var quickInputParser: any WorkoutQuickInputParsing {
+        usesQuickInputFixture
+            ? FixtureWorkoutQuickInputParser() : AppleIntelligenceWorkoutQuickInputParser()
     }
 
     private var sessionDrafts: [UUID: SetEntryDraft] {
