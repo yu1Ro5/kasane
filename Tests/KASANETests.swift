@@ -2629,3 +2629,195 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).map(\.id), [setEntry.id])
     }
 }
+
+extension KASANETests {
+    func testQuickInputResolverMatchesSelectableExerciseOnly() {
+        let chestPress = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let archived = Exercise(name: "ブルガリアンスクワット", primaryBodyPart: .legs, isArchived: true)
+        let generated = GeneratedWorkoutQuickInput(exercises: [
+            .init(exerciseName: "チェストプレス", sets: [.init(weightKg: 30, reps: 10)]),
+            .init(exerciseName: "ブルガリアンスクワット", sets: [.init(weightKg: 20, reps: 10)]),
+        ])
+
+        let draft = WorkoutQuickInputResolver().resolve(generated, against: [chestPress, archived])
+
+        XCTAssertEqual(draft.exercises[0].exerciseID, chestPress.id)
+        XCTAssertEqual(draft.exercises[0].sets[0].values, SetEntryDraft(weight: "30", reps: "10"))
+        XCTAssertNil(draft.exercises[1].exerciseID)
+    }
+
+    func testQuickInputDraftUsesSetEntryDraftValidation() {
+        XCTAssertNotNil(SetEntryDraft(weight: "30", reps: "10").values(decimalSeparator: "."))
+        XCTAssertNil(SetEntryDraft(weight: "30.123", reps: "10").values(decimalSeparator: "."))
+        XCTAssertNil(SetEntryDraft(weight: "30", reps: "0").values(decimalSeparator: "."))
+    }
+
+    func testQuickInputAvailabilityProvidesActionableReason() {
+        XCTAssertEqual(
+            WorkoutQuickInputAvailability.appleIntelligenceNotEnabled.unavailableMessage,
+            "Apple Intelligenceを有効にするとAI入力を利用できます。"
+        )
+        XCTAssertEqual(
+            WorkoutQuickInputAvailability.modelNotReady.unavailableMessage,
+            "Apple Intelligenceを準備中です。しばらくしてから再度お試しください。"
+        )
+        XCTAssertEqual(
+            WorkoutQuickInputAvailability.localeUnsupported.unavailableMessage,
+            "現在の言語ではAI入力を利用できません。"
+        )
+    }
+
+    func testQuickInputResolverUsesCurrentDecimalSeparatorForReviewDraft() {
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let generated = GeneratedWorkoutQuickInput(exercises: [
+            .init(exerciseName: exercise.name, sets: [.init(weightKg: 32.5, reps: 8)])
+        ])
+
+        let draft = WorkoutQuickInputResolver(locale: Locale(identifier: "fr_FR"))
+            .resolve(generated, against: [exercise])
+
+        XCTAssertEqual(draft.exercises[0].sets[0].values.weight, "32,5")
+        XCTAssertNotNil(draft.exercises[0].sets[0].values.values(decimalSeparator: ","))
+    }
+
+    func testQuickInputApplyCreatesOneEntryWithThreeSets() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        context.insert(session)
+        context.insert(exercise)
+        try context.save()
+        let draft = quickInputDraft(exerciseID: exercise.id, values: [(30, 10), (30, 10), (30, 8)])
+
+        try WorkoutQuickInputApplyService(context: context).apply(
+            draft,
+            to: session,
+            exercises: [exercise],
+            draftStore: WorkoutDraftStore()
+        )
+
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ExerciseEntry>()).count, 1)
+        let sets = try context.fetch(FetchDescriptor<SetEntry>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(sets.map(\.weightKg), [30, 30, 30])
+        XCTAssertEqual(sets.map(\.reps), [10, 10, 8])
+    }
+
+    func testQuickInputApplyReusesExistingEntryAndAppendsSet() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        context.insert(entry)
+        context.insert(SetEntry(exerciseEntry: entry, order: 0, weightKg: 30, reps: 10))
+        try context.save()
+
+        try WorkoutQuickInputApplyService(context: context).apply(
+            quickInputDraft(exerciseID: exercise.id, values: [(32.5, 8)]),
+            to: session,
+            exercises: [exercise],
+            draftStore: WorkoutDraftStore()
+        )
+
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ExerciseEntry>()).count, 1)
+        let sets = try context.fetch(FetchDescriptor<SetEntry>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(sets.map(\.weightKg), [30, 32.5])
+        XCTAssertEqual(sets.map(\.reps), [10, 8])
+    }
+
+    func testQuickInputApplyMultipleExercisesPreservesInputOrderAtFront() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let existingExercise = Exercise(name: "スクワット", primaryBodyPart: .legs)
+        let existingEntry = ExerciseEntry(workoutSession: session, exercise: existingExercise, order: 0)
+        let chest = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let lat = Exercise(name: "ラットプルダウン", primaryBodyPart: .back)
+        context.insert(existingEntry)
+        context.insert(chest)
+        context.insert(lat)
+        try context.save()
+        let draft = WorkoutQuickInputDraft(exercises: [
+            quickInputDraft(exerciseID: chest.id, values: [(30, 10)]).exercises[0],
+            quickInputDraft(exerciseID: lat.id, values: [(18, 12), (18, 12)]).exercises[0],
+        ])
+
+        try WorkoutQuickInputApplyService(context: context).apply(
+            draft,
+            to: session,
+            exercises: [existingExercise, chest, lat],
+            draftStore: WorkoutDraftStore()
+        )
+
+        let entries = try context.fetch(FetchDescriptor<ExerciseEntry>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(entries.map(\.exerciseNameSnapshot), ["チェストプレス", "ラットプルダウン", "スクワット"])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 3)
+    }
+
+    func testQuickInputApplyRollsBackEveryInsertedModelWhenSaveFails() throws {
+        struct ExpectedError: Error {}
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        context.insert(session)
+        context.insert(exercise)
+        try context.save()
+
+        XCTAssertThrowsError(
+            try WorkoutQuickInputApplyService(context: context, save: { throw ExpectedError() })
+                .apply(
+                    quickInputDraft(exerciseID: exercise.id, values: [(30, 10), (30, 8)]),
+                    to: session,
+                    exercises: [exercise],
+                    draftStore: WorkoutDraftStore()
+                )
+        )
+
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ExerciseEntry>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SetEntry>()).isEmpty)
+    }
+
+    func testQuickInputApplyRejectsPendingDraftWithoutMutation() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        context.insert(session)
+        context.insert(exercise)
+        try context.save()
+        let store = WorkoutDraftStore()
+        store.updatePending(SetEntryDraft(weight: "30", reps: ""), for: exercise.id, in: session.id)
+
+        XCTAssertThrowsError(
+            try WorkoutQuickInputApplyService(context: context).apply(
+                quickInputDraft(exerciseID: exercise.id, values: [(32.5, 8)]),
+                to: session,
+                exercises: [exercise],
+                draftStore: store
+            )
+        ) { error in
+            XCTAssertEqual(error as? WorkoutQuickInputApplyError, .pendingDraft("チェストプレス"))
+        }
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ExerciseEntry>()).isEmpty)
+    }
+
+    private func quickInputDraft(
+        exerciseID: UUID,
+        values: [(Double, Int)]
+    ) -> WorkoutQuickInputDraft {
+        WorkoutQuickInputDraft(exercises: [
+            WorkoutQuickInputExerciseDraft(
+                sourceName: "fixture",
+                exerciseID: exerciseID,
+                sets: values.map {
+                    WorkoutQuickInputSetDraft(
+                        weight: WorkoutSetDisplayFormatter.editableWeightValue($0.0),
+                        reps: String($0.1)
+                    )
+                }
+            )
+        ])
+    }
+}

@@ -573,6 +573,45 @@ final class KASANEUIScreenshotTests: XCTestCase {
         add(attachment)
     }
 
+    /// Foundation Modelsを呼ばず、固定解析結果の確認・修正・一括追加を検証する。
+    @MainActor
+    func testWorkoutAIQuickInputReviewAndApply() throws {
+        let app = launchApp(additionalArguments: [
+            "--fixture", "workout-set-layout", "--workout-ai-fixture",
+        ])
+        app.tabBars.buttons["ワークアウト"].tap()
+        let quickInputButton = app.buttons["workout-ai-quick-input-button"]
+        XCTAssertTrue(quickInputButton.waitForExistence(timeout: 10))
+        quickInputButton.tap()
+
+        let input = app.descendants(matching: .any)["workout-ai-input-text"]
+        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        input.tap()
+        input.typeText("チェストプレス30kgを10回3セット。ラットプル18kgを12回3セット。")
+        app.buttons["workout-ai-analyze-button"].tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-ai-review"].waitForExistence(timeout: 10)
+        )
+        XCTAssertTrue(app.staticTexts["チェストプレス"].exists)
+        XCTAssertTrue(app.staticTexts["ラットプルダウン"].exists)
+
+        let reviewAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        reviewAttachment.name = "workout-ai-quick-input-review"
+        reviewAttachment.lifetime = .keepAlways
+        add(reviewAttachment)
+
+        let firstReps = app.textFields["セット1の回数"].firstMatch
+        XCTAssertTrue(firstReps.waitForExistence(timeout: 5))
+        firstReps.tap()
+        firstReps.typeText(String(XCUIKeyboardKey.delete.rawValue) + "9")
+        app.buttons["workout-ai-apply-button"].tap()
+
+        XCTAssertTrue(app.navigationBars["ワークアウト"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["チェストプレス"].exists)
+        XCTAssertTrue(app.staticTexts["ラットプルダウン"].exists)
+    }
+
     @MainActor
     func testWorkoutHistoryScreenshots() throws {
         let app = launchApp(additionalArguments: ["--fixture", "workout-history"])
