@@ -2631,15 +2631,15 @@ final class KASANETests: XCTestCase {
 }
 
 extension KASANETests {
-    func testQuickInputResolverMatchesSelectableExerciseOnly() {
+    func testQuickInputResolverMatchesSelectableExerciseOnly() throws {
         let chestPress = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
         let archived = Exercise(name: "ブルガリアンスクワット", primaryBodyPart: .legs, isArchived: true)
         let generated = GeneratedWorkoutQuickInput(exercises: [
-            .init(exerciseName: "チェストプレス", sets: [.init(weightKg: 30, reps: 10)]),
-            .init(exerciseName: "ブルガリアンスクワット", sets: [.init(weightKg: 20, reps: 10)]),
+            quickInputExercise(name: "チェストプレス", weight: 30, reps: 10),
+            quickInputExercise(name: "ブルガリアンスクワット", weight: 20, reps: 10),
         ])
 
-        let draft = WorkoutQuickInputResolver().resolve(generated, against: [chestPress, archived])
+        let draft = try WorkoutQuickInputResolver().resolve(generated, against: [chestPress, archived])
 
         XCTAssertEqual(draft.exercises[0].exerciseID, chestPress.id)
         XCTAssertEqual(draft.exercises[0].sets[0].values, SetEntryDraft(weight: "30", reps: "10"))
@@ -2667,17 +2667,151 @@ extension KASANETests {
         )
     }
 
-    func testQuickInputResolverUsesCurrentDecimalSeparatorForReviewDraft() {
+    func testQuickInputResolverUsesCurrentDecimalSeparatorForReviewDraft() throws {
         let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
         let generated = GeneratedWorkoutQuickInput(exercises: [
-            .init(exerciseName: exercise.name, sets: [.init(weightKg: 32.5, reps: 8)])
+            quickInputExercise(name: exercise.name, weight: 32.5, reps: 8)
         ])
 
-        let draft = WorkoutQuickInputResolver(locale: Locale(identifier: "fr_FR"))
+        let draft = try WorkoutQuickInputResolver(locale: Locale(identifier: "fr_FR"))
             .resolve(generated, against: [exercise])
 
         XCTAssertEqual(draft.exercises[0].sets[0].values.weight, "32,5")
         XCTAssertNotNil(draft.exercises[0].sets[0].values.values(decimalSeparator: ","))
+    }
+
+    func testQuickInputSetExpanderExpandsThreeSets() throws {
+        let expanded = try WorkoutQuickInputSetExpander().expand(
+            quickInputExercise(name: "チェストプレス", count: 3, weight: 30, reps: 10)
+        )
+
+        XCTAssertEqual(expanded.sets, Array(repeating: .init(weightKg: 30, reps: 10), count: 3))
+    }
+
+    func testQuickInputSetExpanderAppliesFirstLastAndSpecificOverrides() throws {
+        let first = try WorkoutQuickInputSetExpander().expand(
+            quickInputExercise(
+                name: "チェストプレス",
+                count: 3,
+                weight: 30,
+                reps: 10,
+                overrides: [.init(setNumber: 1, weightKg: nil, reps: 12)]
+            )
+        )
+        let last = try WorkoutQuickInputSetExpander().expand(
+            quickInputExercise(
+                name: "チェストプレス",
+                count: 3,
+                weight: 30,
+                reps: 10,
+                overrides: [.init(setNumber: 3, weightKg: nil, reps: 8)]
+            )
+        )
+        let specific = try WorkoutQuickInputSetExpander().expand(
+            quickInputExercise(
+                name: "チェストプレス",
+                count: 3,
+                weight: 30,
+                reps: 10,
+                overrides: [.init(setNumber: 2, weightKg: 32.5, reps: nil)]
+            )
+        )
+
+        XCTAssertEqual(first.sets.map(\.reps), [12, 10, 10])
+        XCTAssertEqual(last.sets.map(\.reps), [10, 10, 8])
+        XCTAssertEqual(specific.sets.map(\.weightKg), [30, 32.5, 30])
+    }
+
+    func testQuickInputSetExpanderKeepsMissingWeightNil() throws {
+        let expanded = try WorkoutQuickInputSetExpander().expand(
+            quickInputExercise(name: "チェストプレス", count: 3, weight: nil, reps: 10)
+        )
+
+        XCTAssertEqual(expanded.sets.map(\.weightKg), [nil, nil, nil])
+    }
+
+    func testQuickInputSetExpanderRejectsInvalidCountAndOverride() {
+        XCTAssertThrowsError(
+            try WorkoutQuickInputSetExpander().expand(
+                quickInputExercise(name: "チェストプレス", count: 0, weight: 30, reps: 10)
+            )
+        ) { XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .invalidSetCount) }
+        let empty = GeneratedWorkoutQuickInputExercise(
+            exerciseName: "チェストプレス",
+            setCount: nil,
+            defaultWeightKg: 30,
+            defaultReps: 10,
+            overrides: [],
+            explicitSets: []
+        )
+        XCTAssertThrowsError(try WorkoutQuickInputSetExpander().expand(empty)) {
+            XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .emptySets)
+        }
+        XCTAssertThrowsError(
+            try WorkoutQuickInputSetExpander().expand(
+                quickInputExercise(
+                    name: "チェストプレス",
+                    count: 3,
+                    weight: 30,
+                    reps: 10,
+                    overrides: [.init(setNumber: 5, weightKg: nil, reps: 8)]
+                )
+            )
+        ) { XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .invalidOverride) }
+        XCTAssertThrowsError(
+            try WorkoutQuickInputSetExpander().expand(
+                quickInputExercise(name: "チェストプレス", count: 11, weight: 30, reps: 10)
+            )
+        ) { XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .tooManySets) }
+        XCTAssertThrowsError(
+            try WorkoutQuickInputSetExpander().expand(
+                quickInputExercise(
+                    name: "チェストプレス",
+                    count: 3,
+                    weight: 30,
+                    reps: 10,
+                    overrides: [.init(setNumber: 2, weightKg: nil, reps: nil)]
+                )
+            )
+        ) { XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .invalidOverride) }
+    }
+
+    func testQuickInputSetExpanderUsesExplicitSetsWithoutExpansion() throws {
+        let exercise = GeneratedWorkoutQuickInputExercise(
+            exerciseName: "チェストプレス",
+            setCount: nil,
+            defaultWeightKg: nil,
+            defaultReps: nil,
+            overrides: [],
+            explicitSets: [.init(weightKg: 30, reps: 10), .init(weightKg: 32.5, reps: 8)]
+        )
+
+        let expanded = try WorkoutQuickInputSetExpander().expand(exercise)
+
+        XCTAssertEqual(expanded.sets, exercise.explicitSets)
+    }
+
+    func testQuickInputResolverUsesAliasesAndLeavesUnknownUnresolved() throws {
+        let latPulldown = Exercise(name: "ラットプルダウン", primaryBodyPart: .back)
+        let hipAbduction = Exercise(name: "ヒップアブダクション", primaryBodyPart: .legs)
+        let hipAdduction = Exercise(name: "ヒップアダクション", primaryBodyPart: .legs)
+        let generated = GeneratedWorkoutQuickInput(exercises: [
+            quickInputExercise(name: "ラットプル", weight: 18, reps: 12),
+            quickInputExercise(name: "アブダクション", weight: 20, reps: 10),
+            quickInputExercise(name: "アダクション", weight: 20, reps: 10),
+            quickInputExercise(name: "未知の種目", weight: 10, reps: 10),
+        ])
+
+        let draft = try WorkoutQuickInputResolver().resolve(
+            generated,
+            against: [latPulldown, hipAbduction, hipAdduction]
+        )
+
+        XCTAssertEqual(
+            draft.exercises.map(\.exerciseID),
+            [
+                latPulldown.id, hipAbduction.id, hipAdduction.id, nil,
+            ])
     }
 
     func testQuickInputApplyCreatesOneEntryWithThreeSets() throws {
@@ -2801,6 +2935,23 @@ extension KASANETests {
             XCTAssertEqual(error as? WorkoutQuickInputApplyError, .pendingDraft("チェストプレス"))
         }
         XCTAssertTrue(try context.fetch(FetchDescriptor<ExerciseEntry>()).isEmpty)
+    }
+
+    private func quickInputExercise(
+        name: String,
+        count: Int = 1,
+        weight: Double?,
+        reps: Int?,
+        overrides: [GeneratedWorkoutQuickInputOverride] = []
+    ) -> GeneratedWorkoutQuickInputExercise {
+        GeneratedWorkoutQuickInputExercise(
+            exerciseName: name,
+            setCount: count,
+            defaultWeightKg: weight,
+            defaultReps: reps,
+            overrides: overrides,
+            explicitSets: []
+        )
     }
 
     private func quickInputDraft(

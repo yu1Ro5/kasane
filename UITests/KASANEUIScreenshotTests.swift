@@ -593,8 +593,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(
             app.descendants(matching: .any)["workout-ai-review"].waitForExistence(timeout: 10)
         )
-        XCTAssertTrue(app.staticTexts["チェストプレス"].exists)
-        XCTAssertTrue(app.staticTexts["ラットプルダウン"].exists)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "チェストプレス").count, 1)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "ラットプルダウン").count, 1)
+        XCTAssertEqual(app.textFields.matching(NSPredicate(format: "label CONTAINS 'の回数'")).count, 6)
+        XCTAssertFalse(app.tabBars.firstMatch.exists)
+        XCTAssertTrue(app.buttons["workout-ai-apply-button"].exists)
 
         let reviewAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         reviewAttachment.name = "workout-ai-quick-input-review"
