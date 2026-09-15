@@ -134,6 +134,10 @@ struct WorkoutSessionView: View {
                 ContentUnavailableView("種目を開けません", systemImage: "exclamationmark.triangle")
             }
         }
+        .onChange(of: selectedExerciseID) { oldValue, newValue in
+            guard newValue == nil, let exerciseID = oldValue else { return }
+            commitCurrentSetIfNeeded(for: exerciseID)
+        }
         .navigationDestination(item: $completionSummary) { summary in
             WorkoutCompletedView(summary: summary, onReturnHome: returnHomeAfterCompletion)
         }
@@ -206,6 +210,32 @@ struct WorkoutSessionView: View {
             )
         else { return "記録なし" }
         return WorkoutSetDisplayFormatter.summary(prefix: "前回", setEntries: record.setEntries)
+    }
+
+    private func commitCurrentSetIfNeeded(for exerciseID: UUID) {
+        guard let exercise = exercises.first(where: { $0.id == exerciseID }) else { return }
+
+        let existingEntry = sortedEntries.first { $0.exercise?.id == exerciseID }
+        let draft =
+            existingEntry.map {
+                draftStore.draft(for: $0.id, in: session.id)
+            } ?? draftStore.pendingDraft(for: exerciseID, in: session.id)
+
+        do {
+            guard
+                let committedEntry = try WorkoutExerciseService(context: modelContext)
+                    .commitCurrentSetIfNeeded(draft: draft, for: exercise, in: session)
+            else { return }
+
+            if existingEntry != nil {
+                draftStore.removeDraft(for: committedEntry.id, in: session.id)
+            } else {
+                draftStore.removePendingDraft(for: exerciseID, in: session.id)
+            }
+        } catch {
+            errorTitle = "セットを保存できませんでした"
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func requestFinish() {
