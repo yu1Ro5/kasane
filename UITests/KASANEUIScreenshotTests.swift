@@ -241,7 +241,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertEqual(searchField.value as? String, "デッドリフト")
     }
 
-    /// 履歴のスワイプ削除をキャンセルでき、詳細からの削除後は履歴へ戻ることを確認する。
+    /// 履歴のスワイプ削除後は、対象ワークアウトが一覧から消えることを確認する。
     @MainActor
     func testCompletedWorkoutDeletionFlow() throws {
         let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])

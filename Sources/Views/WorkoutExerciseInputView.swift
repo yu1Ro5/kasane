@@ -68,10 +68,18 @@ struct WorkoutExerciseInputView: View {
                         .accessibilityIdentifier("draft-validation-message")
                     }
 
-                    Button("セットを追加", systemImage: "plus") { addSet(using: proxy) }
-                        .accessibilityIdentifier("add-set-button-\(inputIdentity.uuidString)")
-                        .disabled(!canAddSet)
-                        .accessibilityHint("入力した重量と回数を保存します")
+                    Button {
+                        addSet(using: proxy)
+                    } label: {
+                        Label("セットを追加", systemImage: "plus")
+                            .frame(maxWidth: .infinity)
+//                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("add-set-button-\(inputIdentity.uuidString)")
+                    .disabled(!canAddSet)
+                    .accessibilityHint("入力した重量と回数を保存します")
                 }
 
                 Section("前回の記録") {
@@ -143,6 +151,7 @@ struct WorkoutExerciseInputView: View {
     private var draftRow: some View {
         WorkoutSetColumns {
             Text(WorkoutSetDisplayFormatter.setNumber((setEntries.map(\.order).max() ?? -1) + 2))
+                .fontWeight(.semibold)
                 .accessibilityLabel("セット \((setEntries.map(\.order).max() ?? -1) + 2)")
         } weight: {
             HStack(spacing: 4) {
@@ -155,7 +164,12 @@ struct WorkoutExerciseInputView: View {
                     .focused($focusedInput, equals: .draftWeight(exerciseID: inputIdentity))
                     .submitLabel(.next)
                     .onSubmit { focusedInput = .draftReps(exerciseID: inputIdentity) }
+                    .workoutSetInputStyle(
+                        isFocused: focusedInput == .draftWeight(exerciseID: inputIdentity),
+                        emphasizesDraft: true
+                    )
                 Text("kg")
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
             }
@@ -167,8 +181,19 @@ struct WorkoutExerciseInputView: View {
                 .accessibilityLabel("\(exercise.name)、次のセットの回数")
                 .keyboardType(.numberPad)
                 .focused($focusedInput, equals: .draftReps(exerciseID: inputIdentity))
+                .workoutSetInputStyle(
+                    isFocused: focusedInput == .draftReps(exerciseID: inputIdentity),
+                    emphasizesDraft: true
+                )
         }
-        .textFieldStyle(.roundedBorder)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.accentColor.opacity(0.22), lineWidth: 1)
+        }
+        .padding(.vertical, 2)
     }
 
     private var showsDraftValidation: Bool {
@@ -346,6 +371,8 @@ private struct PreviousWorkoutRecordView: View {
                 .accessibilityIdentifier("previous-set-row-\(exerciseID.uuidString)-\(setEntry.order)")
             }
         }
+        .padding(12)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
         .font(.subheadline)
         .foregroundStyle(.secondary)
         .accessibilityElement(children: .contain)
@@ -364,6 +391,7 @@ private struct WorkoutSetRow: View {
     var body: some View {
         WorkoutSetColumns {
             Text(WorkoutSetDisplayFormatter.setNumber(setEntry.order + 1))
+                .fontWeight(.medium)
                 .accessibilityLabel("セット \(setEntry.order + 1)")
         } weight: {
             HStack(spacing: 4) {
@@ -376,7 +404,12 @@ private struct WorkoutSetRow: View {
                     .accessibilityLabel("セット \(setEntry.order + 1)の重量、kg")
                     .focused(focusedInput, equals: savedWeightFocus)
                     .onSubmit { focusedInput.wrappedValue = savedRepsFocus }
+                    .workoutSetInputStyle(
+                        isFocused: focusedInput.wrappedValue == savedWeightFocus,
+                        emphasizesDraft: false
+                    )
                 Text("kg")
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
             }
@@ -389,8 +422,12 @@ private struct WorkoutSetRow: View {
                 .accessibilityIdentifier("saved-set-reps-input-\(setEntry.id.uuidString)")
                 .accessibilityLabel("セット \(setEntry.order + 1)の回数")
                 .focused(focusedInput, equals: savedRepsFocus)
+                .workoutSetInputStyle(
+                    isFocused: focusedInput.wrappedValue == savedRepsFocus,
+                    emphasizesDraft: false
+                )
         }
-        .textFieldStyle(.roundedBorder)
+        .padding(.vertical, 2)
         .swipeActions {
             Button("削除", systemImage: "trash", role: .destructive, action: onDelete)
         }
@@ -404,6 +441,30 @@ private struct WorkoutSetRow: View {
         .savedReps(exerciseID: exerciseEntry.id, setID: setEntry.id)
     }
 
+}
+
+private extension View {
+    /// セット入力欄を表形式に保ちつつ、現在の入力位置を視覚的に示す。
+    func workoutSetInputStyle(isFocused: Bool, emphasizesDraft: Bool) -> some View {
+        padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background(
+                isFocused
+                    ? Color.accentColor.opacity(0.12)
+                    : emphasizesDraft ? Color(.secondarySystemBackground) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(
+                        isFocused
+                            ? Color.accentColor
+                            : Color.secondary.opacity(emphasizesDraft ? 0.25 : 0.16),
+                        lineWidth: isFocused ? 2 : 1
+                    )
+            }
+            .shadow(color: isFocused ? Color.accentColor.opacity(0.16) : .clear, radius: 3, y: 1)
+    }
 }
 
 enum WorkoutInputFocus: Hashable {
@@ -462,4 +523,90 @@ enum WorkoutInputFocus: Hashable {
     func isDraftReps(exerciseID: UUID) -> Bool {
         self == .draftReps(exerciseID: exerciseID)
     }
+}
+
+@MainActor
+private struct WorkoutExerciseInputPreview: View {
+    @State private var fixture = WorkoutExerciseInputPreviewFixture()
+
+    var body: some View {
+        NavigationStack {
+            WorkoutExerciseInputView(
+                session: fixture.session,
+                exercise: fixture.exercise,
+                draftStore: fixture.draftStore
+            )
+        }
+        .modelContainer(fixture.container)
+    }
+}
+
+/// ワークアウト入力画面のPreviewで使う、保存済みセットと前回記録を含む固定データ。
+@MainActor
+private final class WorkoutExerciseInputPreviewFixture {
+    let container: ModelContainer
+    let session: WorkoutSession
+    let exercise: Exercise
+    let draftStore = WorkoutDraftStore()
+
+    init() {
+        do {
+            container = try ModelContainer(
+                for: WorkoutSession.self,
+                Exercise.self,
+                ExerciseEntry.self,
+                SetEntry.self,
+                configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            )
+        } catch {
+            fatalError("Preview用のSwiftDataコンテナを作成できませんでした: \(error)")
+        }
+
+        exercise = Exercise(name: "ラットプルダウン", primaryBodyPart: .back)
+        session = WorkoutSession(startedAt: .now)
+        let currentEntry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        let previousSession = WorkoutSession(
+            startedAt: .now.addingTimeInterval(-86_400 * 3),
+            endedAt: .now.addingTimeInterval(-86_400 * 3 + 3_600)
+        )
+        let previousEntry = ExerciseEntry(
+            workoutSession: previousSession,
+            exercise: exercise,
+            order: 0
+        )
+
+        let context = container.mainContext
+        context.insert(session)
+        context.insert(previousSession)
+        context.insert(exercise)
+        context.insert(currentEntry)
+        context.insert(previousEntry)
+        context.insert(SetEntry(exerciseEntry: currentEntry, order: 0, weightKg: 40, reps: 10))
+        context.insert(SetEntry(exerciseEntry: currentEntry, order: 1, weightKg: 40, reps: 10))
+        context.insert(SetEntry(exerciseEntry: currentEntry, order: 2, weightKg: 42.5, reps: 8))
+        context.insert(SetEntry(exerciseEntry: previousEntry, order: 0, weightKg: 40, reps: 10))
+        context.insert(SetEntry(exerciseEntry: previousEntry, order: 1, weightKg: 40, reps: 10))
+        context.insert(SetEntry(exerciseEntry: previousEntry, order: 2, weightKg: 42.5, reps: 8))
+
+        do {
+            try context.save()
+        } catch {
+            fatalError("Preview用データを保存できませんでした: \(error)")
+        }
+
+        draftStore.update(
+            SetEntryDraft(weight: "45", reps: "10"),
+            for: currentEntry.id,
+            in: session.id
+        )
+    }
+}
+
+#Preview("入力") {
+    WorkoutExerciseInputPreview()
+}
+
+#Preview("入力（Dark）") {
+    WorkoutExerciseInputPreview()
+        .preferredColorScheme(.dark)
 }
