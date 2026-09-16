@@ -559,6 +559,45 @@ final class KASANEUIScreenshotTests: XCTestCase {
         }
     }
 
+    /// 確定済みの改善factsがある場合だけ、固定Generatorの振り返りカードを表示する。
+    @MainActor
+    func testWorkoutInsightFixtureScreenshot() throws {
+        let app = launchApp(additionalArguments: [
+            "--fixture", "personal-record", "--workout-insight-fixture",
+        ])
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["終了"].tap()
+        XCTAssertTrue(app.buttons["終了して保存"].waitForExistence(timeout: 5))
+        app.buttons["終了して保存"].tap()
+        XCTAssertTrue(app.buttons["personal-record-continue-button"].waitForExistence(timeout: 10))
+        app.buttons["personal-record-continue-button"].tap()
+
+        let insightCard = app.descendants(matching: .any)["workout-insight-card"]
+        XCTAssertTrue(insightCard.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["完了"].isEnabled)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "workout-completed-insight"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    /// UI Testでは実モデルを呼ばず、利用不可時も通常の完了画面と操作を維持する。
+    @MainActor
+    func testWorkoutInsightUnavailableFallback() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "personal-record"])
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["終了"].tap()
+        XCTAssertTrue(app.buttons["終了して保存"].waitForExistence(timeout: 5))
+        app.buttons["終了して保存"].tap()
+        XCTAssertTrue(app.buttons["personal-record-continue-button"].waitForExistence(timeout: 10))
+        app.buttons["personal-record-continue-button"].tap()
+
+        XCTAssertTrue(app.staticTexts["今日も積み重ねました"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["workout-insight-card"].exists)
+        XCTAssertTrue(app.buttons["完了"].isEnabled)
+    }
+
     @MainActor
     func testWorkoutPreviousRecordScreenshots() throws {
         let app = launchApp(additionalArguments: ["--fixture", "workout-set-layout"])

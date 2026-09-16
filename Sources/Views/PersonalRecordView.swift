@@ -4,6 +4,8 @@ import SwiftUI
 struct PersonalRecordSequenceView: View {
     let achievements: [PersonalRecordAchievement]
     let summary: WorkoutCompletionSummary
+    let insightFacts: WorkoutInsightFacts?
+    let insightGenerator: any WorkoutInsightGenerating
     let onReturnHome: () -> Void
 
     @State private var currentIndex = 0
@@ -18,7 +20,12 @@ struct PersonalRecordSequenceView: View {
             }
             .id(achievements[currentIndex].id)
         } else {
-            WorkoutCompletedView(summary: summary, onReturnHome: onReturnHome)
+            WorkoutCompletedView(
+                summary: summary,
+                insightFacts: insightFacts,
+                insightGenerator: insightGenerator,
+                onReturnHome: onReturnHome
+            )
         }
     }
 }
