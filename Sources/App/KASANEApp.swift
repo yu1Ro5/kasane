@@ -46,6 +46,8 @@ private enum AppModelContainer {
         )
         if fixtureName(in: arguments) == "workout-set-layout" {
             try insertWorkoutSetLayoutFixture(into: container.mainContext)
+        } else if fixtureName(in: arguments) == "personal-record" {
+            try insertPersonalRecordFixture(into: container.mainContext)
         } else if fixtureName(in: arguments) == "workout-history" {
             try insertHistoryFixture(into: container.mainContext)
         } else if fixtureName(in: arguments) == "overview-recent-workouts" {
@@ -179,6 +181,32 @@ private enum AppModelContainer {
                 )
             )
         }
+        try context.save()
+    }
+
+    private static func insertPersonalRecordFixture(into context: ModelContext) throws {
+        guard let exerciseID = UUID(uuidString: "60000000-0000-4000-8000-000000000001") else {
+            throw FixtureError.invalidIdentifier
+        }
+        let exercise = Exercise(id: exerciseID, name: "レッグプレス", primaryBodyPart: .legs)
+        context.insert(exercise)
+
+        let previous = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 1_766_793_600),
+            endedAt: Date(timeIntervalSince1970: 1_766_797_200)
+        )
+        context.insert(previous)
+        let previousEntry = ExerciseEntry(workoutSession: previous, exercise: exercise, order: 0)
+        context.insert(previousEntry)
+        context.insert(
+            SetEntry(exerciseEntry: previousEntry, order: 0, weightKg: 63, reps: 10)
+        )
+
+        let current = WorkoutSession(startedAt: Date(timeIntervalSince1970: 1_767_225_600))
+        context.insert(current)
+        let currentEntry = ExerciseEntry(workoutSession: current, exercise: exercise, order: 0)
+        context.insert(currentEntry)
+        context.insert(SetEntry(exerciseEntry: currentEntry, order: 0, weightKg: 72, reps: 8))
         try context.save()
     }
 

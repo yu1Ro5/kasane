@@ -52,6 +52,165 @@ final class KASANETests: XCTestCase {
         )
     }
 
+    private func makePersonalRecordWorkout(
+        exercise: Exercise,
+        startedAt: TimeInterval,
+        endedAt: TimeInterval?,
+        weights: [Double]
+    ) -> WorkoutSession {
+        let session = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: startedAt),
+            endedAt: endedAt.map(Date.init(timeIntervalSince1970:))
+        )
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        session.exerciseEntries.append(entry)
+        for (order, weight) in weights.enumerated() {
+            entry.setEntries.append(
+                SetEntry(exerciseEntry: entry, order: order, weightKg: weight, reps: 10)
+            )
+        }
+        return session
+    }
+
+    /// 過去最高63kgに対して今回の複数セット中の最高72kgを1件のPRとして検出する。
+    func testPersonalRecordDetectorUsesCurrentWorkoutMaximum() throws {
+        let exercise = Exercise(name: "レッグプレス", primaryBodyPart: .legs)
+        let previous = makePersonalRecordWorkout(
+            exercise: exercise,
+            startedAt: 100,
+            endedAt: 200,
+            weights: [63]
+        )
+        let current = makePersonalRecordWorkout(
+            exercise: exercise,
+            startedAt: 300,
+            endedAt: 400,
+            weights: [63, 72, 68]
+        )
+
+        let achievement = try XCTUnwrap(
+            PersonalRecordDetector.achievements(for: current, among: [previous, current]).first
+        )
+        XCTAssertEqual(achievement.exerciseID, exercise.id)
+        XCTAssertEqual(achievement.previousBest, 63)
+        XCTAssertEqual(achievement.newBest, 72)
+        XCTAssertEqual(achievement.improvement, 9)
+    }
+
+    /// 同値または過去最高を下回る今回値はPRにしない。
+    func testPersonalRecordDetectorRejectsEqualAndLowerWeights() {
+        let exercise = Exercise(name: "レッグプレス", primaryBodyPart: .legs)
+        let previous = makePersonalRecordWorkout(
+            exercise: exercise,
+            startedAt: 100,
+            endedAt: 200,
+            weights: [72]
+        )
+        for weight in [72.0, 63.0] {
+            let current = makePersonalRecordWorkout(
+                exercise: exercise,
+                startedAt: 300,
+                endedAt: 400,
+                weights: [weight]
+            )
+            XCTAssertTrue(
+                PersonalRecordDetector.achievements(for: current, among: [previous]).isEmpty
+            )
+        }
+    }
+
+    /// 複数の過去Workoutから最大値を採用し、未完了・未来・今回自身は除外する。
+    func testPersonalRecordDetectorUsesEligibleHistoricalMaximumOnly() throws {
+        let exercise = Exercise(name: "レッグプレス", primaryBodyPart: .legs)
+        let historical = [54.0, 63.0, 60.0].enumerated().map { index, weight in
+            makePersonalRecordWorkout(
+                exercise: exercise,
+                startedAt: TimeInterval(100 + index * 20),
+                endedAt: TimeInterval(110 + index * 20),
+                weights: [weight]
+            )
+        }
+        let incomplete = makePersonalRecordWorkout(
+            exercise: exercise,
+            startedAt: 250,
+            endedAt: nil,
+            weights: [100]
+        )
+        let current = makePersonalRecordWorkout(
+            exercise: exercise,
+            startedAt: 300,
+            endedAt: 400,
+            weights: [72]
+        )
+        let future = makePersonalRecordWorkout(
+            exercise: exercise,
+            startedAt: 500,
+            endedAt: 600,
+            weights: [110]
+        )
+
+        let achievement = try XCTUnwrap(
+            PersonalRecordDetector.achievements(
+                for: current,
+                among: historical + [incomplete, current, future]
+            ).first
+        )
+        XCTAssertEqual(achievement.previousBest, 63)
+        XCTAssertEqual(achievement.newBest, 72)
+    }
+
+    /// 初回記録は比較対象がないためPR演出の対象にしない。
+    func testPersonalRecordDetectorDoesNotTreatFirstRecordAsAchievement() {
+        let exercise = Exercise(name: "レッグプレス", primaryBodyPart: .legs)
+        let current = makePersonalRecordWorkout(
+            exercise: exercise,
+            startedAt: 300,
+            endedAt: 400,
+            weights: [72]
+        )
+
+        XCTAssertTrue(PersonalRecordDetector.achievements(for: current, among: []).isEmpty)
+    }
+
+    /// Exercise IDごとに独立して比較し、複数種目のPRを順序どおり返す。
+    func testPersonalRecordDetectorReturnsMultipleExercises() {
+        let legPress = Exercise(name: "レッグプレス", primaryBodyPart: .legs)
+        let chestPress = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let previous = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 100),
+            endedAt: Date(timeIntervalSince1970: 200)
+        )
+        let current = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 300),
+            endedAt: Date(timeIntervalSince1970: 400)
+        )
+        for (order, fixture) in [(legPress, 63.0, 72.0), (chestPress, 40.0, 45.0)].enumerated() {
+            let oldEntry = ExerciseEntry(
+                workoutSession: previous,
+                exercise: fixture.0,
+                order: order
+            )
+            oldEntry.setEntries.append(
+                SetEntry(exerciseEntry: oldEntry, order: 0, weightKg: fixture.1, reps: 10)
+            )
+            previous.exerciseEntries.append(oldEntry)
+            let newEntry = ExerciseEntry(
+                workoutSession: current,
+                exercise: fixture.0,
+                order: order
+            )
+            newEntry.setEntries.append(
+                SetEntry(exerciseEntry: newEntry, order: 0, weightKg: fixture.2, reps: 10)
+            )
+            current.exerciseEntries.append(newEntry)
+        }
+
+        let achievements = PersonalRecordDetector.achievements(for: current, among: [previous])
+
+        XCTAssertEqual(achievements.map(\.exerciseID), [legPress.id, chestPress.id])
+        XCTAssertEqual(achievements.map(\.improvement), [9, 5])
+    }
+
     /// テスト概要: アプリ内の公開リンク定義を取得する。
     /// 期待値: SupportとPrivacy PolicyがIssueで確定したHTTPS URLに一致する。
     func testAppLinksUsePublishedURLs() {
