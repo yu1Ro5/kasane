@@ -663,6 +663,28 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["ラットプルダウン"].exists)
     }
 
+    /// Foundation Modelsを呼ばず、分類済み解析エラーのAlert文言を検証する。
+    @MainActor
+    func testWorkoutAIQuickInputShowsClassifiedError() throws {
+        let app = launchApp(additionalArguments: [
+            "--fixture", "workout-set-layout", "--workout-ai-fixture",
+            "--workout-ai-error-fixture",
+        ])
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["workout-ai-quick-input-button"].tap()
+
+        let input = app.descendants(matching: .any)["workout-ai-input-text"]
+        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        input.tap()
+        input.typeText("チェストプレス30kgを10回3セット。")
+        app.buttons["workout-ai-analyze-button"].tap()
+
+        XCTAssertTrue(app.alerts["AI入力を完了できませんでした"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.staticTexts["AIを一時的に利用できません。少し待ってから再度お試しください。"].exists
+        )
+    }
+
     @MainActor
     func testWorkoutHistoryScreenshots() throws {
         let app = launchApp(additionalArguments: ["--fixture", "workout-history"])

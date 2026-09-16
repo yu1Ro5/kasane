@@ -289,7 +289,10 @@ struct WorkoutSessionView: View {
     }
 
     private var quickInputParser: any WorkoutQuickInputParsing {
-        usesQuickInputFixture
+        if ProcessInfo.processInfo.arguments.contains("--workout-ai-error-fixture") {
+            return FailingFixtureWorkoutQuickInputParser()
+        }
+        return usesQuickInputFixture
             ? FixtureWorkoutQuickInputParser() : AppleIntelligenceWorkoutQuickInputParser()
     }
 

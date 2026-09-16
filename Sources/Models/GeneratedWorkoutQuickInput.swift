@@ -12,20 +12,36 @@ struct GeneratedWorkoutQuickInputExercise: Equatable {
     @Guide(description: "入力にある筋力トレーニングの種目名。別名を正式名称へ変換せず、入力どおりに返す。")
     var exerciseName: String
 
-    @Guide(description: "『3セット』など、入力で明示されたセット数。明示されていなければnil。")
-    var setCount: Int?
+    @Guide(description: "共通条件の繰り返しか、個別に列挙されたセット。")
+    var setPattern: GeneratedWorkoutQuickInputSetPattern
+}
 
-    @Guide(description: "全セットに共通する、入力で明示された重量kg。重量がなければnil。自重は0。")
+@Generable
+enum GeneratedWorkoutQuickInputSetPattern: Equatable {
+    case repeated(GeneratedRepeatedWorkoutSets)
+
+    case explicit(GeneratedExplicitWorkoutSets)
+}
+
+@Generable
+struct GeneratedRepeatedWorkoutSets: Equatable {
+    @Guide(description: "入力で明示されたセット数。")
+    var setCount: Int
+
+    @Guide(description: "全セットに共通する重量kg。重量がなければnil。自重は0。")
     var defaultWeightKg: Double?
 
-    @Guide(description: "全セットに共通する、入力で明示された回数。回数がなければnil。")
+    @Guide(description: "全セットに共通する回数。回数がなければnil。")
     var defaultReps: Int?
 
     @Guide(description: "『最後だけ8回』など、特定セットだけに適用する差分。", .maximumCount(10))
     var overrides: [GeneratedWorkoutQuickInputOverride]
+}
 
-    @Guide(description: "各セットが個別に列挙された場合だけ使用するセット。繰り返し表現の展開には使用しない。", .maximumCount(10))
-    var explicitSets: [GeneratedWorkoutQuickInputSet]
+@Generable
+struct GeneratedExplicitWorkoutSets: Equatable {
+    @Guide(description: "入力で個別に列挙されたセット。入力順。", .maximumCount(10))
+    var sets: [GeneratedWorkoutQuickInputSet]
 }
 
 @Generable

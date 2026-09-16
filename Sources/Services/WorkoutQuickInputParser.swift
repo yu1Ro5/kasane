@@ -31,6 +31,80 @@ enum WorkoutQuickInputAvailability: Equatable {
     }
 }
 
+enum WorkoutQuickInputAnalysisError: Error, Equatable {
+    case modelUnavailable
+    case decodingFailure(debugContext: String?)
+    case assetsUnavailable(debugContext: String?)
+    case rateLimited(debugContext: String?)
+    case contextWindowExceeded(debugContext: String?)
+    case refused(debugContext: String?)
+    case unsupportedLanguageOrLocale(debugContext: String?)
+    case concurrentRequest(debugContext: String?)
+    case unsupportedGuide(debugContext: String?)
+    case invalidGeneratedStructure(WorkoutQuickInputSetExpansionError)
+    case unknown
+
+    var userMessage: String {
+        switch self {
+        case .modelUnavailable:
+            "この端末ではAI入力を利用できません。"
+        case .decodingFailure:
+            "AIの解析結果を読み取れませんでした。もう一度お試しください。"
+        case .assetsUnavailable:
+            "Apple Intelligenceを準備中です。しばらくしてから再度お試しください。"
+        case .rateLimited, .concurrentRequest:
+            "AIを一時的に利用できません。少し待ってから再度お試しください。"
+        case .contextWindowExceeded:
+            "入力が長すぎます。短くして再度お試しください。"
+        case .refused:
+            "この内容はAI入力で読み取れませんでした。"
+        case .unsupportedLanguageOrLocale:
+            "現在の言語ではAI入力を利用できません。"
+        case .unsupportedGuide, .invalidGeneratedStructure:
+            "AIの解析結果に不整合がありました。もう一度お試しください。"
+        case .unknown:
+            "うまく読み取れませんでした。内容を確認して再度お試しください。"
+        }
+    }
+
+    var classification: String {
+        switch self {
+        case .modelUnavailable: "modelUnavailable"
+        case .decodingFailure: "decodingFailure"
+        case .assetsUnavailable: "assetsUnavailable"
+        case .rateLimited: "rateLimited"
+        case .contextWindowExceeded: "contextWindowExceeded"
+        case .refused: "refused"
+        case .unsupportedLanguageOrLocale: "unsupportedLanguageOrLocale"
+        case .concurrentRequest: "concurrentRequest"
+        case .unsupportedGuide: "unsupportedGuide"
+        case .invalidGeneratedStructure: "invalidGeneratedStructure"
+        case .unknown: "unknown"
+        }
+    }
+
+    var debugContext: String? {
+        switch self {
+        case .decodingFailure(let context),
+            .assetsUnavailable(let context),
+            .rateLimited(let context),
+            .contextWindowExceeded(let context),
+            .refused(let context),
+            .unsupportedLanguageOrLocale(let context),
+            .concurrentRequest(let context),
+            .unsupportedGuide(let context):
+            context
+        default:
+            nil
+        }
+    }
+
+    var setExpansionError: WorkoutQuickInputSetExpansionError? {
+        guard case .invalidGeneratedStructure(let error) = self else { return nil }
+        return error
+    }
+}
+
 struct AppleIntelligenceWorkoutQuickInputParser: WorkoutQuickInputParsing {
     static func availability(locale: Locale = .current) -> WorkoutQuickInputAvailability {
         let model = SystemLanguageModel.default
@@ -54,41 +128,76 @@ struct AppleIntelligenceWorkoutQuickInputParser: WorkoutQuickInputParsing {
     ) async throws -> GeneratedWorkoutQuickInput {
         let availability = Self.availability()
         guard availability == .available else {
-            throw WorkoutQuickInputParserError.unavailable(availability)
+            throw Self.analysisError(for: availability)
         }
         let names = availableExerciseNames.map { "- \($0)" }.joined(separator: "\n")
         let session = LanguageModelSession {
             """
             あなたは筋力トレーニング記録を構造化するパーサーです。
-            ユーザーが実際に入力した情報だけを抽出してください。
-            重量、回数、セット数を推測しないでください。
-            最終的なセット配列を展開せず、セット数、共通値、特定セットの差分という意味情報を返してください。
-            「3セット」はsetCount=3とし、explicitSetsに3要素を生成しないでください。
-            「最後だけ8回」はsetNumber=setCountのoverride、「最初だけ」はsetNumber=1のoverrideにしてください。
-            各セットが個別に列挙された場合だけexplicitSetsを使用してください。
-            種目名はユーザーの入力どおりに返し、正式名称への解決は行わないでください。
-            重量はkgとして出力してください。「自重」は明示された0kgとして扱ってください。
-            重量が明示されていない場合はweightKgをnilにしてください。
-            回数が明示されていない場合はrepsをnilにしてください。
-            ユーザーの入力に存在しない種目やセットを追加しないでください。
+            ユーザーが実際に入力した情報だけを抽出し、重量、回数、セット数を推測しないでください。
+            共通条件とセット数はrepeated、各セットが個別に列挙された場合だけexplicitを使用してください。
+            特定セットだけの差分はrepeatedのoverrideにしてください。
+            種目名は入力どおりに返し、正式名称への解決は行わないでください。
+            重量はkgとし、「自重」は0kgとして扱ってください。
+            入力にない種目やセットを追加しないでください。
             """
         }
-        let response = try await session.respond(
-            to: """
-                利用可能な種目名:
-                \(names)
+        do {
+            let response = try await session.respond(
+                to: """
+                    利用可能な種目名:
+                    \(names)
 
-                ユーザー入力:
-                \(text)
-                """,
-            generating: GeneratedWorkoutQuickInput.self
-        )
-        return response.content
+                    ユーザー入力:
+                    \(text)
+                    """,
+                generating: GeneratedWorkoutQuickInput.self
+            )
+            return response.content
+        } catch let error as LanguageModelSession.GenerationError {
+            throw Self.analysisError(for: error)
+        }
     }
-}
 
-enum WorkoutQuickInputParserError: Error {
-    case unavailable(WorkoutQuickInputAvailability)
+    private static func analysisError(
+        for availability: WorkoutQuickInputAvailability
+    ) -> WorkoutQuickInputAnalysisError {
+        switch availability {
+        case .modelNotReady:
+            .assetsUnavailable(debugContext: nil)
+        case .localeUnsupported:
+            .unsupportedLanguageOrLocale(debugContext: nil)
+        case .available, .appleIntelligenceNotEnabled, .deviceNotEligible:
+            .modelUnavailable
+        }
+    }
+
+    private static func analysisError(
+        for error: LanguageModelSession.GenerationError
+    ) -> WorkoutQuickInputAnalysisError {
+        switch error {
+        case .decodingFailure(let context):
+            .decodingFailure(debugContext: context.debugDescription)
+        case .assetsUnavailable(let context):
+            .assetsUnavailable(debugContext: context.debugDescription)
+        case .rateLimited(let context):
+            .rateLimited(debugContext: context.debugDescription)
+        case .exceededContextWindowSize(let context):
+            .contextWindowExceeded(debugContext: context.debugDescription)
+        case .guardrailViolation(let context):
+            .refused(debugContext: context.debugDescription)
+        case .refusal(_, let context):
+            .refused(debugContext: context.debugDescription)
+        case .unsupportedLanguageOrLocale(let context):
+            .unsupportedLanguageOrLocale(debugContext: context.debugDescription)
+        case .concurrentRequests(let context):
+            .concurrentRequest(debugContext: context.debugDescription)
+        case .unsupportedGuide(let context):
+            .unsupportedGuide(debugContext: context.debugDescription)
+        @unknown default:
+            .unknown
+        }
+    }
 }
 
 struct FixtureWorkoutQuickInputParser: WorkoutQuickInputParsing {
@@ -99,20 +208,35 @@ struct FixtureWorkoutQuickInputParser: WorkoutQuickInputParsing {
         GeneratedWorkoutQuickInput(exercises: [
             GeneratedWorkoutQuickInputExercise(
                 exerciseName: "チェストプレス",
-                setCount: 3,
-                defaultWeightKg: 30,
-                defaultReps: 10,
-                overrides: [.init(setNumber: 3, weightKg: nil, reps: 8)],
-                explicitSets: []
+                setPattern: .repeated(
+                    .init(
+                        setCount: 3,
+                        defaultWeightKg: 30,
+                        defaultReps: 10,
+                        overrides: [.init(setNumber: 3, weightKg: nil, reps: 8)]
+                    )
+                )
             ),
             GeneratedWorkoutQuickInputExercise(
                 exerciseName: "ラットプルダウン",
-                setCount: 3,
-                defaultWeightKg: 18,
-                defaultReps: 12,
-                overrides: [],
-                explicitSets: []
+                setPattern: .repeated(
+                    .init(
+                        setCount: 3,
+                        defaultWeightKg: 18,
+                        defaultReps: 12,
+                        overrides: []
+                    )
+                )
             ),
         ])
+    }
+}
+
+struct FailingFixtureWorkoutQuickInputParser: WorkoutQuickInputParsing {
+    func parse(
+        _ text: String,
+        availableExerciseNames: [String]
+    ) async throws -> GeneratedWorkoutQuickInput {
+        throw WorkoutQuickInputAnalysisError.rateLimited(debugContext: nil)
     }
 }
