@@ -663,6 +663,77 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["ラットプルダウン"].exists)
     }
 
+    /// AI Draftへ空のSetを追加し、入力後の一括反映を検証する。
+    @MainActor
+    func testWorkoutAIQuickInputAddsSetBeforeApply() throws {
+        let app = launchAIQuickInputReview()
+        let originalWeightCount = app.textFields.matching(
+            NSPredicate(format: "label CONTAINS 'の重量kg'")
+        ).count
+
+        let addSet = app.buttons.matching(NSPredicate(format: "label == 'セットを追加'")).firstMatch
+        XCTAssertTrue(addSet.waitForExistence(timeout: 5))
+        addSet.tap()
+
+        let weightFields = app.textFields.matching(NSPredicate(format: "label CONTAINS 'の重量kg'"))
+        XCTAssertEqual(weightFields.count, originalWeightCount + 1)
+        let weight = weightFields.element(boundBy: 3)
+        XCTAssertTrue(weight.hasKeyboardFocus)
+        weight.typeText("35")
+        app.buttons["次へ"].tap()
+        let repsFields = app.textFields.matching(NSPredicate(format: "label CONTAINS 'の回数'"))
+        repsFields.element(boundBy: 3).typeText("8")
+        app.buttons["完了"].tap()
+        app.buttons["workout-ai-apply-button"].tap()
+
+        XCTAssertTrue(app.navigationBars["ワークアウト"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["チェストプレス"].exists)
+    }
+
+    /// AI Draftへ既存Catalogの種目とSetを追加してから一括反映できることを検証する。
+    @MainActor
+    func testWorkoutAIQuickInputAddsExerciseBeforeApply() throws {
+        let app = launchAIQuickInputReview()
+
+        app.buttons["workout-ai-add-exercise-button"].tap()
+        let exerciseChoice = app.buttons["デッドリフト"]
+        XCTAssertTrue(exerciseChoice.waitForExistence(timeout: 5))
+        exerciseChoice.tap()
+        XCTAssertTrue(app.staticTexts["デッドリフト"].waitForExistence(timeout: 5))
+
+        let addSetButtons = app.buttons.matching(NSPredicate(format: "label == 'セットを追加'"))
+        addSetButtons.element(boundBy: addSetButtons.count - 1).tap()
+        let weight = app.textFields.matching(NSPredicate(format: "label CONTAINS 'の重量kg'"))
+            .element(boundBy: 6)
+        XCTAssertTrue(weight.waitForExistence(timeout: 5))
+        weight.typeText("60")
+        app.buttons["次へ"].tap()
+        app.textFields.matching(NSPredicate(format: "label CONTAINS 'の回数'"))
+            .element(boundBy: 6).typeText("5")
+        app.buttons["完了"].tap()
+        app.buttons["workout-ai-apply-button"].tap()
+
+        XCTAssertTrue(app.navigationBars["ワークアウト"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts.matching(identifier: "デッドリフト").count, 1)
+    }
+
+    private func launchAIQuickInputReview() -> XCUIApplication {
+        let app = launchApp(additionalArguments: [
+            "--fixture", "workout-set-layout", "--workout-ai-fixture",
+        ])
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["workout-ai-quick-input-button"].tap()
+        let input = app.descendants(matching: .any)["workout-ai-input-text"]
+        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        input.tap()
+        input.typeText("チェストプレス30kgを10回3セット。ラットプル18kgを12回3セット。")
+        app.buttons["workout-ai-analyze-button"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-ai-review"].waitForExistence(timeout: 10)
+        )
+        return app
+    }
+
     /// Foundation Modelsを呼ばず、分類済み解析エラーのAlert文言を検証する。
     @MainActor
     func testWorkoutAIQuickInputShowsClassifiedError() throws {

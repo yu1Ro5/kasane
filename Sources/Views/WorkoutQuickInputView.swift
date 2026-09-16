@@ -9,6 +9,7 @@ struct WorkoutQuickInputView: View {
     @Bindable var draftStore: WorkoutDraftStore
     let exercises: [Exercise]
     @State private var viewModel: WorkoutQuickInputViewModel
+    @FocusState private var focusedInput: WorkoutQuickInputFocus?
 
     init(
         session: WorkoutSession,
@@ -37,6 +38,15 @@ struct WorkoutQuickInputView: View {
         .navigationTitle("AIでまとめて入力")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                if focusedInput != nil {
+                    Button("次へ", action: advanceFocus)
+                    Spacer()
+                    Button("完了") { focusedInput = nil }
+                }
+            }
+        }
         .safeAreaInset(edge: .bottom) {
             if viewModel.draft != nil { reviewActions }
         }
@@ -134,12 +144,13 @@ struct WorkoutQuickInputView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("入力内容を確認", systemImage: "list.bullet.rectangle")
                 .font(.title2.bold())
-            Text("AIが解析した内容です。必要に応じて修正できます。")
+            Text("AIが入力した下書きです。自由に追加・修正してから保存できます。")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             ForEach(exerciseBindings) { $exercise in
                 exerciseCard(exercise: $exercise)
             }
+            addExerciseMenu
             if let message = blockingMessage {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
                     .font(.subheadline)
@@ -163,25 +174,38 @@ struct WorkoutQuickInputView: View {
                     HStack(alignment: .center, spacing: 8) { exerciseHeader(exercise: exercise) }
                 }
             }
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: 12) {
-                    ForEach(Array(exercise.sets.wrappedValue.indices), id: \.self) { index in
-                        expandedSetEditor(exercise: exercise, index: index)
-                    }
-                }
+            if exercise.wrappedValue.sets.isEmpty {
+                Text("まだセットがありません")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             } else {
-                Grid(horizontalSpacing: 8, verticalSpacing: 6) {
-                    GridRow {
-                        Text("セット").foregroundStyle(.secondary)
-                        Text("重量").foregroundStyle(.secondary)
-                        Text("回数").foregroundStyle(.secondary)
-                        Color.clear.frame(width: 44)
-                    }
-                    ForEach(Array(exercise.sets.wrappedValue.indices), id: \.self) { index in
-                        compactSetEditor(exercise: exercise, index: index)
-                    }
+                if !dynamicTypeSize.isAccessibilitySize { WorkoutSetColumnHeader() }
+                ForEach(Array(exercise.wrappedValue.sets.enumerated()), id: \.element.id) { index, set in
+                    WorkoutEditableSetRow(
+                        setNumber: index + 1,
+                        draft: setBinding(exerciseID: exercise.wrappedValue.id, setID: set.id),
+                        focusedInput: $focusedInput,
+                        weightFocus: .weight(exerciseDraftID: exercise.wrappedValue.id, setID: set.id),
+                        repsFocus: .reps(exerciseDraftID: exercise.wrappedValue.id, setID: set.id),
+                        emphasizesDraft: true,
+                        weightIdentifier: "workout-ai-weight-\(set.id.uuidString)",
+                        repsIdentifier: "workout-ai-reps-\(set.id.uuidString)",
+                        onDelete: { removeSet(set.id, from: exercise.wrappedValue.id) },
+                        onRepsSubmit: advanceFocus
+                    )
                 }
             }
+            Button {
+                addSet(to: exercise.wrappedValue.id)
+            } label: {
+                Label("セットを追加", systemImage: "plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .accessibilityLabel("セットを追加")
+            .accessibilityIdentifier("workout-ai-add-set-\(exercise.wrappedValue.id.uuidString)")
         }
         .padding(12)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
@@ -197,7 +221,10 @@ struct WorkoutQuickInputView: View {
             .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
         Menu {
             ForEach(selectableExercises) { item in
-                Button(item.name) { exercise.exerciseID.wrappedValue = item.id }
+                Button(item.name) {
+                    _ = viewModel.updateExercise(draftID: exercise.wrappedValue.id, to: item)
+                }
+                .disabled(isUsed(item.id, excluding: exercise.wrappedValue.id))
             }
         } label: {
             HStack(spacing: 4) {
@@ -233,66 +260,13 @@ struct WorkoutQuickInputView: View {
         }
         if !dynamicTypeSize.isAccessibilitySize { Spacer() }
         Button(role: .destructive) {
+            clearFocus(for: exercise.wrappedValue.id)
             viewModel.removeExercise(id: exercise.wrappedValue.id)
         } label: {
             Label("種目を削除", systemImage: "trash")
         }
         .labelStyle(.iconOnly)
         .frame(width: 44, height: 44)
-    }
-
-    private func compactSetEditor(
-        exercise: Binding<WorkoutQuickInputExerciseDraft>,
-        index: Int
-    ) -> some View {
-        let setID = exercise.sets.wrappedValue[index].id
-        return GridRow {
-            Text("\(index + 1)").monospacedDigit()
-            TextField("重量", text: exercise.sets[index].values.weight)
-                .keyboardType(.decimalPad)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityLabel("セット\(index + 1)の重量kg")
-            TextField("回数", text: exercise.sets[index].values.reps)
-                .keyboardType(.numberPad)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityLabel("セット\(index + 1)の回数")
-            Button(role: .destructive) {
-                viewModel.removeSet(id: setID, from: exercise.wrappedValue.id)
-            } label: {
-                Image(systemName: "minus.circle")
-            }
-            .accessibilityLabel("セット\(index + 1)を削除")
-            .frame(width: 44, height: 44)
-        }
-    }
-
-    private func expandedSetEditor(
-        exercise: Binding<WorkoutQuickInputExerciseDraft>,
-        index: Int
-    ) -> some View {
-        let setID = exercise.sets.wrappedValue[index].id
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("セット \(index + 1)").font(.headline)
-                Spacer()
-                Button(role: .destructive) {
-                    viewModel.removeSet(id: setID, from: exercise.wrappedValue.id)
-                } label: {
-                    Label("セット\(index + 1)を削除", systemImage: "minus.circle")
-                }
-            }
-            LabeledContent("重量 (kg)") {
-                TextField("重量", text: exercise.sets[index].values.weight)
-                    .keyboardType(.decimalPad).textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("セット\(index + 1)の重量kg")
-            }
-            LabeledContent("回数") {
-                TextField("回数", text: exercise.sets[index].values.reps)
-                    .keyboardType(.numberPad).textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("セット\(index + 1)の回数")
-            }
-        }
-        .padding(.vertical, 4)
     }
 
     private func resolvedName(for draft: WorkoutQuickInputExerciseDraft) -> String? {
@@ -343,6 +317,21 @@ struct WorkoutQuickInputView: View {
 
     private var selectableExercises: [Exercise] { exercises.filter(\.isSelectable) }
 
+    private var addExerciseMenu: some View {
+        Menu {
+            ForEach(selectableExercises) { exercise in
+                Button(exercise.name) { _ = viewModel.addExercise(exercise) }
+                    .disabled(isUsed(exercise.id))
+            }
+        } label: {
+            Label("種目を追加", systemImage: "plus")
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityLabel("種目を追加")
+        .accessibilityIdentifier("workout-ai-add-exercise-button")
+    }
+
     private var exerciseBindings: Binding<[WorkoutQuickInputExerciseDraft]> {
         Binding(get: { viewModel.draft?.exercises ?? [] }, set: { viewModel.draft?.exercises = $0 })
     }
@@ -376,6 +365,80 @@ struct WorkoutQuickInputView: View {
         } catch {
             viewModel.errorMessage = error.localizedDescription
             viewModel.isApplying = false
+        }
+    }
+
+    private func setBinding(exerciseID: UUID, setID: UUID) -> Binding<SetEntryDraft> {
+        Binding(
+            get: {
+                viewModel.draft?.exercises.first(where: { $0.id == exerciseID })?
+                    .sets.first(where: { $0.id == setID })?.values ?? SetEntryDraft()
+            },
+            set: { values in
+                guard
+                    let exerciseIndex = viewModel.draft?.exercises.firstIndex(where: { $0.id == exerciseID }),
+                    let setIndex = viewModel.draft?.exercises[exerciseIndex].sets.firstIndex(where: { $0.id == setID })
+                else { return }
+                viewModel.draft?.exercises[exerciseIndex].sets[setIndex].values = values
+            }
+        )
+    }
+
+    private func isUsed(_ exerciseID: UUID, excluding draftID: UUID? = nil) -> Bool {
+        viewModel.draft?.exercises.contains {
+            $0.id != draftID && $0.exerciseID == exerciseID
+        } == true
+    }
+
+    private func addSet(to exerciseID: UUID) {
+        guard let setID = viewModel.addSet(to: exerciseID) else { return }
+        Task { @MainActor in
+            await Task.yield()
+            focusedInput = .weight(exerciseDraftID: exerciseID, setID: setID)
+        }
+    }
+
+    private func removeSet(_ setID: UUID, from exerciseID: UUID) {
+        if focusedInput?.setID == setID { focusedInput = nil }
+        viewModel.removeSet(id: setID, from: exerciseID)
+    }
+
+    private func clearFocus(for exerciseID: UUID) {
+        if focusedInput?.exerciseDraftID == exerciseID { focusedInput = nil }
+    }
+
+    private func advanceFocus() {
+        guard let focusedInput else { return }
+        switch focusedInput {
+        case .weight(let exerciseID, let setID):
+            self.focusedInput = .reps(exerciseDraftID: exerciseID, setID: setID)
+        case .reps(let exerciseID, let setID):
+            guard
+                let sets = viewModel.draft?.exercises.first(where: { $0.id == exerciseID })?.sets,
+                let index = sets.firstIndex(where: { $0.id == setID }),
+                sets.indices.contains(index + 1)
+            else {
+                self.focusedInput = nil
+                return
+            }
+            self.focusedInput = .weight(exerciseDraftID: exerciseID, setID: sets[index + 1].id)
+        }
+    }
+}
+
+private enum WorkoutQuickInputFocus: Hashable {
+    case weight(exerciseDraftID: UUID, setID: UUID)
+    case reps(exerciseDraftID: UUID, setID: UUID)
+
+    var exerciseDraftID: UUID {
+        switch self {
+        case .weight(let exerciseDraftID, _), .reps(let exerciseDraftID, _): exerciseDraftID
+        }
+    }
+
+    var setID: UUID {
+        switch self {
+        case .weight(_, let setID), .reps(_, let setID): setID
         }
     }
 }

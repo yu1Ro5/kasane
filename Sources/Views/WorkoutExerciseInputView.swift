@@ -149,43 +149,16 @@ struct WorkoutExerciseInputView: View {
     }
 
     private var draftRow: some View {
-        WorkoutSetColumns {
-            Text(WorkoutSetDisplayFormatter.setNumber((setEntries.map(\.order).max() ?? -1) + 2))
-                .fontWeight(.semibold)
-                .accessibilityLabel("セット \((setEntries.map(\.order).max() ?? -1) + 2)")
-        } weight: {
-            HStack(spacing: 4) {
-                TextField("重量", text: draft.weight, prompt: Text("0"))
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .accessibilityIdentifier("draft-weight-input-\(inputIdentity.uuidString)")
-                    .accessibilityLabel("\(exercise.name)、次のセットの重量、kg")
-                    .keyboardType(.decimalPad)
-                    .focused($focusedInput, equals: .draftWeight(exerciseID: inputIdentity))
-                    .submitLabel(.next)
-                    .onSubmit { focusedInput = .draftReps(exerciseID: inputIdentity) }
-                    .workoutSetInputStyle(
-                        isFocused: focusedInput == .draftWeight(exerciseID: inputIdentity),
-                        emphasizesDraft: true
-                    )
-                Text("kg")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-            }
-        } reps: {
-            TextField("回数", text: draft.reps, prompt: Text("0"))
-                .multilineTextAlignment(.trailing)
-                .monospacedDigit()
-                .accessibilityIdentifier("draft-reps-input-\(inputIdentity.uuidString)")
-                .accessibilityLabel("\(exercise.name)、次のセットの回数")
-                .keyboardType(.numberPad)
-                .focused($focusedInput, equals: .draftReps(exerciseID: inputIdentity))
-                .workoutSetInputStyle(
-                    isFocused: focusedInput == .draftReps(exerciseID: inputIdentity),
-                    emphasizesDraft: true
-                )
-        }
+        WorkoutEditableSetRow(
+            setNumber: (setEntries.map(\.order).max() ?? -1) + 2,
+            draft: draft,
+            focusedInput: $focusedInput,
+            weightFocus: .draftWeight(exerciseID: inputIdentity),
+            repsFocus: .draftReps(exerciseID: inputIdentity),
+            emphasizesDraft: true,
+            weightIdentifier: "draft-weight-input-\(inputIdentity.uuidString)",
+            repsIdentifier: "draft-reps-input-\(inputIdentity.uuidString)"
+        )
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
         .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
@@ -391,44 +364,16 @@ private struct WorkoutSetRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        WorkoutSetColumns {
-            Text(WorkoutSetDisplayFormatter.setNumber(setEntry.order + 1))
-                .fontWeight(.medium)
-                .accessibilityLabel("セット \(setEntry.order + 1)")
-        } weight: {
-            HStack(spacing: 4) {
-                TextField("重量", text: $editDraft.weight, prompt: Text("0"))
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .keyboardType(.decimalPad)
-                    .submitLabel(.next)
-                    .accessibilityIdentifier("saved-set-weight-input-\(setEntry.id.uuidString)")
-                    .accessibilityLabel("セット \(setEntry.order + 1)の重量、kg")
-                    .focused(focusedInput, equals: savedWeightFocus)
-                    .onSubmit { focusedInput.wrappedValue = savedRepsFocus }
-                    .workoutSetInputStyle(
-                        isFocused: focusedInput.wrappedValue == savedWeightFocus,
-                        emphasizesDraft: false
-                    )
-                Text("kg")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-            }
-        } reps: {
-            TextField("回数", text: $editDraft.reps, prompt: Text("0"))
-                .multilineTextAlignment(.trailing)
-                .monospacedDigit()
-                .keyboardType(.numberPad)
-                .submitLabel(.next)
-                .accessibilityIdentifier("saved-set-reps-input-\(setEntry.id.uuidString)")
-                .accessibilityLabel("セット \(setEntry.order + 1)の回数")
-                .focused(focusedInput, equals: savedRepsFocus)
-                .workoutSetInputStyle(
-                    isFocused: focusedInput.wrappedValue == savedRepsFocus,
-                    emphasizesDraft: false
-                )
-        }
+        WorkoutEditableSetRow(
+            setNumber: setEntry.order + 1,
+            draft: $editDraft,
+            focusedInput: focusedInput,
+            weightFocus: savedWeightFocus,
+            repsFocus: savedRepsFocus,
+            emphasizesDraft: false,
+            weightIdentifier: "saved-set-weight-input-\(setEntry.id.uuidString)",
+            repsIdentifier: "saved-set-reps-input-\(setEntry.id.uuidString)"
+        )
         .padding(.vertical, 2)
         .swipeActions {
             Button("削除", systemImage: "trash", role: .destructive, action: onDelete)
@@ -443,30 +388,6 @@ private struct WorkoutSetRow: View {
         .savedReps(exerciseID: exerciseEntry.id, setID: setEntry.id)
     }
 
-}
-
-private extension View {
-    /// セット入力欄を表形式に保ちつつ、現在の入力位置を視覚的に示す。
-    func workoutSetInputStyle(isFocused: Bool, emphasizesDraft: Bool) -> some View {
-        padding(.vertical, 8)
-            .padding(.horizontal, 10)
-            .background(
-                isFocused
-                    ? Color.accentColor.opacity(0.12)
-                    : emphasizesDraft ? Color(.secondarySystemBackground) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 8)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(
-                        isFocused
-                            ? Color.accentColor
-                            : Color.secondary.opacity(emphasizesDraft ? 0.25 : 0.16),
-                        lineWidth: isFocused ? 2 : 1
-                    )
-            }
-            .shadow(color: isFocused ? Color.accentColor.opacity(0.16) : .clear, radius: 3, y: 1)
-    }
 }
 
 enum WorkoutInputFocus: Hashable {
