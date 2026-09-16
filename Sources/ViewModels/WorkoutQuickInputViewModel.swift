@@ -1,11 +1,15 @@
 import Foundation
-import FoundationModels
+import OSLog
 import Observation
 
 @MainActor
 @Observable
 final class WorkoutQuickInputViewModel {
     static let maximumCharacterCount = 500
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.yu1Ro5.kasane",
+        category: "WorkoutQuickInput"
+    )
 
     var text = ""
     var draft: WorkoutQuickInputDraft?
@@ -52,6 +56,8 @@ final class WorkoutQuickInputViewModel {
 
     func analyze(availableExercises: [Exercise]) async {
         guard canAnalyze else { return }
+        let inputCharacterCount = text.count
+        let availableExerciseCount = availableExercises.filter(\.isSelectable).count
         isAnalyzing = true
         errorMessage = nil
         defer { isAnalyzing = false }
@@ -61,12 +67,24 @@ final class WorkoutQuickInputViewModel {
                 availableExerciseNames: availableExercises.filter(\.isSelectable).map(\.name)
             )
             draft = try resolver.resolve(generated, against: availableExercises)
-        } catch let error as LanguageModelSession.GenerationError {
-            errorMessage = Self.message(for: error)
-        } catch WorkoutQuickInputParserError.unavailable(let availability) {
-            errorMessage = availability.unavailableMessage ?? "この端末ではAI入力を利用できません。"
+        } catch let error as WorkoutQuickInputAnalysisError {
+            handle(
+                error,
+                inputCharacterCount: inputCharacterCount,
+                availableExerciseCount: availableExerciseCount
+            )
+        } catch let error as WorkoutQuickInputSetExpansionError {
+            handle(
+                .invalidGeneratedStructure(error),
+                inputCharacterCount: inputCharacterCount,
+                availableExerciseCount: availableExerciseCount
+            )
         } catch {
-            errorMessage = "うまく読み取れませんでした。内容を確認して再度お試しください。"
+            handle(
+                .unknown,
+                inputCharacterCount: inputCharacterCount,
+                availableExerciseCount: availableExerciseCount
+            )
         }
     }
 
@@ -84,16 +102,16 @@ final class WorkoutQuickInputViewModel {
         draft?.exercises[index].sets.removeAll { $0.id == id }
     }
 
-    private static func message(for error: LanguageModelSession.GenerationError) -> String {
-        switch error {
-        case .exceededContextWindowSize:
-            "入力が長すぎます。短くして再度お試しください。"
-        case .guardrailViolation, .refusal:
-            "この内容はAI入力で読み取れませんでした。"
-        case .unsupportedLanguageOrLocale:
-            "現在の言語ではAI入力を利用できません。"
-        default:
-            "うまく読み取れませんでした。内容を確認して再度お試しください。"
-        }
+    private func handle(
+        _ error: WorkoutQuickInputAnalysisError,
+        inputCharacterCount: Int,
+        availableExerciseCount: Int
+    ) {
+        errorMessage = error.userMessage
+        let debugContext = error.debugContext ?? "none"
+        let setExpansionError = error.setExpansionError.map { String(describing: $0) } ?? "none"
+        Self.logger.error(
+            "AI Quick Input failed classification=\(error.classification, privacy: .public) inputCharacterCount=\(inputCharacterCount, privacy: .public) availableExerciseCount=\(availableExerciseCount, privacy: .public) debugContext=\(debugContext, privacy: .public) setExpansionError=\(setExpansionError, privacy: .public)"
+        )
     }
 }

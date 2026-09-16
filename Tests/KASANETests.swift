@@ -2826,6 +2826,29 @@ extension KASANETests {
         )
     }
 
+    func testQuickInputAnalysisErrorsProvideClassifiedMessages() {
+        XCTAssertEqual(
+            WorkoutQuickInputAnalysisError.decodingFailure(debugContext: nil).userMessage,
+            "AIの解析結果を読み取れませんでした。もう一度お試しください。"
+        )
+        XCTAssertEqual(
+            WorkoutQuickInputAnalysisError.assetsUnavailable(debugContext: nil).userMessage,
+            "Apple Intelligenceを準備中です。しばらくしてから再度お試しください。"
+        )
+        XCTAssertEqual(
+            WorkoutQuickInputAnalysisError.rateLimited(debugContext: nil).userMessage,
+            "AIを一時的に利用できません。少し待ってから再度お試しください。"
+        )
+        XCTAssertEqual(
+            WorkoutQuickInputAnalysisError.invalidGeneratedStructure(.invalidOverride).userMessage,
+            "AIの解析結果に不整合がありました。もう一度お試しください。"
+        )
+        XCTAssertEqual(
+            WorkoutQuickInputAnalysisError.unknown.userMessage,
+            "うまく読み取れませんでした。内容を確認して再度お試しください。"
+        )
+    }
+
     func testQuickInputResolverUsesCurrentDecimalSeparatorForReviewDraft() throws {
         let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
         let generated = GeneratedWorkoutQuickInput(exercises: [
@@ -2897,11 +2920,7 @@ extension KASANETests {
         ) { XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .invalidSetCount) }
         let empty = GeneratedWorkoutQuickInputExercise(
             exerciseName: "チェストプレス",
-            setCount: nil,
-            defaultWeightKg: 30,
-            defaultReps: 10,
-            overrides: [],
-            explicitSets: []
+            setPattern: .explicit(.init(sets: []))
         )
         XCTAssertThrowsError(try WorkoutQuickInputSetExpander().expand(empty)) {
             XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .emptySets)
@@ -2935,19 +2954,64 @@ extension KASANETests {
         ) { XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .invalidOverride) }
     }
 
+    func testQuickInputSetExpanderRejectsDuplicateOverrideAndInvalidValues() {
+        XCTAssertThrowsError(
+            try WorkoutQuickInputSetExpander().expand(
+                quickInputExercise(
+                    name: "チェストプレス",
+                    count: 3,
+                    weight: 30,
+                    reps: 10,
+                    overrides: [
+                        .init(setNumber: 2, weightKg: 32.5, reps: nil),
+                        .init(setNumber: 2, weightKg: nil, reps: 8),
+                    ]
+                )
+            )
+        ) { XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .invalidOverride) }
+        for exercise in [
+            quickInputExercise(name: "チェストプレス", weight: -1, reps: 10),
+            quickInputExercise(name: "チェストプレス", weight: 30, reps: 0),
+        ] {
+            XCTAssertThrowsError(try WorkoutQuickInputSetExpander().expand(exercise)) {
+                XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .invalidSetValue)
+            }
+        }
+    }
+
+    func testQuickInputSetExpanderRejectsTooManyAndInvalidExplicitSets() {
+        let tooMany = GeneratedWorkoutQuickInputExercise(
+            exerciseName: "チェストプレス",
+            setPattern: .explicit(
+                .init(sets: Array(repeating: .init(weightKg: 30, reps: 10), count: 11))
+            )
+        )
+        let invalid = GeneratedWorkoutQuickInputExercise(
+            exerciseName: "チェストプレス",
+            setPattern: .explicit(.init(sets: [.init(weightKg: -1, reps: 0)]))
+        )
+
+        XCTAssertThrowsError(try WorkoutQuickInputSetExpander().expand(tooMany)) {
+            XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .tooManySets)
+        }
+        XCTAssertThrowsError(try WorkoutQuickInputSetExpander().expand(invalid)) {
+            XCTAssertEqual($0 as? WorkoutQuickInputSetExpansionError, .invalidSetValue)
+        }
+    }
+
     func testQuickInputSetExpanderUsesExplicitSetsWithoutExpansion() throws {
+        let sets = [
+            GeneratedWorkoutQuickInputSet(weightKg: 30, reps: 10),
+            GeneratedWorkoutQuickInputSet(weightKg: 32.5, reps: 8),
+        ]
         let exercise = GeneratedWorkoutQuickInputExercise(
             exerciseName: "チェストプレス",
-            setCount: nil,
-            defaultWeightKg: nil,
-            defaultReps: nil,
-            overrides: [],
-            explicitSets: [.init(weightKg: 30, reps: 10), .init(weightKg: 32.5, reps: 8)]
+            setPattern: .explicit(.init(sets: sets))
         )
 
         let expanded = try WorkoutQuickInputSetExpander().expand(exercise)
 
-        XCTAssertEqual(expanded.sets, exercise.explicitSets)
+        XCTAssertEqual(expanded.sets, sets)
     }
 
     func testQuickInputResolverUsesAliasesAndLeavesUnknownUnresolved() throws {
@@ -3105,11 +3169,14 @@ extension KASANETests {
     ) -> GeneratedWorkoutQuickInputExercise {
         GeneratedWorkoutQuickInputExercise(
             exerciseName: name,
-            setCount: count,
-            defaultWeightKg: weight,
-            defaultReps: reps,
-            overrides: overrides,
-            explicitSets: []
+            setPattern: .repeated(
+                .init(
+                    setCount: count,
+                    defaultWeightKg: weight,
+                    defaultReps: reps,
+                    overrides: overrides
+                )
+            )
         )
     }
 

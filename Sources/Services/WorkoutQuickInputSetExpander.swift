@@ -19,45 +19,38 @@ struct WorkoutQuickInputSetExpander {
     func expand(
         _ exercise: GeneratedWorkoutQuickInputExercise
     ) throws -> ExpandedWorkoutQuickInputExercise {
-        if !exercise.explicitSets.isEmpty {
-            guard exercise.explicitSets.count <= Self.maximumSetCount else {
-                throw WorkoutQuickInputSetExpansionError.tooManySets
-            }
-            guard exercise.overrides.isEmpty else {
-                throw WorkoutQuickInputSetExpansionError.invalidOverride
-            }
-            if let count = exercise.setCount, count != exercise.explicitSets.count {
-                throw WorkoutQuickInputSetExpansionError.invalidSetCount
-            }
-            try exercise.explicitSets.forEach(validate)
-            return ExpandedWorkoutQuickInputExercise(
-                exerciseName: exercise.exerciseName,
-                sets: exercise.explicitSets
-            )
+        let sets: [GeneratedWorkoutQuickInputSet]
+        switch exercise.setPattern {
+        case .repeated(let repeated):
+            sets = try expand(repeated)
+        case .explicit(let explicit):
+            sets = try validateExplicitSets(explicit.sets)
         }
+        return ExpandedWorkoutQuickInputExercise(exerciseName: exercise.exerciseName, sets: sets)
+    }
 
-        guard let count = exercise.setCount else {
-            throw WorkoutQuickInputSetExpansionError.emptySets
-        }
-        guard count > 0 else {
+    private func expand(
+        _ repeated: GeneratedRepeatedWorkoutSets
+    ) throws -> [GeneratedWorkoutQuickInputSet] {
+        guard repeated.setCount > 0 else {
             throw WorkoutQuickInputSetExpansionError.invalidSetCount
         }
-        guard count <= Self.maximumSetCount else {
+        guard repeated.setCount <= Self.maximumSetCount else {
             throw WorkoutQuickInputSetExpansionError.tooManySets
         }
-        try validate(.init(weightKg: exercise.defaultWeightKg, reps: exercise.defaultReps))
+        try validate(.init(weightKg: repeated.defaultWeightKg, reps: repeated.defaultReps))
 
         var sets = Array(
             repeating: GeneratedWorkoutQuickInputSet(
-                weightKg: exercise.defaultWeightKg,
-                reps: exercise.defaultReps
+                weightKg: repeated.defaultWeightKg,
+                reps: repeated.defaultReps
             ),
-            count: count
+            count: repeated.setCount
         )
         var overriddenSetNumbers = Set<Int>()
-        for override in exercise.overrides {
+        for override in repeated.overrides {
             guard
-                (1...count).contains(override.setNumber),
+                (1...repeated.setCount).contains(override.setNumber),
                 override.weightKg != nil || override.reps != nil,
                 overriddenSetNumbers.insert(override.setNumber).inserted
             else { throw WorkoutQuickInputSetExpansionError.invalidOverride }
@@ -66,8 +59,18 @@ struct WorkoutQuickInputSetExpander {
             if let weight = override.weightKg { sets[index].weightKg = weight }
             if let reps = override.reps { sets[index].reps = reps }
         }
+        return sets
+    }
+
+    private func validateExplicitSets(
+        _ sets: [GeneratedWorkoutQuickInputSet]
+    ) throws -> [GeneratedWorkoutQuickInputSet] {
         guard !sets.isEmpty else { throw WorkoutQuickInputSetExpansionError.emptySets }
-        return ExpandedWorkoutQuickInputExercise(exerciseName: exercise.exerciseName, sets: sets)
+        guard sets.count <= Self.maximumSetCount else {
+            throw WorkoutQuickInputSetExpansionError.tooManySets
+        }
+        try sets.forEach(validate)
+        return sets
     }
 
     private func validate(_ set: GeneratedWorkoutQuickInputSet) throws {
