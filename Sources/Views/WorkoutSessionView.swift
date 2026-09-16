@@ -20,6 +20,7 @@ struct WorkoutSessionView: View {
     @State private var isConfirmingEmptyDiscard = false
     @State private var isFinishing = false
     @State private var completionSummary: WorkoutCompletionSummary?
+    @State private var personalRecords: [PersonalRecordAchievement] = []
     @State private var errorTitle = ""
     @State private var errorMessage: String?
 
@@ -177,7 +178,11 @@ struct WorkoutSessionView: View {
             commitCurrentSetIfNeeded(for: exerciseID)
         }
         .navigationDestination(item: $completionSummary) { summary in
-            WorkoutCompletedView(summary: summary, onReturnHome: returnHomeAfterCompletion)
+            PersonalRecordSequenceView(
+                achievements: personalRecords,
+                summary: summary,
+                onReturnHome: returnHomeAfterCompletion
+            )
         }
         .confirmationDialog("ワークアウトを中止しますか？", isPresented: $isConfirmingDiscard) {
             Button("中止する", role: .destructive) { discardWorkout() }
@@ -309,10 +314,15 @@ struct WorkoutSessionView: View {
         isFinishing = true
         defer { isFinishing = false }
         do {
-            completionSummary = try WorkoutSessionService(context: modelContext).finish(
+            let summary = try WorkoutSessionService(context: modelContext).finish(
                 session,
                 drafts: sessionDrafts
             )
+            personalRecords = PersonalRecordDetector.achievements(
+                for: session,
+                among: observedSessions
+            )
+            completionSummary = summary
             draftStore.removeAllDrafts(in: session.id)
         } catch {
             errorTitle = "ワークアウトを終了できませんでした"

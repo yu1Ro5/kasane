@@ -502,13 +502,47 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
         saveButton.tap()
 
-        XCTAssertTrue(app.staticTexts["今日も積み重ねました"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["NEW RECORD"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.tabBars.buttons["ワークアウト"].exists)
+        app.buttons["personal-record-continue-button"].tap()
+        XCTAssertTrue(app.staticTexts["今日も積み重ねました"].waitForExistence(timeout: 10))
         RunLoop.current.run(until: Date().addingTimeInterval(0.8))
         let completedAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         completedAttachment.name = "workout-completed"
         completedAttachment.lifetime = .keepAlways
         add(completedAttachment)
+    }
+
+    @MainActor
+    func testPersonalRecordScreenshotsAndCompletionNavigation() throws {
+        for appearance in ["light", "dark"] {
+            let app = launchApp(
+                additionalArguments: [
+                    "--fixture", "personal-record", "-AppleInterfaceStyle", appearance,
+                ]
+            )
+            app.tabBars.buttons["ワークアウト"].tap()
+            app.buttons["終了"].tap()
+            XCTAssertTrue(app.buttons["終了して保存"].waitForExistence(timeout: 5))
+            app.buttons["終了して保存"].tap()
+
+            XCTAssertTrue(app.staticTexts["NEW RECORD"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["レッグプレス"].exists)
+            XCTAssertTrue(app.staticTexts["72.00 kg"].exists)
+            XCTAssertTrue(app.staticTexts["Previous"].exists)
+            XCTAssertTrue(app.staticTexts["前回より +9.00 kg"].exists)
+            XCTAssertFalse(app.tabBars.buttons["ワークアウト"].exists)
+
+            RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+            let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+            attachment.name = "personal-record-\(appearance)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+
+            app.buttons["personal-record-continue-button"].tap()
+            XCTAssertTrue(app.staticTexts["今日も積み重ねました"].waitForExistence(timeout: 10))
+            app.terminate()
+        }
     }
 
     @MainActor
