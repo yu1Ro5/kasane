@@ -656,7 +656,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(firstReps.waitForExistence(timeout: 5))
         firstReps.tap()
         firstReps.typeText(String(XCUIKeyboardKey.delete.rawValue) + "9")
-        app.buttons["workout-ai-apply-button"].tap()
+        app.buttons["完了"].tap()
+
+        let applyButton = app.buttons["workout-ai-apply-button"]
+        XCTAssertTrue(applyButton.isEnabled)
+        applyButton.tap()
 
         XCTAssertTrue(app.navigationBars["ワークアウト"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["チェストプレス"].exists)
@@ -678,7 +682,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let weightFields = app.textFields.matching(NSPredicate(format: "label CONTAINS 'の重量kg'"))
         XCTAssertEqual(weightFields.count, originalWeightCount + 1)
         let weight = weightFields.element(boundBy: 3)
-        XCTAssertTrue(weight.hasFocus)
+        let focusDeadline = Date().addingTimeInterval(2)
+        while !weight.hasFocus, Date() < focusDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        XCTAssertTrue(weight.hasFocus, "追加したSetのweightへfocusされること")
         weight.typeText("35")
         app.buttons["次へ"].tap()
         let repsFields = app.textFields.matching(NSPredicate(format: "label CONTAINS 'の回数'"))
@@ -695,8 +703,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
     func testWorkoutAIQuickInputAddsExerciseBeforeApply() throws {
         let app = launchAIQuickInputReview()
 
-        app.buttons["workout-ai-add-exercise-button"].tap()
-        let exerciseChoice = app.buttons["デッドリフト"]
+        let addExerciseButton = app.descendants(matching: .any)["workout-ai-add-exercise-button"]
+        XCTAssertTrue(addExerciseButton.waitForExistence(timeout: 5))
+        addExerciseButton.tap()
+        let exerciseChoice = app.descendants(matching: .any)["デッドリフト"]
         XCTAssertTrue(exerciseChoice.waitForExistence(timeout: 5))
         exerciseChoice.tap()
         XCTAssertTrue(app.staticTexts["デッドリフト"].waitForExistence(timeout: 5))
