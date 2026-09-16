@@ -528,6 +528,44 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutCompletionInsightScreenshot() throws {
+        let app = launchApp(additionalArguments: [
+            "--fixture", "workout-set-layout", "--workout-insight-fixture",
+        ])
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["終了"].tap()
+        XCTAssertTrue(app.buttons["終了して保存"].waitForExistence(timeout: 5))
+        app.buttons["終了して保存"].tap()
+
+        XCTAssertTrue(app.staticTexts["NEW RECORD"].waitForExistence(timeout: 10))
+        app.buttons["personal-record-continue-button"].tap()
+        let insightCard = app.descendants(matching: .any)["workout-insight-card"]
+        XCTAssertTrue(insightCard.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["完了"].isEnabled)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "workout-completed-insight"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testWorkoutCompletionWithoutImprovementOmitsInsight() throws {
+        let app = launchApp(additionalArguments: [
+            "--fixture", "workout-insight-no-improvement", "--workout-insight-fixture",
+        ])
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["終了"].tap()
+        XCTAssertTrue(app.buttons["終了して保存"].waitForExistence(timeout: 5))
+        app.buttons["終了して保存"].tap()
+
+        XCTAssertTrue(app.staticTexts["今日も積み重ねました"].waitForExistence(timeout: 10))
+        RunLoop.current.run(until: Date().addingTimeInterval(0.8))
+        XCTAssertFalse(app.descendants(matching: .any)["workout-insight-card"].exists)
+        XCTAssertTrue(app.buttons["完了"].isEnabled)
+    }
+
+    @MainActor
     func testPersonalRecordScreenshotsAndCompletionNavigation() throws {
         for appearance in ["light", "dark"] {
             let app = launchApp(
