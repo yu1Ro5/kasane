@@ -22,6 +22,7 @@ struct WorkoutSessionView: View {
     @State private var isConfirmingEmptyDiscard = false
     @State private var isFinishing = false
     @State private var completionSummary: WorkoutCompletionSummary?
+    @State private var completionInsightFacts: WorkoutInsightFacts?
     @State private var personalRecords: [PersonalRecordAchievement] = []
     @State private var errorTitle = ""
     @State private var errorMessage: String?
@@ -198,6 +199,8 @@ struct WorkoutSessionView: View {
             PersonalRecordSequenceView(
                 achievements: personalRecords,
                 summary: summary,
+                insightFacts: completionInsightFacts,
+                insightGenerator: workoutInsightGenerator,
                 onReturnHome: returnHomeAfterCompletion
             )
         }
@@ -296,6 +299,17 @@ struct WorkoutSessionView: View {
             ? FixtureWorkoutQuickInputParser() : AppleIntelligenceWorkoutQuickInputParser()
     }
 
+    private var workoutInsightGenerator: any WorkoutInsightGenerating {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--workout-insight-fixture") {
+            return FixtureWorkoutInsightGenerator()
+        }
+        if arguments.contains("--ui-testing") {
+            return UnavailableFixtureWorkoutInsightGenerator()
+        }
+        return AppleIntelligenceWorkoutInsightGenerator()
+    }
+
     private var sessionDrafts: [UUID: SetEntryDraft] {
         draftStore.drafts(for: session.id)
     }
@@ -392,6 +406,12 @@ struct WorkoutSessionView: View {
                 for: session,
                 among: observedSessions
             )
+            completionInsightFacts = WorkoutInsightFactsBuilder().build(
+                summary: summary,
+                session: session,
+                personalRecords: personalRecords,
+                sessions: observedSessions
+            )
             completionSummary = summary
             draftStore.removeAllDrafts(in: session.id)
         } catch {
@@ -413,6 +433,8 @@ struct WorkoutSessionView: View {
 
     private func returnHomeAfterCompletion() {
         completionSummary = nil
+        completionInsightFacts = nil
+        personalRecords = []
         onReturnHome()
     }
 }

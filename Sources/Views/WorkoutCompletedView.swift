@@ -4,11 +4,16 @@ import SwiftUI
 struct WorkoutCompletedView: View {
     /// 保存に成功したワークアウトの集計結果。
     let summary: WorkoutCompletionSummary
+    /// Swift側で確定した、振り返り生成用の事実。
+    let insightFacts: WorkoutInsightFacts?
+    /// 実モデルまたはテスト用fixtureへ差し替え可能な生成器。
+    let insightGenerator: any WorkoutInsightGenerating
     /// 「完了」を選択したときに実行する処理。
     let onReturnHome: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hasAppeared = false
+    @State private var insightViewModel = WorkoutInsightViewModel()
 
     var body: some View {
         ScrollView {
@@ -45,6 +50,12 @@ struct WorkoutCompletedView: View {
                     .accessibilitySortPriority(2)
                     .completionAppearance(hasAppeared, delay: 0.32, reduceMotion: reduceMotion)
 
+                if let insight = insightViewModel.insight {
+                    insightCard(insight)
+                        .padding(.top, 20)
+                        .accessibilitySortPriority(1.5)
+                }
+
                 Spacer(minLength: 32)
             }
             .frame(maxWidth: .infinity, minHeight: 480)
@@ -67,6 +78,10 @@ struct WorkoutCompletedView: View {
         .onAppear {
             guard !hasAppeared else { return }
             hasAppeared = true
+        }
+        .task {
+            guard let insightFacts else { return }
+            await insightViewModel.generate(facts: insightFacts, using: insightGenerator)
         }
     }
 
@@ -123,6 +138,26 @@ struct WorkoutCompletedView: View {
         .accessibilityLabel(label)
         .accessibilityValue("\(value)")
     }
+
+    private func insightCard(_ insight: GeneratedWorkoutInsight) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("今日の振り返り", systemImage: "sparkles")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.tint)
+            Text(insight.headline)
+                .font(.headline)
+            Text(insight.message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("今日の振り返り。\(insight.headline)。\(insight.message)")
+        .accessibilityIdentifier("workout-insight-card")
+    }
 }
 
 private extension View {
@@ -147,6 +182,8 @@ private extension View {
                 exerciseCount: 5,
                 setCount: 15
             ),
+            insightFacts: nil,
+            insightGenerator: FixtureWorkoutInsightGenerator(),
             onReturnHome: {}
         )
     }
