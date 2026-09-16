@@ -72,6 +72,241 @@ final class KASANETests: XCTestCase {
         return session
     }
 
+    func testWorkoutInsightFactsBuildsSavedMetricsRecordsAndPreviousComparison() throws {
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let previous = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 100),
+            endedAt: Date(timeIntervalSince1970: 200)
+        )
+        let previousEntry = ExerciseEntry(
+            workoutSession: previous,
+            exercise: exercise,
+            order: 0
+        )
+        previous.exerciseEntries.append(previousEntry)
+        previousEntry.setEntries = [
+            SetEntry(exerciseEntry: previousEntry, order: 0, weightKg: 30, reps: 10),
+            SetEntry(exerciseEntry: previousEntry, order: 1, weightKg: 20, reps: 5),
+        ]
+
+        let current = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 300),
+            endedAt: Date(timeIntervalSince1970: 3_900)
+        )
+        let currentEntry = ExerciseEntry(
+            workoutSession: current,
+            exercise: exercise,
+            order: 0
+        )
+        current.exerciseEntries.append(currentEntry)
+        currentEntry.setEntries = [
+            SetEntry(exerciseEntry: currentEntry, order: 0, weightKg: 32.5, reps: 10),
+            SetEntry(exerciseEntry: currentEntry, order: 1, weightKg: 25, reps: 8),
+        ]
+        let summary = WorkoutCompletionSummary(
+            startedAt: current.startedAt,
+            endedAt: try XCTUnwrap(current.endedAt),
+            exerciseCount: 1,
+            setCount: 2
+        )
+        let record = PersonalRecordAchievement(
+            exerciseID: exercise.id,
+            exerciseName: exercise.name,
+            previousBest: 30,
+            newBest: 32.5
+        )
+
+        let facts = WorkoutInsightFactsBuilder.build(
+            summary: summary,
+            session: current,
+            personalRecords: [record],
+            sessions: [previous, current]
+        )
+
+        XCTAssertEqual(facts.duration, 3_600)
+        XCTAssertEqual(facts.exerciseCount, 1)
+        XCTAssertEqual(facts.setCount, 2)
+        XCTAssertEqual(facts.totalVolume, 525)
+        XCTAssertEqual(
+            facts.personalRecords,
+            [.init(exerciseName: "チェストプレス", previousBest: 30, newBest: 32.5, improvement: 2.5)]
+        )
+        let comparison = try XCTUnwrap(facts.exerciseComparisons.first)
+        XCTAssertEqual(comparison.currentMaxWeight, 32.5)
+        XCTAssertEqual(comparison.previousMaxWeight, 30)
+        XCTAssertEqual(comparison.maxWeightDifference, 2.5)
+        XCTAssertEqual(comparison.currentVolume, 525)
+        XCTAssertEqual(comparison.previousVolume, 400)
+        XCTAssertEqual(comparison.volumeDifference, 125)
+    }
+
+    func testWorkoutInsightFactsOmitsExerciseWithoutPreviousWorkout() {
+        let exercise = Exercise(name: "初回種目", primaryBodyPart: .other)
+        let current = makePersonalRecordWorkout(
+            exercise: exercise,
+            startedAt: 300,
+            endedAt: 400,
+            weights: [40]
+        )
+        let summary = WorkoutCompletionSummary(
+            startedAt: current.startedAt,
+            endedAt: current.endedAt ?? current.startedAt,
+            exerciseCount: 1,
+            setCount: 1
+        )
+
+        let facts = WorkoutInsightFactsBuilder.build(
+            summary: summary,
+            session: current,
+            personalRecords: [],
+            sessions: [current]
+        )
+
+        XCTAssertTrue(facts.exerciseComparisons.isEmpty)
+        XCTAssertFalse(facts.isEligibleForGeneration)
+    }
+
+    func testWorkoutInsightVolumeClampsInvalidValues() {
+        let exercise = Exercise(name: "テスト", primaryBodyPart: .other)
+        let session = WorkoutSession(startedAt: .now)
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        let sets = [
+            SetEntry(exerciseEntry: entry, order: 0, weightKg: -10, reps: 5),
+            SetEntry(exerciseEntry: entry, order: 1, weightKg: 20, reps: -3),
+            SetEntry(exerciseEntry: entry, order: 2, weightKg: 12.5, reps: 8),
+        ]
+
+        XCTAssertEqual(WorkoutInsightFactsBuilder.volume(of: sets), 100)
+    }
+
+    func testWorkoutInsightEligibilityRequiresRecordOrPositiveDifference() {
+        let base = WorkoutInsightExerciseComparisonFact(
+            exerciseName: "テスト",
+            currentMaxWeight: 20,
+            previousMaxWeight: 20,
+            maxWeightDifference: 0,
+            currentVolume: 200,
+            previousVolume: 200,
+            volumeDifference: 0
+        )
+        let noImprovement = WorkoutInsightFacts(
+            duration: 60,
+            exerciseCount: 1,
+            setCount: 1,
+            totalVolume: 200,
+            personalRecords: [],
+            exerciseComparisons: [base]
+        )
+        XCTAssertFalse(noImprovement.isEligibleForGeneration)
+
+        let record = WorkoutInsightPersonalRecordFact(
+            exerciseName: "テスト",
+            previousBest: 10,
+            newBest: 20,
+            improvement: 10
+        )
+        XCTAssertTrue(
+            WorkoutInsightFacts(
+                duration: 60, exerciseCount: 1, setCount: 1, totalVolume: 200,
+                personalRecords: [record], exerciseComparisons: []
+            ).isEligibleForGeneration
+        )
+        XCTAssertTrue(
+            noImprovementReplacing(base, maxWeightDifference: 1).isEligibleForGeneration
+        )
+        XCTAssertTrue(noImprovementReplacing(base, volumeDifference: 1).isEligibleForGeneration)
+    }
+
+    func testWorkoutInsightViewModelShowsOnlySuccessfulGeneration() async {
+        let viewModel = WorkoutInsightViewModel()
+        await viewModel.generate(facts: eligibleInsightFacts, using: FixtureWorkoutInsightGenerator())
+        XCTAssertEqual(viewModel.insight?.headline, "記録を更新")
+
+        let failedViewModel = WorkoutInsightViewModel()
+        await failedViewModel.generate(facts: eligibleInsightFacts, using: FailingInsightGenerator())
+        XCTAssertEqual(failedViewModel.state, .failed)
+        XCTAssertNil(failedViewModel.insight)
+
+        let unavailableViewModel = WorkoutInsightViewModel()
+        await unavailableViewModel.generate(
+            facts: eligibleInsightFacts,
+            using: UnavailableInsightGenerator()
+        )
+        XCTAssertEqual(unavailableViewModel.state, .failed)
+        XCTAssertNil(unavailableViewModel.insight)
+    }
+
+    func testWorkoutInsightViewModelDoesNotGenerateWhenIneligible() async {
+        let generator = CountingInsightGenerator()
+        let viewModel = WorkoutInsightViewModel()
+        await viewModel.generate(
+            facts: WorkoutInsightFacts(
+                duration: 60,
+                exerciseCount: 1,
+                setCount: 1,
+                totalVolume: 100,
+                personalRecords: [],
+                exerciseComparisons: []
+            ),
+            using: generator
+        )
+        XCTAssertEqual(generator.callCount, 0)
+        XCTAssertEqual(viewModel.state, .idle)
+    }
+
+    func testWorkoutInsightCancellationDoesNotPublishFailureOrResult() async {
+        let viewModel = WorkoutInsightViewModel()
+        let task = Task {
+            await viewModel.generate(
+                facts: eligibleInsightFacts,
+                using: DelayedInsightGenerator()
+            )
+        }
+        task.cancel()
+        await task.value
+
+        XCTAssertNil(viewModel.insight)
+        XCTAssertNotEqual(viewModel.state, .failed)
+    }
+
+    private var eligibleInsightFacts: WorkoutInsightFacts {
+        WorkoutInsightFacts(
+            duration: 60,
+            exerciseCount: 1,
+            setCount: 1,
+            totalVolume: 200,
+            personalRecords: [
+                .init(exerciseName: "テスト", previousBest: 10, newBest: 20, improvement: 10)
+            ],
+            exerciseComparisons: []
+        )
+    }
+
+    private func noImprovementReplacing(
+        _ comparison: WorkoutInsightExerciseComparisonFact,
+        maxWeightDifference: Double = 0,
+        volumeDifference: Double = 0
+    ) -> WorkoutInsightFacts {
+        WorkoutInsightFacts(
+            duration: 60,
+            exerciseCount: 1,
+            setCount: 1,
+            totalVolume: 200,
+            personalRecords: [],
+            exerciseComparisons: [
+                .init(
+                    exerciseName: comparison.exerciseName,
+                    currentMaxWeight: comparison.currentMaxWeight,
+                    previousMaxWeight: comparison.previousMaxWeight,
+                    maxWeightDifference: maxWeightDifference,
+                    currentVolume: comparison.currentVolume,
+                    previousVolume: comparison.previousVolume,
+                    volumeDifference: volumeDifference
+                )
+            ]
+        )
+    }
+
     /// 過去最高63kgに対して今回の複数セット中の最高72kgを1件のPRとして検出する。
     func testPersonalRecordDetectorUsesCurrentWorkoutMaximum() throws {
         let exercise = Exercise(name: "レッグプレス", primaryBodyPart: .legs)
@@ -2787,6 +3022,42 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<ExerciseEntry>()).map(\.id), [entry.id])
         XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).map(\.id), [setEntry.id])
     }
+}
+
+@MainActor
+private struct FailingInsightGenerator: WorkoutInsightGenerating {
+    func generate(from facts: WorkoutInsightFacts) async throws -> GeneratedWorkoutInsight {
+        throw TestInsightError.failed
+    }
+}
+
+@MainActor
+private struct UnavailableInsightGenerator: WorkoutInsightGenerating {
+    func generate(from facts: WorkoutInsightFacts) async throws -> GeneratedWorkoutInsight {
+        throw WorkoutInsightGenerationError.unavailable
+    }
+}
+
+@MainActor
+private final class CountingInsightGenerator: WorkoutInsightGenerating {
+    private(set) var callCount = 0
+
+    func generate(from facts: WorkoutInsightFacts) async throws -> GeneratedWorkoutInsight {
+        callCount += 1
+        return GeneratedWorkoutInsight(headline: "未使用", message: "未使用")
+    }
+}
+
+@MainActor
+private struct DelayedInsightGenerator: WorkoutInsightGenerating {
+    func generate(from facts: WorkoutInsightFacts) async throws -> GeneratedWorkoutInsight {
+        try await Task.sleep(for: .seconds(10))
+        return GeneratedWorkoutInsight(headline: "遅延", message: "遅延")
+    }
+}
+
+private enum TestInsightError: Error {
+    case failed
 }
 
 extension KASANETests {
