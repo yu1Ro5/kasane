@@ -24,12 +24,11 @@ struct WorkoutQuickInputView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
-                brandHeader
+            VStack(spacing: viewModel.draft == nil ? 24 : 16) {
+                if viewModel.draft == nil { brandHeader }
                 inputCard
                 if viewModel.draft != nil { reviewSection }
-                noticeCard
-                actionArea
+                if viewModel.draft == nil { noticeCard }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
@@ -37,6 +36,10 @@ struct WorkoutQuickInputView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle("AIでまとめて入力")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom) {
+            if viewModel.draft != nil { reviewActions }
+        }
         .interactiveDismissDisabled(viewModel.isAnalyzing || viewModel.isApplying)
         .alert("AI入力を完了できませんでした", isPresented: errorIsPresented) {
             Button("OK", role: .cancel) {}
@@ -63,14 +66,14 @@ struct WorkoutQuickInputView: View {
     }
 
     private var inputCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: viewModel.draft == nil ? 14 : 8) {
             HStack {
                 Label("入力内容", systemImage: "doc.text")
                     .font(.title3.bold())
                 Spacer()
                 if viewModel.draft != nil {
-                    Button("テキストを編集", systemImage: "pencil") { viewModel.editText() }
-                        .buttonStyle(.bordered)
+                    Button("編集", systemImage: "pencil") { viewModel.editText() }
+                        .font(.subheadline)
                 }
             }
             if viewModel.draft == nil {
@@ -117,19 +120,18 @@ struct WorkoutQuickInputView: View {
             } else {
                 Text(viewModel.text)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .background(.background, in: RoundedRectangle(cornerRadius: 14))
-                Label("Apple Intelligenceが内容を解析しました", systemImage: "sparkles")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                Label("Apple Intelligenceで解析済み", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
             }
         }
-        .padding(18)
-        .background(Color.accentColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 22))
+        .padding(viewModel.draft == nil ? 18 : 14)
+        .background(Color.accentColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
     }
 
     private var reviewSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             Label("入力内容を確認", systemImage: "list.bullet.rectangle")
                 .font(.title2.bold())
             Text("AIが解析した内容です。必要に応じて修正できます。")
@@ -145,20 +147,20 @@ struct WorkoutQuickInputView: View {
                     .accessibilityIdentifier("workout-ai-validation-message")
             }
         }
-        .padding(18)
-        .background(.background, in: RoundedRectangle(cornerRadius: 22))
+        .padding(14)
+        .background(.background, in: RoundedRectangle(cornerRadius: 18))
         .accessibilityIdentifier("workout-ai-review")
     }
 
     private func exerciseCard(
         exercise: Binding<WorkoutQuickInputExerciseDraft>
     ) -> some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: 10) { exerciseHeader(exercise: exercise) }
                 } else {
-                    HStack(alignment: .top, spacing: 10) { exerciseHeader(exercise: exercise) }
+                    HStack(alignment: .center, spacing: 8) { exerciseHeader(exercise: exercise) }
                 }
             }
             if dynamicTypeSize.isAccessibilitySize {
@@ -168,10 +170,10 @@ struct WorkoutQuickInputView: View {
                     }
                 }
             } else {
-                Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+                Grid(horizontalSpacing: 8, verticalSpacing: 6) {
                     GridRow {
                         Text("セット").foregroundStyle(.secondary)
-                        Text("重量 (kg)").foregroundStyle(.secondary)
+                        Text("重量").foregroundStyle(.secondary)
                         Text("回数").foregroundStyle(.secondary)
                         Color.clear.frame(width: 44)
                     }
@@ -181,7 +183,7 @@ struct WorkoutQuickInputView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(12)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
         .overlay { RoundedRectangle(cornerRadius: 18).stroke(.quaternary) }
         .accessibilityIdentifier("workout-ai-exercise-\(exercise.wrappedValue.id.uuidString)")
@@ -190,30 +192,44 @@ struct WorkoutQuickInputView: View {
     @ViewBuilder
     private func exerciseHeader(exercise: Binding<WorkoutQuickInputExerciseDraft>) -> some View {
         Image(systemName: "figure.strengthtraining.traditional")
-            .frame(width: 48, height: 48)
-            .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-        VStack(alignment: .leading, spacing: 6) {
-            Text(resolvedName(for: exercise.wrappedValue) ?? exercise.wrappedValue.sourceName)
-                .font(.headline)
+            .foregroundStyle(.tint)
+            .frame(width: 32, height: 32)
+            .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        Menu {
+            ForEach(selectableExercises) { item in
+                Button(item.name) { exercise.exerciseID.wrappedValue = item.id }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(resolvedName(for: exercise.wrappedValue) ?? exercise.wrappedValue.sourceName)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .layoutPriority(1)
+        }
+        .accessibilityLabel("種目")
+        .accessibilityValue(
+            resolvedName(for: exercise.wrappedValue) ?? exercise.wrappedValue.sourceName
+        )
+        .accessibilityHint("タップして変更")
+        Label(
+            exercise.wrappedValue.exerciseID == nil ? "未解決" : "種目一致",
+            systemImage: exercise.wrappedValue.exerciseID == nil
+                ? "exclamationmark.circle" : "checkmark.circle.fill"
+        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(exercise.wrappedValue.exerciseID == nil ? .orange : .green)
+        .fixedSize()
+        if dynamicTypeSize.isAccessibilitySize {
             if exercise.wrappedValue.exerciseID == nil {
                 Text("入力: \(exercise.wrappedValue.sourceName)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Picker("種目", selection: exercise.exerciseID) {
-                Text("種目を選択").tag(UUID?.none)
-                ForEach(selectableExercises) { item in
-                    Text(item.name).tag(Optional(item.id))
-                }
-            }
-            .labelsHidden()
-            Label(
-                exercise.wrappedValue.exerciseID == nil ? "未解決" : "種目一致",
-                systemImage: exercise.wrappedValue.exerciseID == nil
-                    ? "exclamationmark.circle" : "checkmark.circle.fill"
-            )
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(exercise.wrappedValue.exerciseID == nil ? .orange : .green)
         }
         if !dynamicTypeSize.isAccessibilitySize { Spacer() }
         Button(role: .destructive) {
@@ -298,8 +314,8 @@ struct WorkoutQuickInputView: View {
         .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
     }
 
-    @ViewBuilder private var actionArea: some View {
-        if viewModel.draft != nil {
+    private var reviewActions: some View {
+        VStack(spacing: 8) {
             Button(action: apply) {
                 HStack {
                     if viewModel.isApplying { ProgressView().tint(.white) }
@@ -316,11 +332,13 @@ struct WorkoutQuickInputView: View {
             .accessibilityIdentifier("workout-ai-apply-button")
 
             Button("テキストを修正") { viewModel.editText() }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .frame(maxWidth: .infinity)
+                .font(.subheadline)
                 .accessibilityIdentifier("workout-ai-edit-text-button")
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
+        .background(.bar)
     }
 
     private var selectableExercises: [Exercise] { exercises.filter(\.isSelectable) }

@@ -62,10 +62,11 @@ struct AppleIntelligenceWorkoutQuickInputParser: WorkoutQuickInputParsing {
             あなたは筋力トレーニング記録を構造化するパーサーです。
             ユーザーが実際に入力した情報だけを抽出してください。
             重量、回数、セット数を推測しないでください。
-            「3セット」のようにセット数が指定された場合は、同じ条件のセットを指定された件数に展開してください。
-            「最後だけ8回」「2セット目だけ32.5kg」などの差分表現を各セットへ反映してください。
-            利用可能な種目名に明確に対応する種目がある場合、その正式名称を使用してください。
-            明確に対応できない場合は、ユーザーが入力した種目名をそのまま返してください。
+            最終的なセット配列を展開せず、セット数、共通値、特定セットの差分という意味情報を返してください。
+            「3セット」はsetCount=3とし、explicitSetsに3要素を生成しないでください。
+            「最後だけ8回」はsetNumber=setCountのoverride、「最初だけ」はsetNumber=1のoverrideにしてください。
+            各セットが個別に列挙された場合だけexplicitSetsを使用してください。
+            種目名はユーザーの入力どおりに返し、正式名称への解決は行わないでください。
             重量はkgとして出力してください。「自重」は明示された0kgとして扱ってください。
             重量が明示されていない場合はweightKgをnilにしてください。
             回数が明示されていない場合はrepsをnilにしてください。
@@ -98,19 +99,19 @@ struct FixtureWorkoutQuickInputParser: WorkoutQuickInputParsing {
         GeneratedWorkoutQuickInput(exercises: [
             GeneratedWorkoutQuickInputExercise(
                 exerciseName: "チェストプレス",
-                sets: [
-                    .init(weightKg: 30, reps: 10),
-                    .init(weightKg: 30, reps: 10),
-                    .init(weightKg: 30, reps: 8),
-                ]
+                setCount: 3,
+                defaultWeightKg: 30,
+                defaultReps: 10,
+                overrides: [.init(setNumber: 3, weightKg: nil, reps: 8)],
+                explicitSets: []
             ),
             GeneratedWorkoutQuickInputExercise(
                 exerciseName: "ラットプルダウン",
-                sets: [
-                    .init(weightKg: 18, reps: 12),
-                    .init(weightKg: 18, reps: 12),
-                    .init(weightKg: 18, reps: 12),
-                ]
+                setCount: 3,
+                defaultWeightKg: 18,
+                defaultReps: 12,
+                overrides: [],
+                explicitSets: []
             ),
         ])
     }

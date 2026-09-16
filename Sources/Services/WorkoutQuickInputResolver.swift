@@ -10,21 +10,16 @@ struct WorkoutQuickInputResolver {
     func resolve(
         _ generated: GeneratedWorkoutQuickInput,
         against exercises: [Exercise]
-    ) -> WorkoutQuickInputDraft {
+    ) throws -> WorkoutQuickInputDraft {
         let selectable = exercises.filter(\.isSelectable)
         return WorkoutQuickInputDraft(
-            exercises: generated.exercises.map { generatedExercise in
-                let match = selectable.first {
-                    $0.name.compare(
-                        generatedExercise.exerciseName,
-                        options: [.caseInsensitive, .widthInsensitive],
-                        locale: .current
-                    ) == .orderedSame
-                }
+            exercises: try generated.exercises.map { generatedExercise in
+                let expanded = try WorkoutQuickInputSetExpander().expand(generatedExercise)
+                let match = resolveExercise(named: expanded.exerciseName, from: selectable)
                 return WorkoutQuickInputExerciseDraft(
-                    sourceName: generatedExercise.exerciseName,
+                    sourceName: expanded.exerciseName,
                     exerciseID: match?.id,
-                    sets: generatedExercise.sets.map {
+                    sets: expanded.sets.map {
                         WorkoutQuickInputSetDraft(
                             weight: $0.weightKg.map(weightText) ?? "",
                             reps: $0.reps.map(String.init) ?? ""
@@ -33,6 +28,26 @@ struct WorkoutQuickInputResolver {
                 )
             }
         )
+    }
+
+    private func resolveExercise(named name: String, from exercises: [Exercise]) -> Exercise? {
+        if let exact = exercises.first(where: { $0.name == name }) { return exact }
+        let normalizedName = normalize(name)
+        if let normalized = exercises.first(where: { normalize($0.name) == normalizedName }) {
+            return normalized
+        }
+        let aliases = [
+            "ラットプル": "ラットプルダウン",
+            "アブダクション": "ヒップアブダクション",
+            "アダクション": "ヒップアダクション",
+        ]
+        guard let canonicalName = aliases[normalizedName] else { return nil }
+        return exercises.first { normalize($0.name) == normalize(canonicalName) }
+    }
+
+    private func normalize(_ name: String) -> String {
+        name.folding(options: [.caseInsensitive, .widthInsensitive], locale: locale)
+            .filter { !$0.isWhitespace && !$0.isPunctuation }
     }
 
     private func weightText(_ weight: Double) -> String {

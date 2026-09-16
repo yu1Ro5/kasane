@@ -60,7 +60,7 @@ final class WorkoutQuickInputViewModel {
                 text,
                 availableExerciseNames: availableExercises.filter(\.isSelectable).map(\.name)
             )
-            draft = resolver.resolve(generated, against: availableExercises)
+            draft = try resolver.resolve(generated, against: availableExercises)
         } catch let error as LanguageModelSession.GenerationError {
             errorMessage = Self.message(for: error)
         } catch WorkoutQuickInputParserError.unavailable(let availability) {
