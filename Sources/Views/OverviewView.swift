@@ -318,7 +318,7 @@ private struct OverviewCalendarCard: View {
                     if let day {
                         CalendarDay(
                             date: day, count: stats.dailyWorkoutCounts[calendar.startOfDay(for: day), default: 0],
-                            isToday: isToday(day))
+                            isToday: isToday(day), calendar: calendar)
                     } else {
                         Color.clear.frame(height: 38)
                     }
@@ -369,9 +369,10 @@ private struct CalendarDay: View {
     let date: Date
     let count: Int
     let isToday: Bool
+    let calendar: Calendar
     var body: some View {
         VStack(spacing: 3) {
-            Text(date, format: .dateTime.day())
+            Text(String(calendar.component(.day, from: date)))
                 .font(.subheadline.weight(isToday ? .bold : .regular))
                 .foregroundStyle(isToday ? .white : .primary)
                 .frame(width: isToday ? 34 : 26, height: isToday ? 34 : 26)
