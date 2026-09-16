@@ -678,7 +678,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let weightFields = app.textFields.matching(NSPredicate(format: "label CONTAINS 'の重量kg'"))
         XCTAssertEqual(weightFields.count, originalWeightCount + 1)
         let weight = weightFields.element(boundBy: 3)
-        XCTAssertTrue(weight.hasKeyboardFocus)
+        XCTAssertTrue(weight.hasFocus)
         weight.typeText("35")
         app.buttons["次へ"].tap()
         let repsFields = app.textFields.matching(NSPredicate(format: "label CONTAINS 'の回数'"))
@@ -717,6 +717,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertEqual(app.staticTexts.matching(identifier: "デッドリフト").count, 1)
     }
 
+    @MainActor
     private func launchAIQuickInputReview() -> XCUIApplication {
         let app = launchApp(additionalArguments: [
             "--fixture", "workout-set-layout", "--workout-ai-fixture",
