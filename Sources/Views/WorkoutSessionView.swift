@@ -3,6 +3,7 @@ import SwiftUI
 
 struct WorkoutSessionView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Bindable var session: WorkoutSession
     @Bindable var draftStore: WorkoutDraftStore
     let onReturnHome: () -> Void
@@ -14,6 +15,7 @@ struct WorkoutSessionView: View {
 
     @State private var selectedExerciseID: UUID?
     @State private var searchText = ""
+    @State private var expandedBodyParts: Set<BodyPart> = []
     @State private var isConfirmingDiscard = false
     @State private var isConfirmingFinish = false
     @State private var isConfirmingEmptyDiscard = false
@@ -21,6 +23,17 @@ struct WorkoutSessionView: View {
     @State private var completionSummary: WorkoutCompletionSummary?
     @State private var errorTitle = ""
     @State private var errorMessage: String?
+
+    private static let bodyPartDisplayOrder: [BodyPart] = [
+        .chest,
+        .back,
+        .shoulders,
+        .arms,
+        .legs,
+        .core,
+        .fullBody,
+        .other,
+    ]
 
     private var content: WorkoutSessionContent {
         WorkoutSessionContent(
@@ -84,18 +97,22 @@ struct WorkoutSessionView: View {
                     } else {
                         ContentUnavailableView.search(text: searchText)
                     }
+                } else if searchText.isEmpty {
+                    ForEach(Self.bodyPartDisplayOrder, id: \.self) { bodyPart in
+                        let bodyPartExercises = availableExercises(for: bodyPart)
+                        if !bodyPartExercises.isEmpty {
+                            bodyPartHeader(bodyPart, exerciseCount: bodyPartExercises.count)
+
+                            if expandedBodyParts.contains(bodyPart) {
+                                ForEach(bodyPartExercises) { exercise in
+                                    availableExerciseButton(exercise)
+                                }
+                            }
+                        }
+                    }
                 } else {
                     ForEach(availableExercises) { exercise in
-                        Button {
-                            selectedExerciseID = exercise.id
-                        } label: {
-                            WorkoutExerciseListRow(
-                                name: exercise.name,
-                                detail: previousSummary(for: exercise)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("available-exercise-\(exercise.id.uuidString)")
+                        availableExerciseButton(exercise)
                     }
                 }
             }
@@ -164,6 +181,57 @@ struct WorkoutSessionView: View {
         } message: {
             Text(errorMessage ?? "不明なエラーが発生しました。")
         }
+    }
+
+    private func availableExercises(for bodyPart: BodyPart) -> [Exercise] {
+        availableExercises.filter { $0.bodyPart == bodyPart }
+    }
+
+    private func bodyPartHeader(_ bodyPart: BodyPart, exerciseCount: Int) -> some View {
+        let isExpanded = expandedBodyParts.contains(bodyPart)
+        return Button {
+            withAnimation(accessibilityReduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                toggle(bodyPart)
+            }
+        } label: {
+            HStack {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .foregroundStyle(.secondary)
+                Text(bodyPart.displayName)
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 8)
+                Text(exerciseCount, format: .number)
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(bodyPart.displayName)、\(exerciseCount)種目")
+        .accessibilityValue(isExpanded ? "展開中" : "折りたたみ中")
+        .accessibilityHint(isExpanded ? "ダブルタップで折りたたみます" : "ダブルタップで展開します")
+        .accessibilityIdentifier("workout-body-part-\(bodyPart.rawValue)")
+    }
+
+    private func toggle(_ bodyPart: BodyPart) {
+        if expandedBodyParts.contains(bodyPart) {
+            expandedBodyParts.remove(bodyPart)
+        } else {
+            expandedBodyParts.insert(bodyPart)
+        }
+    }
+
+    private func availableExerciseButton(_ exercise: Exercise) -> some View {
+        Button {
+            selectedExerciseID = exercise.id
+        } label: {
+            WorkoutExerciseListRow(
+                name: exercise.name,
+                detail: previousSummary(for: exercise)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("available-exercise-\(exercise.id.uuidString)")
     }
 
     private var errorIsPresented: Binding<Bool> {

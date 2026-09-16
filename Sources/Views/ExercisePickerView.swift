@@ -3,7 +3,6 @@ import SwiftUI
 
 struct ExercisePickerView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
 
     let selectedExerciseIDs: Set<UUID>
@@ -11,18 +10,6 @@ struct ExercisePickerView: View {
 
     @State private var searchText = ""
     @State private var errorMessage: String?
-    @State private var expandedBodyParts: Set<BodyPart> = []
-
-    private static let bodyPartDisplayOrder: [BodyPart] = [
-        .chest,
-        .back,
-        .shoulders,
-        .arms,
-        .legs,
-        .core,
-        .fullBody,
-        .other,
-    ]
 
     private var filteredExercises: [Exercise] {
         exercises.filter {
@@ -37,24 +24,14 @@ struct ExercisePickerView: View {
                     ContentUnavailableView.search(text: searchText)
                 } else {
                     List {
-                        if searchText.isEmpty {
-                            ForEach(Self.bodyPartDisplayOrder, id: \.self) { bodyPart in
-                                let items = exercises(for: bodyPart)
-                                if !items.isEmpty {
-                                    Section {
-                                        bodyPartHeader(bodyPart, exerciseCount: items.count)
-
-                                        if expandedBodyParts.contains(bodyPart) {
-                                            ForEach(items) { exercise in
-                                                exerciseButton(exercise)
-                                            }
-                                        }
+                        ForEach(BodyPart.allCases, id: \.self) { bodyPart in
+                            let items = filteredExercises.filter { $0.bodyPart == bodyPart }
+                            if !items.isEmpty {
+                                Section(bodyPart.displayName) {
+                                    ForEach(items) { exercise in
+                                        exerciseButton(exercise)
                                     }
                                 }
-                            }
-                        } else {
-                            ForEach(filteredExercises) { exercise in
-                                exerciseButton(exercise)
                             }
                         }
                     }
@@ -73,43 +50,6 @@ struct ExercisePickerView: View {
             } message: {
                 Text(errorMessage ?? "不明なエラーが発生しました。")
             }
-        }
-    }
-
-    private func exercises(for bodyPart: BodyPart) -> [Exercise] {
-        exercises.filter { $0.isSelectable && $0.bodyPart == bodyPart }
-    }
-
-    private func bodyPartHeader(_ bodyPart: BodyPart, exerciseCount: Int) -> some View {
-        let isExpanded = expandedBodyParts.contains(bodyPart)
-        return Button {
-            withAnimation(accessibilityReduceMotion ? nil : .easeInOut(duration: 0.2)) {
-                toggle(bodyPart)
-            }
-        } label: {
-            HStack {
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                    .foregroundStyle(.secondary)
-                Text(bodyPart.displayName)
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 8)
-                Text(exerciseCount, format: .number)
-                    .foregroundStyle(.secondary)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(bodyPart.displayName)、\(exerciseCount)種目")
-        .accessibilityValue(isExpanded ? "展開中" : "折りたたみ中")
-        .accessibilityHint(isExpanded ? "ダブルタップで折りたたみます" : "ダブルタップで展開します")
-    }
-
-    private func toggle(_ bodyPart: BodyPart) {
-        if expandedBodyParts.contains(bodyPart) {
-            expandedBodyParts.remove(bodyPart)
-        } else {
-            expandedBodyParts.insert(bodyPart)
         }
     }
 

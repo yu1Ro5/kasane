@@ -328,10 +328,22 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertFalse(app.buttons["ワークアウトを再開"].exists)
         XCTAssertFalse(app.navigationBars["ワークアウト"].buttons["ワークアウト"].exists)
 
+        let shouldersHeader = app.buttons["workout-body-part-shoulders"]
+        let shoulderPress = app.buttons[
+            "available-exercise-\(workoutShoulderPressExerciseID)"
+        ]
+        XCTAssertTrue(shouldersHeader.waitForExistence(timeout: 10))
+        XCTAssertFalse(shoulderPress.exists)
+
         let activeRootAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         activeRootAttachment.name = "workout-root-active"
         activeRootAttachment.lifetime = .keepAlways
         add(activeRootAttachment)
+
+        shouldersHeader.tap()
+        XCTAssertTrue(shoulderPress.waitForExistence(timeout: 5))
+        shouldersHeader.tap()
+        XCTAssertTrue(shoulderPress.waitForNonExistence(timeout: 5))
 
         XCTAssertTrue(app.searchFields["種目名を検索"].exists)
 
@@ -413,6 +425,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         searchField.tap()
         searchField.typeText("ショルダー")
         XCTAssertTrue(app.staticTexts["ショルダープレス"].waitForExistence(timeout: 5))
+        XCTAssertTrue(shoulderPress.exists)
+        XCTAssertFalse(shouldersHeader.exists)
 
         let searchAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         searchAttachment.name = "workout-exercise-search"
