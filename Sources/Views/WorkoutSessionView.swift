@@ -206,11 +206,10 @@ struct WorkoutSessionView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("workout-body-part-\(bodyPart.rawValue)")
         .accessibilityLabel("\(bodyPart.displayName)、\(exerciseCount)種目")
         .accessibilityValue(isExpanded ? "展開中" : "折りたたみ中")
         .accessibilityHint(isExpanded ? "ダブルタップで折りたたみます" : "ダブルタップで展開します")
-        .accessibilityIdentifier("workout-body-part-\(bodyPart.rawValue)")
     }
 
     private func toggle(_ bodyPart: BodyPart) {
