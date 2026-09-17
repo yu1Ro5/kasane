@@ -3431,6 +3431,113 @@ extension KASANETests {
         XCTAssertTrue(try context.fetch(FetchDescriptor<ExerciseEntry>()).isEmpty)
     }
 
+    func testQuickInputDraftCanAddEmptySetWithoutChangingExistingSets() {
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let viewModel = WorkoutQuickInputViewModel(parser: FixtureWorkoutQuickInputParser())
+        viewModel.draft = quickInputDraft(exerciseID: exercise.id, values: [(30, 10), (32.5, 8)])
+        let exerciseDraftID = viewModel.draft?.exercises[0].id
+
+        let setID = exerciseDraftID.flatMap { viewModel.addSet(to: $0) }
+
+        XCTAssertNotNil(setID)
+        XCTAssertEqual(viewModel.draft?.exercises.count, 1)
+        XCTAssertEqual(viewModel.draft?.exercises[0].sets.count, 3)
+        XCTAssertEqual(viewModel.draft?.exercises[0].sets[0].values, SetEntryDraft(weight: "30", reps: "10"))
+        XCTAssertEqual(viewModel.draft?.exercises[0].sets[1].values, SetEntryDraft(weight: "32.5", reps: "8"))
+        XCTAssertEqual(viewModel.draft?.exercises[0].sets[2].values, SetEntryDraft(weight: "", reps: ""))
+    }
+
+    func testQuickInputDraftKeepsExerciseAfterRemovingLastSet() throws {
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let viewModel = WorkoutQuickInputViewModel(parser: FixtureWorkoutQuickInputParser())
+        viewModel.draft = quickInputDraft(exerciseID: exercise.id, values: [(30, 10)])
+        let exerciseDraft = try XCTUnwrap(viewModel.draft?.exercises[0])
+
+        viewModel.removeSet(id: exerciseDraft.sets[0].id, from: exerciseDraft.id)
+
+        XCTAssertEqual(viewModel.draft?.exercises.count, 1)
+        XCTAssertTrue(viewModel.draft?.exercises[0].sets.isEmpty == true)
+        XCTAssertEqual(
+            viewModel.validationMessage,
+            "セットがない種目があります。セットを追加するか、種目を削除してください。"
+        )
+    }
+
+    func testQuickInputDraftAddsExerciseAndPreventsDuplicateAddOrUpdate() throws {
+        let chest = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let row = Exercise(name: "シーテッドロー", primaryBodyPart: .back)
+        let deadlift = Exercise(name: "デッドリフト", primaryBodyPart: .fullBody)
+        let viewModel = WorkoutQuickInputViewModel(parser: FixtureWorkoutQuickInputParser())
+        viewModel.draft = quickInputDraft(exerciseID: chest.id, values: [(30, 10)])
+
+        let rowDraftID = try XCTUnwrap(viewModel.addExercise(row))
+
+        XCTAssertEqual(viewModel.draft?.exercises[1].id, rowDraftID)
+        XCTAssertEqual(viewModel.draft?.exercises[1].exerciseID, row.id)
+        XCTAssertEqual(viewModel.draft?.exercises[1].sourceName, row.name)
+        XCTAssertTrue(viewModel.draft?.exercises[1].sets.isEmpty == true)
+        XCTAssertNil(viewModel.addExercise(row))
+        XCTAssertFalse(viewModel.updateExercise(draftID: rowDraftID, to: chest))
+        XCTAssertEqual(viewModel.draft?.exercises[1].exerciseID, row.id)
+        XCTAssertTrue(viewModel.updateExercise(draftID: rowDraftID, to: deadlift))
+        XCTAssertEqual(viewModel.draft?.exercises[1].exerciseID, deadlift.id)
+        viewModel.removeExercise(id: rowDraftID)
+        XCTAssertEqual(viewModel.draft?.exercises.count, 1)
+    }
+
+    func testQuickInputDraftValidationUsesSetEntryDraftRules() {
+        let exerciseID = UUID()
+        let viewModel = WorkoutQuickInputViewModel(parser: FixtureWorkoutQuickInputParser())
+        let cases: [(SetEntryDraft, Bool)] = [
+            (.init(weight: "", reps: "10"), false),
+            (.init(weight: "30", reps: ""), false),
+            (.init(weight: "30.123", reps: "10"), false),
+            (.init(weight: "30", reps: "0"), false),
+            (.init(weight: "30.25", reps: "10"), true),
+        ]
+
+        for (values, isValid) in cases {
+            viewModel.draft = WorkoutQuickInputDraft(exercises: [
+                WorkoutQuickInputExerciseDraft(
+                    sourceName: "fixture",
+                    exerciseID: exerciseID,
+                    sets: [WorkoutQuickInputSetDraft(weight: values.weight, reps: values.reps)]
+                )
+            ])
+            XCTAssertEqual(viewModel.isReviewValid, isValid, "values: \(values)")
+        }
+        let item = viewModel.draft?.exercises[0]
+        if let item { viewModel.draft?.exercises.append(item) }
+        XCTAssertFalse(viewModel.isReviewValid)
+    }
+
+    func testQuickInputDraftEditingDoesNotChangeSwiftDataUntilApply() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        context.insert(session)
+        context.insert(exercise)
+        try context.save()
+        let viewModel = WorkoutQuickInputViewModel(parser: FixtureWorkoutQuickInputParser())
+        viewModel.draft = WorkoutQuickInputDraft(exercises: [])
+        let exerciseDraftID = try XCTUnwrap(viewModel.addExercise(exercise))
+        _ = viewModel.addSet(to: exerciseDraftID)
+        viewModel.draft?.exercises[0].sets[0].values = SetEntryDraft(weight: "30", reps: "10")
+
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ExerciseEntry>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SetEntry>()).isEmpty)
+
+        try WorkoutQuickInputApplyService(context: context).apply(
+            try XCTUnwrap(viewModel.draft),
+            to: session,
+            exercises: [exercise],
+            draftStore: WorkoutDraftStore()
+        )
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ExerciseEntry>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SetEntry>()).count, 1)
+    }
+
     private func quickInputExercise(
         name: String,
         count: Int = 1,
