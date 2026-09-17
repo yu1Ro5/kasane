@@ -160,6 +160,7 @@ struct WorkoutQuickInputView: View {
         }
         .padding(14)
         .background(.background, in: RoundedRectangle(cornerRadius: 18))
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("workout-ai-review")
     }
 
@@ -210,6 +211,7 @@ struct WorkoutQuickInputView: View {
         .padding(12)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
         .overlay { RoundedRectangle(cornerRadius: 18).stroke(.quaternary) }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("workout-ai-exercise-\(exercise.wrappedValue.id.uuidString)")
     }
 

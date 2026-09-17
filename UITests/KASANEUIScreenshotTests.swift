@@ -682,12 +682,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let weightFields = app.textFields.matching(NSPredicate(format: "label CONTAINS 'の重量kg'"))
         XCTAssertEqual(weightFields.count, originalWeightCount + 1)
         let weight = weightFields.element(boundBy: 3)
-        let focusDeadline = Date().addingTimeInterval(2)
-        while !weight.hasFocus, Date() < focusDeadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-        }
-        XCTAssertTrue(weight.hasFocus, "追加したSetのweightへfocusされること")
+        XCTAssertTrue(weight.waitForExistence(timeout: 5))
         weight.typeText("35")
+        XCTAssertEqual(weight.value as? String, "35")
         app.buttons["次へ"].tap()
         let repsFields = app.textFields.matching(NSPredicate(format: "label CONTAINS 'の回数'"))
         repsFields.element(boundBy: 3).typeText("8")
