@@ -699,6 +699,15 @@ final class KASANEUIScreenshotTests: XCTestCase {
     @MainActor
     func testWorkoutAIQuickInputAddsExerciseBeforeApply() throws {
         let app = launchAIQuickInputReview()
+        let addSetButtons = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "workout-ai-add-set-"
+            )
+        )
+        let existingAddSetIDs = Set(
+            addSetButtons.allElementsBoundByIndex.map(\.identifier)
+        )
 
         let addExerciseButton = app.descendants(matching: .any)["workout-ai-add-exercise-button"]
         XCTAssertTrue(addExerciseButton.waitForExistence(timeout: 5))
@@ -708,15 +717,56 @@ final class KASANEUIScreenshotTests: XCTestCase {
         exerciseChoice.tap()
         XCTAssertTrue(app.staticTexts["デッドリフト"].waitForExistence(timeout: 5))
 
-        let addSetButtons = app.buttons.matching(NSPredicate(format: "label == 'セットを追加'"))
-        addSetButtons.element(boundBy: addSetButtons.count - 1).tap()
-        let weight = app.textFields.matching(NSPredicate(format: "label CONTAINS 'の重量kg'"))
-            .element(boundBy: 6)
-        XCTAssertTrue(weight.waitForExistence(timeout: 5))
-        weight.typeText("60")
+        let addSetDeadline = Date().addingTimeInterval(5)
+        while addSetButtons.count != existingAddSetIDs.count + 1, Date() < addSetDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        let newAddSetButton = try XCTUnwrap(
+            addSetButtons.allElementsBoundByIndex.first {
+                !existingAddSetIDs.contains($0.identifier)
+            }
+        )
+        var scrollAttempts = 0
+        while !newAddSetButton.isHittable && scrollAttempts < 4 {
+            app.swipeUp()
+            scrollAttempts += 1
+        }
+        XCTAssertTrue(
+            newAddSetButton.isHittable,
+            "追加したExerciseのセット追加ボタンが操作可能になること"
+        )
+
+        let weightFields = app.textFields.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "workout-ai-weight-"
+            )
+        )
+        let existingWeightIDs = Set(
+            weightFields.allElementsBoundByIndex.map(\.identifier)
+        )
+        newAddSetButton.tap()
+
+        let weightDeadline = Date().addingTimeInterval(5)
+        while weightFields.count != existingWeightIDs.count + 1, Date() < weightDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        let newWeight = try XCTUnwrap(
+            weightFields.allElementsBoundByIndex.first {
+                !existingWeightIDs.contains($0.identifier)
+            }
+        )
+        XCTAssertTrue(newWeight.waitForExistence(timeout: 5))
+        newWeight.typeText("60")
+
+        let setID = newWeight.identifier.replacingOccurrences(
+            of: "workout-ai-weight-",
+            with: ""
+        )
+        let reps = app.textFields["workout-ai-reps-\(setID)"]
         app.buttons["次へ"].tap()
-        app.textFields.matching(NSPredicate(format: "label CONTAINS 'の回数'"))
-            .element(boundBy: 6).typeText("5")
+        XCTAssertTrue(reps.waitForExistence(timeout: 5))
+        reps.typeText("5")
         app.buttons["完了"].tap()
         app.buttons["workout-ai-apply-button"].tap()
 
