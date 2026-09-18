@@ -39,6 +39,32 @@ struct WorkoutExerciseInputView: View {
         )
     }
 
+    private var repSuggestions: [Int] {
+        var workouts: [RepSuggestionWorkout] = []
+        for workout in observedSessions where workout.endedAt != nil && workout.id != session.id {
+            guard
+                let exerciseEntry = workout.exerciseEntries.first(where: {
+                    $0.exercise?.id == exercise.id
+                })
+            else { continue }
+            workouts.append(
+                RepSuggestionWorkout(
+                    sessionID: workout.id,
+                    startedAt: workout.startedAt,
+                    endedAt: workout.endedAt,
+                    exerciseID: exercise.id,
+                    reps: exerciseEntry.setEntries.map(\.reps)
+                )
+            )
+            if workouts.count == 20 { break }
+        }
+        return RepSuggestionProvider.suggestions(
+            for: exercise.id,
+            currentSessionID: session.id,
+            workouts: workouts
+        )
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             List {
@@ -107,8 +133,16 @@ struct WorkoutExerciseInputView: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     if focusedInput != nil {
-                        Button("次へ") { advanceFocus(using: proxy) }
+                        if focusedInput?.isReps == true {
+                            ForEach(repSuggestions, id: \.self) { reps in
+                                Button("\(reps)") { applyRepSuggestion(reps) }
+                                    .font(.caption)
+                                    .accessibilityLabel("\(reps)回")
+                                    .accessibilityIdentifier("rep-suggestion-\(reps)")
+                            }
+                        }
                         Spacer()
+                        Button("次へ") { advanceFocus(using: proxy) }
                         Button("完了") { focusedInput = nil }
                     }
                 }
@@ -246,6 +280,23 @@ struct WorkoutExerciseInputView: View {
             guard saveSetIfNeeded(for: identity) else { return }
         }
         focusedInput = nextFocus
+    }
+
+    private func applyRepSuggestion(_ reps: Int) {
+        guard let focusedInput else { return }
+        switch focusedInput {
+        case .draftReps(let exerciseID) where exerciseID == inputIdentity:
+            var updatedDraft = draft.wrappedValue
+            updatedDraft.reps = String(reps)
+            draft.wrappedValue = updatedDraft
+        case .savedReps(let exerciseID, let setID) where exerciseID == inputIdentity:
+            guard let setEntry = setEntries.first(where: { $0.id == setID }) else { return }
+            var updatedDraft = editDrafts[setID] ?? .savedValues(from: setEntry)
+            updatedDraft.reps = String(reps)
+            editDrafts[setID] = updatedDraft
+        case .draftWeight, .savedWeight, .draftReps, .savedReps:
+            return
+        }
     }
 
     private func saveSetWhenLeaving(
@@ -415,6 +466,15 @@ enum WorkoutInputFocus: Hashable {
             nil
         case .savedWeight(let exerciseID, let setID), .savedReps(let exerciseID, let setID):
             SavedSetIdentity(exerciseID: exerciseID, setID: setID)
+        }
+    }
+
+    var isReps: Bool {
+        switch self {
+        case .draftReps, .savedReps:
+            true
+        case .draftWeight, .savedWeight:
+            false
         }
     }
 

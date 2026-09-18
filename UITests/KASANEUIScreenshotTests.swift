@@ -434,6 +434,43 @@ final class KASANEUIScreenshotTests: XCTestCase {
         add(searchAttachment)
     }
 
+    /// 回数候補が回数欄だけに表示され、現在のDraftまたは保存済みSetだけを置換することを確認する。
+    @MainActor
+    func testWorkoutRepSuggestionsApplyToFocusedInput() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "workout-set-layout"])
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
+
+        let draftWeight = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
+        let draftReps = app.textFields["draft-reps-input-\(workoutSeatedRowEntryID)"]
+        XCTAssertTrue(draftWeight.waitForExistence(timeout: 10))
+        draftWeight.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["rep-suggestion-10"].exists)
+        XCTAssertTrue(app.buttons["次へ"].exists)
+        XCTAssertTrue(app.buttons["完了"].exists)
+
+        draftReps.tap()
+        for reps in [10, 8, 12, 15] {
+            XCTAssertTrue(app.buttons["rep-suggestion-\(reps)"].waitForExistence(timeout: 5))
+        }
+        app.buttons["rep-suggestion-12"].tap()
+        XCTAssertEqual(draftReps.value as? String, "12")
+        app.buttons["rep-suggestion-10"].tap()
+        XCTAssertEqual(draftReps.value as? String, "10")
+
+        let savedReps = app.textFields.matching(
+            NSPredicate(format: "label == 'セット1の回数'")
+        ).firstMatch
+        XCTAssertTrue(savedReps.exists)
+        savedReps.tap()
+        app.buttons["rep-suggestion-12"].tap()
+        XCTAssertEqual(savedReps.value as? String, "12")
+        XCTAssertEqual(draftReps.value as? String, "10")
+        XCTAssertTrue(app.buttons["次へ"].exists)
+        XCTAssertTrue(app.buttons["完了"].exists)
+    }
+
     /// 種目追加中の入力Draftが画面移動後も保持されることを確認する。
     @MainActor
     func testWorkoutDraftPersistsAcrossNavigation() throws {
