@@ -1680,6 +1680,146 @@ final class KASANETests: XCTestCase {
         XCTAssertNil(stats.improvement)
     }
 
+    /// 月間factsがOverviewStatsの値を再利用し、月内の有効な種目頻度だけを決定論的に集計する。
+    func testMonthlyInsightFactsUsesOverviewStatsAndMonthlyWorkoutFrequency() throws {
+        let calendar = utcCalendar
+        let legPress = Exercise(
+            id: try XCTUnwrap(UUID(uuidString: "00000000-0000-4000-8000-000000000001")),
+            name: "レッグプレス",
+            primaryBodyPart: .legs
+        )
+        let chestPress = Exercise(
+            id: try XCTUnwrap(UUID(uuidString: "00000000-0000-4000-8000-000000000002")),
+            name: "チェストプレス",
+            primaryBodyPart: .chest
+        )
+        let oldLeg = try makeDashboardSession(
+            year: 2026, month: 8, day: 10, duration: 600, calendar: calendar,
+            exercise: legPress, weights: [60])
+        let bestChest = try makeDashboardSession(
+            year: 2026, month: 7, day: 10, duration: 600, calendar: calendar,
+            exercise: chestPress, weights: [80])
+        let oldChest = try makeDashboardSession(
+            year: 2026, month: 8, day: 12, duration: 600, calendar: calendar,
+            exercise: chestPress, weights: [50])
+        let first = try makeDashboardSession(
+            year: 2026, month: 9, day: 3, duration: 1_200, calendar: calendar,
+            weight: 65, reps: 10, exercise: legPress)
+        let duplicateEntry = ExerciseEntry(workoutSession: first, exercise: legPress, order: 1)
+        duplicateEntry.setEntries.append(
+            SetEntry(exerciseEntry: duplicateEntry, order: 0, weightKg: 40, reps: 10)
+        )
+        first.exerciseEntries.append(duplicateEntry)
+        let second = try makeDashboardSession(
+            year: 2026, month: 9, day: 5, duration: 1_800, calendar: calendar,
+            weight: 70, reps: 5, exercise: legPress)
+        let chestEntry = ExerciseEntry(workoutSession: second, exercise: chestPress, order: 1)
+        chestEntry.setEntries.append(
+            SetEntry(exerciseEntry: chestEntry, order: 0, weightKg: 55, reps: 10)
+        )
+        second.exerciseEntries.append(chestEntry)
+        let nextMonth = try makeDashboardSession(
+            year: 2026, month: 10, day: 1, duration: 600, calendar: calendar,
+            exercise: chestPress, weights: [90])
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 15)))
+        let sessions = [oldLeg, bestChest, oldChest, first, second, nextMonth]
+        let stats = OverviewStats(sessions: sessions, now: now, calendar: calendar)
+
+        let facts = MonthlyInsightFactsBuilder.build(
+            stats: stats, sessions: sessions, calendar: calendar)
+
+        XCTAssertEqual(facts.month, stats.month)
+        XCTAssertEqual(facts.workoutCount, stats.workoutCount)
+        XCTAssertEqual(facts.totalDuration, stats.duration)
+        XCTAssertEqual(facts.totalVolume, stats.totalVolume)
+        XCTAssertEqual(facts.activeDays, 2)
+        XCTAssertEqual(facts.streakWeeks, stats.streak)
+        XCTAssertEqual(facts.personalRecord?.exerciseName, stats.personalRecord?.exerciseName)
+        XCTAssertEqual(facts.personalRecord?.weight, stats.personalRecord?.weight)
+        XCTAssertEqual(facts.improvement?.exerciseName, stats.improvement?.exerciseName)
+        XCTAssertEqual(facts.improvement?.improvement, stats.improvement?.improvement)
+        XCTAssertEqual(
+            facts.mostFrequentExercise,
+            MonthlyInsightExerciseFrequencyFact(exerciseName: "レッグプレス", workoutCount: 2)
+        )
+    }
+
+    func testMonthlyInsightViewModelSkipsEmptyAndIneligibleSingleWorkout() async {
+        let generator = CountingMonthlyInsightGenerator()
+        let viewModel = MonthlyInsightViewModel()
+
+        await viewModel.generate(facts: monthlyFacts(workoutCount: 0), using: generator)
+        await viewModel.generate(facts: monthlyFacts(workoutCount: 1), using: generator)
+
+        XCTAssertEqual(generator.callCount, 0)
+        XCTAssertEqual(viewModel.state, .idle)
+    }
+
+    func testMonthlyInsightViewModelHidesFailureAndUnavailableResults() async {
+        let failed = MonthlyInsightViewModel()
+        await failed.generate(facts: monthlyFacts(), using: FailingMonthlyInsightGenerator())
+        XCTAssertEqual(failed.state, .failed)
+        XCTAssertNil(failed.insight)
+
+        let unavailable = MonthlyInsightViewModel()
+        await unavailable.generate(
+            facts: monthlyFacts(), using: UnavailableMonthlyInsightTestGenerator())
+        XCTAssertEqual(unavailable.state, .failed)
+        XCTAssertNil(unavailable.insight)
+    }
+
+    func testMonthlyInsightViewModelCachesFactsAndGeneratesForChangedMonth() async {
+        let generator = CountingMonthlyInsightGenerator()
+        let viewModel = MonthlyInsightViewModel()
+        let september = monthlyFacts()
+        let october = monthlyFacts(month: september.month.addingTimeInterval(31 * 86_400))
+
+        await viewModel.generate(facts: september, using: generator)
+        await viewModel.generate(facts: september, using: generator)
+        await viewModel.generate(facts: october, using: generator)
+        await viewModel.generate(facts: september, using: generator)
+
+        XCTAssertEqual(generator.callCount, 2)
+        XCTAssertEqual(viewModel.insight?.message, "2回")
+    }
+
+    func testMonthlyInsightCancellationCannotPublishOldMonthResult() async {
+        let viewModel = MonthlyInsightViewModel()
+        let september = monthlyFacts()
+        let october = monthlyFacts(month: september.month.addingTimeInterval(31 * 86_400))
+        let oldTask = Task {
+            await viewModel.generate(facts: september, using: DelayedMonthlyInsightGenerator())
+        }
+        while viewModel.state != .generating {
+            await Task.yield()
+        }
+        oldTask.cancel()
+        await viewModel.generate(facts: october, using: CountingMonthlyInsightGenerator())
+        await oldTask.value
+
+        XCTAssertEqual(viewModel.insight?.message, "2回")
+    }
+
+    private func monthlyFacts(
+        month: Date = Date(timeIntervalSince1970: 1_788_652_800),
+        workoutCount: Int = 2
+    ) -> MonthlyInsightFacts {
+        MonthlyInsightFacts(
+            month: month,
+            workoutCount: workoutCount,
+            totalDuration: 1_200,
+            totalVolume: 1_000,
+            activeDays: workoutCount,
+            streakWeeks: workoutCount > 1 ? 2 : 0,
+            personalRecord: nil,
+            improvement: nil,
+            mostFrequentExercise: workoutCount > 1
+                ? MonthlyInsightExerciseFrequencyFact(
+                    exerciseName: "テスト種目", workoutCount: workoutCount)
+                : nil
+        )
+    }
+
     /// テスト概要: 完了Workoutの詳細表示内容を順不同の種目・セットから生成する。
     /// 期待値: 種目とセットがorder順になり、変更前の種目名スナップショットと期間が使われる。
     func testWorkoutDetailContentUsesDurationSnapshotAndEntryOrder() throws {
@@ -3058,6 +3198,38 @@ private struct DelayedInsightGenerator: WorkoutInsightGenerating {
 
 private enum TestInsightError: Error {
     case failed
+}
+
+@MainActor
+private final class CountingMonthlyInsightGenerator: MonthlyInsightGenerating {
+    private(set) var callCount = 0
+
+    func generate(from facts: MonthlyInsightFacts) async throws -> GeneratedMonthlyInsight {
+        callCount += 1
+        return GeneratedMonthlyInsight(message: "\(facts.workoutCount)回")
+    }
+}
+
+@MainActor
+private struct FailingMonthlyInsightGenerator: MonthlyInsightGenerating {
+    func generate(from facts: MonthlyInsightFacts) async throws -> GeneratedMonthlyInsight {
+        throw TestInsightError.failed
+    }
+}
+
+@MainActor
+private struct UnavailableMonthlyInsightTestGenerator: MonthlyInsightGenerating {
+    func generate(from facts: MonthlyInsightFacts) async throws -> GeneratedMonthlyInsight {
+        throw MonthlyInsightGenerationError.unavailable
+    }
+}
+
+@MainActor
+private struct DelayedMonthlyInsightGenerator: MonthlyInsightGenerating {
+    func generate(from facts: MonthlyInsightFacts) async throws -> GeneratedMonthlyInsight {
+        try await Task.sleep(for: .seconds(10))
+        return GeneratedMonthlyInsight(message: "古い月")
+    }
 }
 
 extension KASANETests {
