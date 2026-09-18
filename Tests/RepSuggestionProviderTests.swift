@@ -42,7 +42,10 @@ final class RepSuggestionProviderTests: XCTestCase {
     }
 
     func testIncompleteWorkoutIsExcluded() {
-        XCTAssertEqual(suggestions(from: [workout(reps: [20], ended: false)]), [8, 10, 12, 15])
+        XCTAssertEqual(
+            suggestions(from: [workout(ended: false, reps: [20])]),
+            [8, 10, 12, 15]
+        )
     }
 
     func testCurrentWorkoutIsExcluded() {
