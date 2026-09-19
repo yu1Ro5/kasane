@@ -381,15 +381,16 @@ private enum AppModelContainer {
                     context.insert(exercise)
                 }
                 let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: order)
+                session.exerciseEntries.append(entry)
                 context.insert(entry)
-                context.insert(
-                    SetEntry(
-                        exerciseEntry: entry,
-                        order: 0,
-                        weightKg: exerciseFixture.0 == "プランク" ? 0 : Double(65 - sessionIndex * 5 + order * 5),
-                        reps: 10
-                    )
+                let set = SetEntry(
+                    exerciseEntry: entry,
+                    order: 0,
+                    weightKg: exerciseFixture.0 == "プランク" ? 0 : Double(65 - sessionIndex * 5 + order * 5),
+                    reps: 10
                 )
+                entry.setEntries.append(set)
+                context.insert(set)
             }
         }
         try context.save()

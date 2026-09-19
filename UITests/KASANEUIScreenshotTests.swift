@@ -148,14 +148,15 @@ final class KASANEUIScreenshotTests: XCTestCase {
             app.swipeUp()
         }
         XCTAssertTrue(shoulderPress.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.staticTexts["デッドリフト"].exists)
+        XCTAssertFalse(
+            app.buttons["overview-recent-workout-row-\(overviewOldestSessionID)"].exists
+        )
         XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
         XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
 
         // 既存のPR添付名で、今回追加したカードの実表示も確認できる位置まで移動する。
-        let exerciseRecords = app.descendants(matching: .any)["overview-exercise-records-section"]
-        XCTAssertTrue(scrollToHittable(exerciseRecords, in: app))
+        XCTAssertTrue(scrollToHittable(app.staticTexts["種目の記録"], in: app))
         let recentWorkoutsAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         recentWorkoutsAttachment.name = "overview-recent-workouts"
         recentWorkoutsAttachment.lifetime = .keepAlways
@@ -321,7 +322,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
-        XCTAssertFalse(app.descendants(matching: .any)["overview-exercise-records-section"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-exercise-records-section"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["overview-monthly-insight-card"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
