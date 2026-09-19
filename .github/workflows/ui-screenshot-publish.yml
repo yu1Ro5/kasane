@@ -57,7 +57,7 @@ jobs:
           import re
           from pathlib import Path
 
-          max_screenshots = 20
+          max_screenshots = 30
           root = Path(os.environ["ARTIFACT_DIR"]).resolve()
           files = [path for path in root.rglob("*") if path.is_file()]
           if not files:
