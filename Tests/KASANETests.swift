@@ -72,6 +72,26 @@ final class KASANETests: XCTestCase {
         return session
     }
 
+    private func makeExerciseOverviewSession(
+        exercise: Exercise,
+        completedAt: TimeInterval,
+        weights: [Double],
+        reps: Int = 10,
+        isCompleted: Bool = true
+    ) -> WorkoutSession {
+        let endedAt = Date(timeIntervalSince1970: completedAt)
+        let session = WorkoutSession(
+            startedAt: endedAt.addingTimeInterval(-600),
+            endedAt: isCompleted ? endedAt : nil
+        )
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        session.exerciseEntries.append(entry)
+        entry.setEntries = weights.enumerated().map {
+            SetEntry(exerciseEntry: entry, order: $0.offset, weightKg: $0.element, reps: reps)
+        }
+        return session
+    }
+
     func testWorkoutInsightFactsBuildsSavedMetricsRecordsAndPreviousComparison() throws {
         let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
         let previous = WorkoutSession(
@@ -1678,6 +1698,103 @@ final class KASANETests: XCTestCase {
         XCTAssertTrue(stats.dailyWorkoutCounts.isEmpty)
         XCTAssertNil(stats.personalRecord)
         XCTAssertNil(stats.improvement)
+    }
+
+    /// テスト概要: 同一Exerciseの完了履歴を全期間で集約する。
+    /// 期待値: 最大重量と最終実施日を採用し、最終実施日が同じカードは種目名で安定して並ぶ。
+    func testExerciseOverviewCardBuilderAggregatesByExerciseAndSortsStably() {
+        let bench = Exercise(name: "ベンチプレス", primaryBodyPart: .chest)
+        let squat = Exercise(name: "スクワット", primaryBodyPart: .legs)
+        let contents = ExerciseOverviewCardBuilder.build(sessions: [
+            makeExerciseOverviewSession(exercise: bench, completedAt: 300, weights: [45, 55]),
+            makeExerciseOverviewSession(exercise: bench, completedAt: 100, weights: [50]),
+            makeExerciseOverviewSession(exercise: squat, completedAt: 300, weights: [80]),
+        ])
+
+        XCTAssertEqual(contents.map(\.exerciseName), ["スクワット", "ベンチプレス"])
+        let benchContent = contents.first { $0.exerciseID == bench.id }
+        XCTAssertEqual(benchContent?.currentBestWeightKg, 55)
+        XCTAssertEqual(benchContent?.latestCompletedAt, Date(timeIntervalSince1970: 300))
+        XCTAssertEqual(benchContent?.recentMaxWeightPoints.count, 2)
+    }
+
+    /// テスト概要: 1 Workout中の同一種目と長い履歴をスパークラインへ変換する。
+    /// 期待値: Workoutごとに最大重量1点とし、直近5件だけを古い順に返す。
+    func testExerciseOverviewCardBuilderUsesOneChronologicalPointPerWorkoutAndLimitsToFive() {
+        let exercise = Exercise(name: "レッグプレス", primaryBodyPart: .legs)
+        var sessions = (1...6).map {
+            makeExerciseOverviewSession(
+                exercise: exercise,
+                completedAt: TimeInterval($0 * 100),
+                weights: [Double($0 * 10)]
+            )
+        }
+        let newest = makeExerciseOverviewSession(exercise: exercise, completedAt: 700, weights: [65])
+        let duplicate = ExerciseEntry(workoutSession: newest, exercise: exercise, order: 1)
+        duplicate.setEntries = [SetEntry(exerciseEntry: duplicate, order: 0, weightKg: 75, reps: 8)]
+        newest.exerciseEntries.append(duplicate)
+        sessions.append(newest)
+
+        let content = ExerciseOverviewCardBuilder.build(sessions: sessions).first
+
+        XCTAssertEqual(content?.recentMaxWeightPoints.map(\.maxWeightKg), [30, 40, 50, 60, 75])
+        XCTAssertEqual(
+            content?.recentMaxWeightPoints.map(\.completedAt),
+            [300, 400, 500, 600, 700].map(Date.init(timeIntervalSince1970:))
+        )
+    }
+
+    /// テスト概要: 最新Workoutにだけ自己ベストバッジを表示する条件を確認する。
+    /// 期待値: 初回と同値更新は除外し、過去最大を上回る場合だけ自己ベストになる。
+    func testExerciseOverviewCardBuilderPersonalRecordRequiresStrictImprovementAfterFirstRecord() {
+        let firstOnly = Exercise(name: "初回", primaryBodyPart: .other)
+        let tied = Exercise(name: "同値", primaryBodyPart: .other)
+        let improved = Exercise(name: "更新", primaryBodyPart: .other)
+        let contents = ExerciseOverviewCardBuilder.build(sessions: [
+            makeExerciseOverviewSession(exercise: firstOnly, completedAt: 100, weights: [50]),
+            makeExerciseOverviewSession(exercise: tied, completedAt: 100, weights: [50]),
+            makeExerciseOverviewSession(exercise: tied, completedAt: 200, weights: [50]),
+            makeExerciseOverviewSession(exercise: improved, completedAt: 100, weights: [50]),
+            makeExerciseOverviewSession(exercise: improved, completedAt: 200, weights: [55]),
+        ])
+
+        XCTAssertFalse(contents.first { $0.exerciseID == firstOnly.id }?.isLatestPersonalRecord ?? true)
+        XCTAssertFalse(contents.first { $0.exerciseID == tied.id }?.isLatestPersonalRecord ?? true)
+        XCTAssertTrue(contents.first { $0.exerciseID == improved.id }?.isLatestPersonalRecord ?? false)
+    }
+
+    /// テスト概要: 未完了Workoutと有効セットを持たない種目を除外する。
+    /// 期待値: 完了済みかつ重量・回数が妥当なセットを持つ種目だけが表示対象になる。
+    func testExerciseOverviewCardBuilderExcludesIncompleteAndInvalidRecords() {
+        let included = Exercise(name: "記録あり", primaryBodyPart: .other)
+        let incomplete = Exercise(name: "未完了", primaryBodyPart: .other)
+        let invalid = Exercise(name: "記録なし", primaryBodyPart: .other)
+        let invalidSession = makeExerciseOverviewSession(
+            exercise: invalid, completedAt: 300, weights: [-10], reps: 0)
+
+        let contents = ExerciseOverviewCardBuilder.build(sessions: [
+            makeExerciseOverviewSession(exercise: included, completedAt: 100, weights: [20]),
+            makeExerciseOverviewSession(
+                exercise: incomplete, completedAt: 200, weights: [100], isCompleted: false),
+            invalidSession,
+        ])
+
+        XCTAssertEqual(contents.map(\.exerciseID), [included.id])
+        XCTAssertTrue(ExerciseOverviewCardBuilder.build(sessions: []).isEmpty)
+    }
+
+    /// テスト概要: 自重種目の全有効セットが0kgである場合を集計する。
+    /// 期待値: 最大重量は0kgのまま保持し、重量スパークラインを表示しない。
+    func testExerciseOverviewCardBuilderTreatsAllZeroWeightSetsAsBodyweight() {
+        let exercise = Exercise(name: "プッシュアップ", primaryBodyPart: .chest)
+        let content = ExerciseOverviewCardBuilder.build(sessions: [
+            makeExerciseOverviewSession(exercise: exercise, completedAt: 100, weights: [0, 0]),
+            makeExerciseOverviewSession(exercise: exercise, completedAt: 200, weights: [0]),
+        ]).first
+
+        XCTAssertEqual(content?.currentBestWeightKg, 0)
+        XCTAssertFalse(content?.showsWeightSparkline ?? true)
+        XCTAssertEqual(content?.recentMaxWeightPoints.map(\.maxWeightKg), [0, 0])
     }
 
     /// 月間factsがOverviewStatsの値を再利用し、月内の有効な種目頻度だけを決定論的に集計する。

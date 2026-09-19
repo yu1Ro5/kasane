@@ -39,6 +39,19 @@ final class KASANEUIScreenshotTests: XCTestCase {
         return XCUIScreen.main.screenshot()
     }
 
+    /// 縦スクロールの末尾にある操作要素を、画面構成の高さに依存せず表示する。
+    @MainActor private func scrollToHittable(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        maximumSwipes: Int = 6
+    ) -> Bool {
+        for swipeCount in 0...maximumSwipes {
+            if element.exists && element.isHittable { return true }
+            if swipeCount < maximumSwipes { app.swipeUp() }
+        }
+        return false
+    }
+
     /// Launches the app with the Japanese language and locale required by screenshot scenarios.
     @MainActor private func launchApp(additionalArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
@@ -122,19 +135,27 @@ final class KASANEUIScreenshotTests: XCTestCase {
                 timeout: 10
             )
         )
-        XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
-        XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-exercise-records-section"].exists)
+        XCTAssertTrue(app.staticTexts["種目の記録"].exists)
+        XCTAssertTrue(app.staticTexts["これまでに記録した種目"].exists)
+        XCTAssertTrue(app.staticTexts["自己ベスト"].exists)
+        XCTAssertTrue(app.staticTexts["自重"].exists)
         XCTAssertTrue(app.staticTexts["スクワット"].exists)
         let shoulderPress = app.staticTexts["ショルダープレス"]
         if !shoulderPress.waitForExistence(timeout: 2) {
             app.swipeUp()
         }
         XCTAssertTrue(shoulderPress.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.staticTexts["デッドリフト"].exists)
+        XCTAssertFalse(
+            app.buttons["overview-recent-workout-row-\(overviewOldestSessionID)"].exists
+        )
         XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
         XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
 
+        // 種目カードの後ろにある既存セクションも、画面高に依存せず検証する。
+        XCTAssertTrue(scrollToHittable(app.staticTexts["最近のワークアウト"], in: app))
+        XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
         let recentWorkoutsAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         recentWorkoutsAttachment.name = "overview-recent-workouts"
         recentWorkoutsAttachment.lifetime = .keepAlways
@@ -207,7 +228,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
     func testOverviewRecentWorkoutOpensDetail() throws {
         let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
         let recentRow = app.buttons["overview-recent-workout-row-\(overviewNewestSessionID)"]
-        XCTAssertTrue(recentRow.waitForExistence(timeout: 10))
+        XCTAssertTrue(scrollToHittable(recentRow, in: app))
         recentRow.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
@@ -251,9 +272,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
     func testCompletedWorkoutDeletionFlow() throws {
         let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
 
-        app.swipeUp()
-        XCTAssertTrue(app.buttons["すべて見る"].waitForExistence(timeout: 10))
-        app.buttons["すべて見る"].tap()
+        let showAllButton = app.buttons["すべて見る"]
+        XCTAssertTrue(scrollToHittable(showAllButton, in: app))
+        showAllButton.tap()
         XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
 
         let historyRow = app.buttons["workout-history-row-\(overviewOldestSessionID)"]
@@ -300,6 +321,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-exercise-records-section"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["overview-monthly-insight-card"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
@@ -319,6 +341,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
             app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10)
         )
         XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-exercise-records-section"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
@@ -338,6 +361,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
             app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10)
         )
         XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-exercise-records-section"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         attachment.name = "overview-dynamic-type"
