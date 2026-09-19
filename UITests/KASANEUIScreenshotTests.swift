@@ -135,13 +135,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
                 timeout: 10
             )
         )
-        XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["overview-exercise-records-section"].exists)
         XCTAssertTrue(app.staticTexts["種目の記録"].exists)
         XCTAssertTrue(app.staticTexts["これまでに記録した種目"].exists)
         XCTAssertTrue(app.staticTexts["自己ベスト"].exists)
         XCTAssertTrue(app.staticTexts["自重"].exists)
-        XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
         XCTAssertTrue(app.staticTexts["スクワット"].exists)
         let shoulderPress = app.staticTexts["ショルダープレス"]
         if !shoulderPress.waitForExistence(timeout: 2) {
@@ -155,8 +153,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
         XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
 
-        // 既存のPR添付名で、今回追加したカードの実表示も確認できる位置まで移動する。
-        XCTAssertTrue(scrollToHittable(app.staticTexts["種目の記録"], in: app))
+        // 種目カードの後ろにある既存セクションも、画面高に依存せず検証する。
+        XCTAssertTrue(scrollToHittable(app.staticTexts["最近のワークアウト"], in: app))
+        XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
         let recentWorkoutsAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         recentWorkoutsAttachment.name = "overview-recent-workouts"
         recentWorkoutsAttachment.lifetime = .keepAlways
