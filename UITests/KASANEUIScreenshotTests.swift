@@ -123,6 +123,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
             )
         )
         XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-exercise-records-section"].exists)
+        XCTAssertTrue(app.staticTexts["種目の記録"].exists)
+        XCTAssertTrue(app.staticTexts["これまでに記録した種目"].exists)
+        XCTAssertTrue(app.staticTexts["自己ベスト"].exists)
+        XCTAssertTrue(app.staticTexts["自重"].exists)
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
         XCTAssertTrue(app.staticTexts["スクワット"].exists)
         let shoulderPress = app.staticTexts["ショルダープレス"]
@@ -135,6 +140,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
         XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
 
+        // 既存のPR添付名で、今回追加したカードの実表示も確認できる位置まで移動する。
+        app.swipeUp()
+        app.swipeUp()
+        XCTAssertTrue(app.staticTexts["種目の記録"].waitForExistence(timeout: 5))
         let recentWorkoutsAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         recentWorkoutsAttachment.name = "overview-recent-workouts"
         recentWorkoutsAttachment.lifetime = .keepAlways
@@ -300,6 +309,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["overview-exercise-records-section"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["overview-monthly-insight-card"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
@@ -319,6 +329,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
             app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10)
         )
         XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-exercise-records-section"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
@@ -338,6 +349,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
             app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10)
         )
         XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-exercise-records-section"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         attachment.name = "overview-dynamic-type"

@@ -344,6 +344,12 @@ private enum AppModelContainer {
                 [("デッドリフト", .back), ("ベンチプレス", .chest), ("ショルダープレス", .shoulders)]
             ),
             (
+                "40000000-0000-4000-8000-000000000006",
+                1_787_705_800,
+                1_787_707_000,
+                [("プランク", .core)]
+            ),
+            (
                 "40000000-0000-4000-8000-000000000005",
                 1_788_656_400,
                 nil,
@@ -380,7 +386,7 @@ private enum AppModelContainer {
                     SetEntry(
                         exerciseEntry: entry,
                         order: 0,
-                        weightKg: Double(65 - sessionIndex * 5 + order * 5),
+                        weightKg: exerciseFixture.0 == "プランク" ? 0 : Double(65 - sessionIndex * 5 + order * 5),
                         reps: 10
                     )
                 )

@@ -10,6 +10,7 @@ struct OverviewView: View {
     @State private var selectedMonth: Date
     @State private var insightViewModel = MonthlyInsightViewModel()
     @Query private var completedSessions: [WorkoutSession]
+    @Query private var exerciseOverviewEntries: [ExerciseEntry]
 
     init(
         referenceDate: Date? = nil,
@@ -20,6 +21,7 @@ struct OverviewView: View {
         self.insightGenerator = insightGenerator
         _selectedMonth = State(initialValue: Calendar.current.dateInterval(of: .month, for: date)?.start ?? date)
         _completedSessions = Query(OverviewWorkoutLoader.dashboardDescriptor(through: date))
+        _exerciseOverviewEntries = Query(OverviewWorkoutLoader.exerciseOverviewEntryDescriptor)
     }
 
     var body: some View {
@@ -34,6 +36,7 @@ struct OverviewView: View {
             sessions: completedSessions,
             calendar: calendar
         )
+        let exerciseCardContents = ExerciseOverviewCardBuilder.build(entries: exerciseOverviewEntries)
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
                 brandHeader
@@ -50,6 +53,9 @@ struct OverviewView: View {
                     stats: stats, selectedMonth: selectedMonth, referenceDate: referenceDate, calendar: calendar)
                 if stats.personalRecord != nil || stats.improvement != nil {
                     highlights(stats)
+                }
+                if !exerciseCardContents.isEmpty {
+                    exerciseRecords(exerciseCardContents)
                 }
                 recentWorkouts
             }
@@ -214,6 +220,23 @@ struct OverviewView: View {
                 }
             }
         }
+    }
+
+    private func exerciseRecords(_ contents: [ExerciseOverviewCardContent]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("種目の記録")
+                    .font(.title3.bold())
+                Text("これまでに記録した種目")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(contents) { content in
+                ExerciseOverviewCard(content: content)
+                    .accessibilityIdentifier("overview-exercise-card-\(content.exerciseID.uuidString)")
+            }
+        }
+        .accessibilityIdentifier("overview-exercise-records-section")
     }
 }
 
@@ -547,6 +570,168 @@ private struct OverviewRecentWorkoutCard: View {
             Text(content.completedAt, format: .dateTime.month().day())
                 .font(.subheadline).foregroundStyle(.secondary)
             Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+        }
+    }
+}
+
+private struct ExerciseOverviewCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let content: ExerciseOverviewCardContent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            header
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 14) {
+                    bestWeight
+                        .accessibilityIdentifier("overview-exercise-card-best-\(content.exerciseID.uuidString)")
+                    sparkline
+                }
+            } else {
+                HStack(alignment: .bottom, spacing: 18) {
+                    bestWeight
+                        .accessibilityIdentifier("overview-exercise-card-best-\(content.exerciseID.uuidString)")
+                    Spacer(minLength: 8)
+                    sparkline
+                }
+            }
+            if content.isLatestPersonalRecord {
+                Label("自己ベスト", systemImage: "trophy.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .dashboardCard()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: iconName)
+                .font(.title3)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 42, height: 42)
+                .background(
+                    Color.accentColor.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(content.exerciseName)
+                    .font(.headline)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                Text("最終実施日 \(content.latestCompletedAt.formatted(.dateTime.month().day()))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 4)
+        }
+    }
+
+    private var bestWeight: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("現在のベスト")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(weightText)
+                .font(.title2.bold())
+                .monospacedDigit()
+        }
+    }
+
+    @ViewBuilder private var sparkline: some View {
+        if content.showsWeightSparkline {
+            ExerciseOverviewSparkline(points: content.recentMaxWeightPoints)
+                .frame(
+                    maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 132,
+                    minHeight: 46,
+                    maxHeight: 46,
+                    alignment: .trailing
+                )
+                .accessibilityHidden(true)
+                .accessibilityIdentifier("overview-exercise-card-chart-\(content.exerciseID.uuidString)")
+        }
+    }
+
+    private var weightText: String {
+        content.showsWeightSparkline
+            ? WorkoutSetDisplayFormatter.displayWeight(content.currentBestWeightKg)
+            : "自重"
+    }
+
+    private var accessibilityDescription: String {
+        var components = [
+            content.exerciseName,
+            "現在のベスト \(spokenBestWeight)",
+            "最終実施日 \(content.latestCompletedAt.formatted(.dateTime.month().day()))",
+        ]
+        if content.isLatestPersonalRecord { components.append("自己ベスト") }
+        return components.joined(separator: "、")
+    }
+
+    private var spokenBestWeight: String {
+        content.showsWeightSparkline ? "\(content.currentBestWeightKg.formatted())キログラム" : "自重"
+    }
+
+    private var iconName: String {
+        switch content.bodyPart {
+        case .arms: "figure.strengthtraining.traditional"
+        case .back: "figure.strengthtraining.functional"
+        case .chest: "figure.strengthtraining.traditional"
+        case .core: "figure.core.training"
+        case .fullBody: "figure.mixed.cardio"
+        case .legs: "figure.run"
+        case .shoulders: "figure.strengthtraining.functional"
+        case .other: "dumbbell.fill"
+        }
+    }
+}
+
+private struct ExerciseOverviewSparkline: View {
+    let points: [ExerciseOverviewPoint]
+
+    var body: some View {
+        GeometryReader { geometry in
+            let coordinates = coordinates(in: geometry.size)
+            ZStack {
+                Path { path in
+                    guard let first = coordinates.first else { return }
+                    path.move(to: first)
+                    for point in coordinates.dropFirst() { path.addLine(to: point) }
+                }
+                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                ForEach(Array(coordinates.enumerated()), id: \.offset) { index, point in
+                    Circle()
+                        .fill(Color.accentColor)
+                        .frame(
+                            width: index == coordinates.count - 1 ? 8 : 5,
+                            height: index == coordinates.count - 1 ? 8 : 5
+                        )
+                        .position(point)
+                }
+            }
+        }
+    }
+
+    private func coordinates(in size: CGSize) -> [CGPoint] {
+        guard !points.isEmpty else { return [] }
+        let weights = points.map(\.maxWeightKg)
+        let minimum = weights.min() ?? 0
+        let maximum = weights.max() ?? minimum
+        let horizontalInset: CGFloat = 4
+        let verticalInset: CGFloat = 5
+        let availableWidth = max(size.width - horizontalInset * 2, 0)
+        let availableHeight = max(size.height - verticalInset * 2, 0)
+        return points.enumerated().map { index, point in
+            let progress = points.count == 1 ? 0.5 : CGFloat(index) / CGFloat(points.count - 1)
+            let normalized = maximum == minimum ? 0.5 : (point.maxWeightKg - minimum) / (maximum - minimum)
+            return CGPoint(
+                x: horizontalInset + availableWidth * progress,
+                y: verticalInset + availableHeight * (1 - normalized)
+            )
         }
     }
 }
