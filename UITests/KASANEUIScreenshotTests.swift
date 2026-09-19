@@ -812,12 +812,19 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let existingWeightIDs = Set(
             weightFields.allElementsBoundByIndex.map(\.identifier)
         )
+        app.swipeUp()
         newAddSetButton.tap()
 
         let weightDeadline = Date().addingTimeInterval(5)
         while weightFields.count != existingWeightIDs.count + 1, Date() < weightDeadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         }
+        XCTAssertEqual(
+            weightFields.count,
+            7,
+            "Set追加後、重量入力欄が6個から7個へ増えること"
+        )
+        guard weightFields.count == 7 else { return }
         let newWeight = try XCTUnwrap(
             weightFields.allElementsBoundByIndex.first {
                 !existingWeightIDs.contains($0.identifier)
