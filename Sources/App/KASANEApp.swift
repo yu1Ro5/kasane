@@ -13,8 +13,11 @@ struct KASANEApp: App {
         WindowGroup {
             switch container {
             case .success(let container):
-                AppRootTabView(referenceDate: AppModelContainer.referenceDate())
-                    .modelContainer(container)
+                AppRootTabView(
+                    referenceDate: AppModelContainer.referenceDate(),
+                    monthlyInsightGenerator: AppModelContainer.monthlyInsightGenerator()
+                )
+                .modelContainer(container)
             case .failure(let error):
                 ContentUnavailableView(
                     "データを読み込めませんでした",
@@ -107,6 +110,18 @@ private enum AppModelContainer {
     static func referenceDate(arguments: [String] = ProcessInfo.processInfo.arguments) -> Date? {
         guard arguments.contains("--ui-testing") else { return nil }
         return Date(timeIntervalSince1970: 1_788_656_400)
+    }
+
+    static func monthlyInsightGenerator(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> any MonthlyInsightGenerating {
+        if arguments.contains("--monthly-insight-unavailable") {
+            return UnavailableMonthlyInsightGenerator()
+        }
+        if arguments.contains("--ui-testing") {
+            return FixtureMonthlyInsightGenerator()
+        }
+        return AppleIntelligenceMonthlyInsightGenerator()
     }
 
     private static func insertWorkoutSetLayoutFixture(into context: ModelContext) throws {
@@ -375,18 +390,36 @@ private enum AppModelContainer {
     }
 
     private static func insertOverviewPreviousMonthFixture(into context: ModelContext) throws {
-        let session = WorkoutSession(
-            startedAt: Date(timeIntervalSince1970: 1_787_878_800),
-            endedAt: Date(timeIntervalSince1970: 1_787_880_600)
-        )
         let exercise = Exercise(name: "デッドリフト", primaryBodyPart: .back)
-        context.insert(session)
         context.insert(exercise)
-        context.insert(ExerciseEntry(workoutSession: session, exercise: exercise, order: 0))
+        for (index, start) in [1_787_878_800.0, 1_787_274_000.0].enumerated() {
+            let session = WorkoutSession(
+                startedAt: Date(timeIntervalSince1970: start),
+                endedAt: Date(timeIntervalSince1970: start + 1_800)
+            )
+            context.insert(session)
+            let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+            context.insert(entry)
+            context.insert(
+                SetEntry(
+                    exerciseEntry: entry,
+                    order: 0,
+                    weightKg: Double(80 + index * 5),
+                    reps: 5
+                )
+            )
+        }
         try context.save()
     }
 
     private enum FixtureError: Error {
         case invalidIdentifier
+    }
+}
+
+@MainActor
+private struct UnavailableMonthlyInsightGenerator: MonthlyInsightGenerating {
+    func generate(from facts: MonthlyInsightFacts) async throws -> GeneratedMonthlyInsight {
+        throw MonthlyInsightGenerationError.unavailable
     }
 }

@@ -117,6 +117,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["overview-total-volume"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["overview-streak"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["overview-monthly-insight-card"].waitForExistence(
+                timeout: 10
+            )
+        )
         XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
         XCTAssertTrue(app.staticTexts["スクワット"].exists)
@@ -272,9 +277,33 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
         XCTAssertTrue(app.staticTexts["デッドリフト"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["overview-month-selector"].exists)
+        app.descendants(matching: .any)["overview-month-selector"].tap()
+        app.buttons["2026年8月"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["overview-monthly-insight-card"].waitForExistence(
+                timeout: 10
+            )
+        )
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         attachment.name = "overview-previous-month"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testOverviewUnavailableInsightScreenshot() throws {
+        let app = launchApp(additionalArguments: [
+            "--fixture", "overview-recent-workouts",
+            "--monthly-insight-unavailable",
+        ])
+
+        XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["overview-monthly-insight-card"].exists)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "overview-monthly-insight-unavailable"
         attachment.lifetime = .keepAlways
         add(attachment)
     }
@@ -820,12 +849,19 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let existingWeightIDs = Set(
             weightFields.allElementsBoundByIndex.map(\.identifier)
         )
+        app.swipeUp()
         newAddSetButton.tap()
 
         let weightDeadline = Date().addingTimeInterval(5)
         while weightFields.count != existingWeightIDs.count + 1, Date() < weightDeadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         }
+        XCTAssertEqual(
+            weightFields.count,
+            7,
+            "Set追加後、重量入力欄が6個から7個へ増えること"
+        )
+        guard weightFields.count == 7 else { return }
         let newWeight = try XCTUnwrap(
             weightFields.allElementsBoundByIndex.first {
                 !existingWeightIDs.contains($0.identifier)

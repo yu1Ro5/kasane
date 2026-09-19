@@ -6,12 +6,18 @@ struct OverviewView: View {
     @Environment(\.calendar) private var calendar
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let referenceDate: Date
+    private let insightGenerator: any MonthlyInsightGenerating
     @State private var selectedMonth: Date
+    @State private var insightViewModel = MonthlyInsightViewModel()
     @Query private var completedSessions: [WorkoutSession]
 
-    init(referenceDate: Date? = nil) {
+    init(
+        referenceDate: Date? = nil,
+        insightGenerator: any MonthlyInsightGenerating = AppleIntelligenceMonthlyInsightGenerator()
+    ) {
         let date = referenceDate ?? Date()
         self.referenceDate = date
+        self.insightGenerator = insightGenerator
         _selectedMonth = State(initialValue: Calendar.current.dateInterval(of: .month, for: date)?.start ?? date)
         _completedSessions = Query(OverviewWorkoutLoader.dashboardDescriptor(through: date))
     }
@@ -23,6 +29,11 @@ struct OverviewView: View {
             referenceDate: referenceDate,
             calendar: calendar
         )
+        let insightFacts = MonthlyInsightFactsBuilder.build(
+            stats: stats,
+            sessions: completedSessions,
+            calendar: calendar
+        )
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
                 brandHeader
@@ -32,6 +43,9 @@ struct OverviewView: View {
                     monthSelector
                 }
                 OverviewHeroCard(stats: stats, usesCompactLayout: dynamicTypeSize.isAccessibilitySize)
+                if let insight = insightViewModel.insight {
+                    MonthlyInsightCard(insight: insight)
+                }
                 OverviewCalendarCard(
                     stats: stats, selectedMonth: selectedMonth, referenceDate: referenceDate, calendar: calendar)
                 if stats.personalRecord != nil || stats.improvement != nil {
@@ -55,6 +69,9 @@ struct OverviewView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: insightFacts) {
+            await insightViewModel.generate(facts: insightFacts, using: insightGenerator)
+        }
         .navigationDestination(for: OverviewRoute.self) { route in
             switch route {
             case .about: AboutView()
@@ -197,6 +214,59 @@ struct OverviewView: View {
                 }
             }
         }
+    }
+}
+
+private struct MonthlyInsightCard: View {
+    let insight: GeneratedMonthlyInsight
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    title
+                    Spacer(minLength: 8)
+                    attribution
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    title
+                    attribution
+                }
+            }
+            Text(insight.message)
+                .font(.body)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.accentColor.opacity(0.09))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.08), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("overview-monthly-insight-card")
+    }
+
+    private var title: some View {
+        Label("今月のインサイト", systemImage: "sparkles")
+            .font(.headline)
+            .foregroundStyle(.primary)
+    }
+
+    private var attribution: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Apple Intelligence")
+                Text("オンデバイス")
+            }
+        } icon: {
+            Image(systemName: "cpu")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 }
 

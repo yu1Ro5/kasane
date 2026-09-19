@@ -4,12 +4,16 @@ struct AppRootTabView: View {
     @State private var draftStore = WorkoutDraftStore()
     /// UI ScreenshotでOverviewの対象月を固定するための基準日時。
     var referenceDate: Date? = nil
+    var monthlyInsightGenerator: any MonthlyInsightGenerating = AppleIntelligenceMonthlyInsightGenerator()
 
     var body: some View {
         TabView {
             Tab("概要", systemImage: "square.grid.2x2.fill") {
                 NavigationStack {
-                    OverviewView(referenceDate: referenceDate)
+                    OverviewView(
+                        referenceDate: referenceDate,
+                        insightGenerator: monthlyInsightGenerator
+                    )
                 }
             }
 
