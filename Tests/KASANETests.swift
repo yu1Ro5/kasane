@@ -92,6 +92,30 @@ final class KASANETests: XCTestCase {
         return session
     }
 
+    private func makeExerciseProgressSession(
+        exercise: Exercise,
+        completedAt: TimeInterval,
+        sets: [(weight: Double, reps: Int)],
+        isCompleted: Bool = true
+    ) -> WorkoutSession {
+        let end = Date(timeIntervalSince1970: completedAt)
+        let session = WorkoutSession(
+            startedAt: end.addingTimeInterval(-600),
+            endedAt: isCompleted ? end : nil
+        )
+        let entry = ExerciseEntry(workoutSession: session, exercise: exercise, order: 0)
+        session.exerciseEntries.append(entry)
+        entry.setEntries = sets.enumerated().map {
+            SetEntry(
+                exerciseEntry: entry,
+                order: $0.offset,
+                weightKg: $0.element.weight,
+                reps: $0.element.reps
+            )
+        }
+        return session
+    }
+
     func testWorkoutInsightFactsBuildsSavedMetricsRecordsAndPreviousComparison() throws {
         let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
         let previous = WorkoutSession(
@@ -1851,6 +1875,109 @@ final class KASANETests: XCTestCase {
         XCTAssertFalse(description.contains("直近の重量推移"))
         XCTAssertFalse(description.contains("キログラム"))
         XCTAssertFalse(description.contains("自己ベスト"))
+    }
+
+    func testExerciseProgressBuilderAggregatesWorkoutMetricsGrowthAndStableMaxSet() throws {
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let first = makeExerciseProgressSession(
+            exercise: exercise,
+            completedAt: 100,
+            sets: [(weight: 27, reps: 10), (weight: 27, reps: 8)]
+        )
+        let second = makeExerciseProgressSession(
+            exercise: exercise,
+            completedAt: 200,
+            sets: [(weight: 30, reps: 6), (weight: 30, reps: 12)]
+        )
+        let tie = makeExerciseProgressSession(
+            exercise: exercise,
+            completedAt: 300,
+            sets: [(weight: 30, reps: 9)]
+        )
+        let final = makeExerciseProgressSession(
+            exercise: exercise,
+            completedAt: 400,
+            sets: [(weight: 32, reps: 5), (weight: 20, reps: 10)]
+        )
+
+        let stats = try XCTUnwrap(
+            ExerciseProgressBuilder.build(
+                exerciseID: exercise.id,
+                entries: [first, second, tie, final].flatMap(\.exerciseEntries)
+            ))
+
+        XCTAssertEqual(stats.firstBest, 27)
+        XCTAssertEqual(stats.currentBest, 32)
+        XCTAssertEqual(stats.growthAmount, 5)
+        XCTAssertEqual(stats.growthPercentage ?? 0, 18.5185, accuracy: 0.001)
+        XCTAssertEqual(stats.personalRecordDate, Date(timeIntervalSince1970: 400))
+        XCTAssertEqual(stats.points.map(\.maxWeightKg), [27, 30, 30, 32])
+        XCTAssertEqual(stats.points.map(\.volumeKg), [486, 540, 270, 360])
+        XCTAssertEqual(stats.points.map(\.totalReps), [18, 18, 9, 15])
+        XCTAssertEqual(stats.points.map(\.isPersonalRecord), [false, true, false, true])
+        XCTAssertEqual(stats.points[1].maxWeightReps, 6)
+        XCTAssertEqual(stats.recentRecords.map(\.completedAt), [400, 300, 200].map(Date.init(timeIntervalSince1970:)))
+    }
+
+    func testExerciseProgressBuilderExcludesIncompleteAndInvalidSets() throws {
+        let exercise = Exercise(name: "スクワット", primaryBodyPart: .legs)
+        let completed = makeExerciseProgressSession(
+            exercise: exercise,
+            completedAt: 100,
+            sets: [(weight: 40, reps: 10), (weight: -1, reps: 10), (weight: 50, reps: 0)]
+        )
+        let incomplete = makeExerciseProgressSession(
+            exercise: exercise,
+            completedAt: 200,
+            sets: [(weight: 100, reps: 10)],
+            isCompleted: false
+        )
+        let stats = try XCTUnwrap(
+            ExerciseProgressBuilder.build(
+                exerciseID: exercise.id,
+                entries: completed.exerciseEntries + incomplete.exerciseEntries
+            ))
+
+        XCTAssertEqual(stats.points.count, 1)
+        XCTAssertEqual(stats.currentBest, 40)
+        XCTAssertEqual(stats.growthAmount, 0)
+        XCTAssertFalse(stats.points[0].isPersonalRecord)
+        XCTAssertTrue(stats.recentRecords.count == 1)
+    }
+
+    func testExerciseProgressBuilderHandlesBodyweightAndEmptyHistoryWithoutPercentage() throws {
+        let exercise = Exercise(name: "プッシュアップ", primaryBodyPart: .chest)
+        let bodyweight = makeExerciseProgressSession(
+            exercise: exercise,
+            completedAt: 100,
+            sets: [(weight: 0, reps: 12), (weight: 0, reps: 8)]
+        )
+        let stats = try XCTUnwrap(
+            ExerciseProgressBuilder.build(exerciseID: exercise.id, entries: bodyweight.exerciseEntries)
+        )
+
+        XCTAssertEqual(stats.currentBest, 0)
+        XCTAssertEqual(stats.firstBest, 0)
+        XCTAssertEqual(stats.growthAmount, 0)
+        XCTAssertNil(stats.growthPercentage)
+        XCTAssertEqual(stats.points.first?.volumeKg, 0)
+        XCTAssertEqual(stats.points.first?.totalReps, 20)
+        XCTAssertEqual(stats.points.first?.maxWeightReps, 12)
+
+        let emptyExercise = Exercise(name: "未記録", primaryBodyPart: .other)
+        let emptySession = makeExerciseProgressSession(
+            exercise: emptyExercise,
+            completedAt: 200,
+            sets: [(weight: -1, reps: 0)]
+        )
+        let empty = try XCTUnwrap(
+            ExerciseProgressBuilder.build(
+                exerciseID: emptyExercise.id,
+                entries: emptySession.exerciseEntries
+            ))
+        XCTAssertTrue(empty.points.isEmpty)
+        XCTAssertNil(empty.currentBest)
+        XCTAssertTrue(empty.recentRecords.isEmpty)
     }
 
     /// 月間factsがOverviewStatsの値を再利用し、月内の有効な種目頻度だけを決定論的に集計する。

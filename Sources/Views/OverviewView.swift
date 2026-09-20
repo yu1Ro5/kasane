@@ -84,6 +84,7 @@ struct OverviewView: View {
             case .history: WorkoutHistoryView()
             case .search: WorkoutSearchView()
             case .workoutDetail(let id): WorkoutDetailDestinationView(sessionID: id)
+            case .exerciseProgress(let id): ExerciseProgressDestinationView(exerciseID: id)
             }
         }
     }
@@ -232,7 +233,10 @@ struct OverviewView: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(contents) { content in
-                ExerciseOverviewCard(content: content)
+                NavigationLink(value: OverviewRoute.exerciseProgress(content.exerciseID)) {
+                    ExerciseOverviewCard(content: content)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -627,6 +631,10 @@ private struct ExerciseOverviewCard: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+                .font(.caption.bold())
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
         }
     }
 
@@ -728,7 +736,9 @@ private extension View {
     }
 }
 
-enum OverviewRoute: Hashable { case about, history, search, workoutDetail(UUID) }
+enum OverviewRoute: Hashable {
+    case about, history, search, workoutDetail(UUID), exerciseProgress(UUID)
+}
 
 #Preview {
     NavigationStack { OverviewView() }
