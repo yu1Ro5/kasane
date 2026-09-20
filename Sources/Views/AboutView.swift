@@ -23,6 +23,13 @@ struct AboutView: View {
                 }
             }
 
+            Section("データ") {
+                NavigationLink("データ管理") {
+                    DataManagementView()
+                }
+                .accessibilityIdentifier("data-management-link")
+            }
+
             Section {
                 Text("© 2026 yu1Ro5")
                     .foregroundStyle(.secondary)
