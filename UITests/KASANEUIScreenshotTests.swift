@@ -122,6 +122,20 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testDataManagementNavigationAndActions() throws {
+        let app = launchApp()
+        app.buttons["KASANEについて"].tap()
+
+        let dataManagement = app.descendants(matching: .any)["data-management-link"]
+        XCTAssertTrue(dataManagement.waitForExistence(timeout: 10))
+        dataManagement.tap()
+
+        XCTAssertTrue(app.navigationBars["データ管理"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["backup-export"].exists)
+        XCTAssertTrue(app.buttons["backup-import"].exists)
+    }
+
+    @MainActor
     func testOverviewScreenshots() throws {
         let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
 
