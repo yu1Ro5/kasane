@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "swiftui-pro": {
+      "source": "twostraws/SwiftUI-Agent-Skill",
+      "sourceType": "github",
+      "skillPath": "swiftui-pro/SKILL.md",
+      "computedHash": "9c41892a138f583a992d640c68f42ed5a21184f011810f2b242b47745e183459"
+    }
+  }
+}
