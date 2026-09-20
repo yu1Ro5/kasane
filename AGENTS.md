@@ -158,6 +158,15 @@ swift-format format --in-place --configuration .swift-format --recursive Sources
 - 一般的なcorrectness、SwiftData整合性、永続化、architecture、security、business logicのレビューは主に `kasane-review-pr` の責務とし、同じ根本原因をUIレビューと重複して報告しないでください。
 - UI変更を含むIssueでは、実装完了後に関連するScreenshotとコードを可能な範囲で照合し、重大なUI Review Findingを解消してから完了としてください。
 
+## SwiftUI Agent Skill
+
+- SwiftUIコードを変更したときは、実装と通常の検証の後に、project-scopedの`swiftui-pro` Skillを`$swiftui-pro`で呼び出し、変更箇所を自己レビューしてください。
+- レビューでは、modern SwiftUI APIs、state management、navigation、accessibility、performance、deprecated APIs、KASANEの既存architectureとの整合性を確認してください。Skillの汎用的な提案より、Issueの要求とこのリポジトリのルールを優先します。
+- `swiftui-pro`の一般的なtargetやversionの推奨だけを理由に、`project.yml`のdeployment target、Swift version、Xcode versionを変更しないでください。これらはIssueで明示的に要求された場合に限り変更します。
+- `swiftui-pro`はSwiftUIの実装・変更・レビューに使用します。SwiftUIに影響しないModel、Service、ドキュメントだけの変更には必要ありません。
+- UIデザイン調査用のSkillは、デザイン判断に外部事例が必要なIssueでのみ使用してください。有料サービス、外部アカウント、API key、secretを必要とする場合は、合意なく追加せず報告してください。Expo / React Native固有の実装はKASANEに導入しません。
+- Animation用のSkillは、アニメーションの追加または変更が要求されるIssueでのみ使用してください。目的、duration、spring、interruptibilityに加え、Reduce Motion時の代替表現を確認し、Web固有の実装例をSwiftUIへそのまま移植しません。
+
 ## UI Screenshotレビュー
 
 - UI表示を変更するIssueでは、既存のScreenshot scenarioで対象状態を再現できる場合、その結果をPull Request上で確認してください。
