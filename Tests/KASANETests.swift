@@ -1797,6 +1797,62 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(content?.recentMaxWeightPoints.map(\.maxWeightKg), [0, 0])
     }
 
+    /// テスト概要: 重量種目カードのVoiceOver読み上げに直近5件の推移を含める。
+    /// 期待値: Pointは古い順で読み上げ、自己ベストと現在ベストも保持する。
+    func testExerciseOverviewCardAccessibilityDescriptionIncludesRecentWeightTrendInChronologicalOrder() throws {
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let content = ExerciseOverviewCardBuilder.build(
+            sessions: (1...6).map {
+                makeExerciseOverviewSession(
+                    exercise: exercise,
+                    completedAt: TimeInterval($0 * 86_400),
+                    weights: [Double($0 * 10)]
+                )
+            }
+        ).first
+
+        let description = content?.accessibilityDescription ?? ""
+        let secondPoint = Date(timeIntervalSince1970: 2 * 86_400).formatted(.dateTime.month().day())
+        let thirdPoint = Date(timeIntervalSince1970: 3 * 86_400).formatted(.dateTime.month().day())
+        let latestPoint = Date(timeIntervalSince1970: 6 * 86_400).formatted(.dateTime.month().day())
+
+        XCTAssertTrue(description.contains("現在のベスト 60キログラム"))
+        XCTAssertTrue(description.contains("自己ベスト"))
+        XCTAssertTrue(description.contains("直近の重量推移"))
+        XCTAssertFalse(description.contains("10キログラム"))
+        let secondDescription = "\(secondPoint) 20キログラム"
+        let thirdDescription = "\(thirdPoint) 30キログラム"
+        let latestDescription = "\(latestPoint) 60キログラム"
+        let secondRange = try XCTUnwrap(description.range(of: secondDescription))
+        let thirdRange = try XCTUnwrap(description.range(of: thirdDescription))
+        let latestRange = try XCTUnwrap(description.range(of: latestDescription))
+        XCTAssertLessThan(
+            secondRange.lowerBound,
+            thirdRange.lowerBound
+        )
+        XCTAssertLessThan(
+            thirdRange.lowerBound,
+            latestRange.lowerBound
+        )
+    }
+
+    /// テスト概要: 自重種目カードのVoiceOver読み上げには重量推移を含めない。
+    /// 期待値: 自重と自己ベストの状態だけを公開し、存在しない重量情報を追加しない。
+    func testExerciseOverviewCardAccessibilityDescriptionOmitsWeightTrendForBodyweight() {
+        let exercise = Exercise(name: "プランク", primaryBodyPart: .core)
+        let content = ExerciseOverviewCardBuilder.build(sessions: [
+            makeExerciseOverviewSession(exercise: exercise, completedAt: 100, weights: [0]),
+            makeExerciseOverviewSession(exercise: exercise, completedAt: 200, weights: [0]),
+        ]).first
+
+        let description = content?.accessibilityDescription ?? ""
+
+        XCTAssertTrue(description.contains("現在のベスト 自重"))
+        XCTAssertFalse(description.contains("直近の重量推移"))
+        XCTAssertFalse(description.contains("キログラム"))
+        XCTAssertFalse(description.contains("自己ベスト"))
+    }
+
     /// 月間factsがOverviewStatsの値を再利用し、月内の有効な種目頻度だけを決定論的に集計する。
     func testMonthlyInsightFactsUsesOverviewStatsAndMonthlyWorkoutFrequency() throws {
         let calendar = utcCalendar

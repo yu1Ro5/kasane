@@ -54,10 +54,10 @@ struct OverviewView: View {
                 if stats.personalRecord != nil || stats.improvement != nil {
                     highlights(stats)
                 }
+                recentWorkouts
                 if !exerciseCardContents.isEmpty {
                     exerciseRecords(exerciseCardContents)
                 }
-                recentWorkouts
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 28)
@@ -233,10 +233,8 @@ struct OverviewView: View {
             }
             ForEach(contents) { content in
                 ExerciseOverviewCard(content: content)
-                    .accessibilityIdentifier("overview-exercise-card-\(content.exerciseID.uuidString)")
             }
         }
-        .accessibilityIdentifier("overview-exercise-records-section")
     }
 }
 
@@ -605,7 +603,8 @@ private struct ExerciseOverviewCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .dashboardCard()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityDescription)
+        .accessibilityLabel(content.accessibilityDescription)
+        .accessibilityIdentifier("overview-exercise-card-\(content.exerciseID.uuidString)")
     }
 
     private var header: some View {
@@ -660,20 +659,6 @@ private struct ExerciseOverviewCard: View {
         content.showsWeightSparkline
             ? WorkoutSetDisplayFormatter.displayWeight(content.currentBestWeightKg)
             : "自重"
-    }
-
-    private var accessibilityDescription: String {
-        var components = [
-            content.exerciseName,
-            "現在のベスト \(spokenBestWeight)",
-            "最終実施日 \(content.latestCompletedAt.formatted(.dateTime.month().day()))",
-        ]
-        if content.isLatestPersonalRecord { components.append("自己ベスト") }
-        return components.joined(separator: "、")
-    }
-
-    private var spokenBestWeight: String {
-        content.showsWeightSparkline ? "\(content.currentBestWeightKg.formatted())キログラム" : "自重"
     }
 
     private var iconName: String {
