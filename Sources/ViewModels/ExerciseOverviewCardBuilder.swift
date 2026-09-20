@@ -21,6 +21,33 @@ struct ExerciseOverviewCardContent: Identifiable, Equatable {
 
     /// 全有効セットが自重の場合、重量グラフを表示しない。
     var showsWeightSparkline: Bool { currentBestWeightKg > 0 }
+
+    /// 種目カードを1要素として公開するためのVoiceOver読み上げ文。
+    var accessibilityDescription: String {
+        var components = [
+            exerciseName,
+            "現在のベスト \(spokenBestWeight)",
+            "最終実施日 \(latestCompletedAt.formatted(.dateTime.month().day()))",
+        ]
+        if isLatestPersonalRecord { components.append("自己ベスト") }
+        guard showsWeightSparkline else { return components.joined(separator: "、") }
+
+        components.append("直近の重量推移")
+        components.append(
+            contentsOf: recentMaxWeightPoints.map {
+                "\($0.completedAt.formatted(.dateTime.month().day())) \(spokenWeight($0.maxWeightKg))"
+            }
+        )
+        return components.joined(separator: "、")
+    }
+
+    private var spokenBestWeight: String {
+        showsWeightSparkline ? spokenWeight(currentBestWeightKg) : "自重"
+    }
+
+    private func spokenWeight(_ weightKg: Double) -> String {
+        "\(WorkoutSetDisplayFormatter.editableWeightValue(weightKg))キログラム"
+    }
 }
 
 /// 1回のワークアウトにおける種目の最大重量。
