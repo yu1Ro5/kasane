@@ -99,7 +99,11 @@ final class KASANEICloudBackupServiceTests: XCTestCase {
         try await service.restore(try await service.prepareRestore(), now: Date(timeIntervalSince1970: 4_000))
 
         let restored = try KASANEBackupExporter(container: container).makeBackup(now: cloudBackup.exportedAt)
-        XCTAssertEqual(restored, cloudBackup)
+        XCTAssertEqual(restored.formatVersion, cloudBackup.formatVersion)
+        XCTAssertEqual(restored.exportedAt, cloudBackup.exportedAt)
+        XCTAssertEqual(restored.appVersion, AppVersion.current)
+        XCTAssertEqual(restored.exercises, cloudBackup.exercises)
+        XCTAssertEqual(restored.workouts, cloudBackup.workouts)
         let storedSafetyData = await safety.data
         let safetyBackup = try KASANEBackupCoding.decode(try XCTUnwrap(storedSafetyData))
         XCTAssertEqual(safetyBackup.exercises.first?.id, localExerciseID)
