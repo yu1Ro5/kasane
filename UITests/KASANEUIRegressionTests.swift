@@ -306,6 +306,8 @@ final class KASANEUIRegressionTests: XCTestCase {
         input.typeText("チェストプレス30kgを10回3セット。")
         app.buttons["workout-ai-analyze-button"].tap()
 
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+
         XCTAssertTrue(app.alerts["AI入力を完了できませんでした"].waitForExistence(timeout: 10))
         XCTAssertTrue(
             app.staticTexts["AIを一時的に利用できません。少し待ってから再度お試しください。"].exists

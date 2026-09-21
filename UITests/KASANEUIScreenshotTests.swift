@@ -70,8 +70,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
                 timeout: 10
             )
         )
-        XCTAssertTrue(app.staticTexts["種目の記録"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["これまでに記録した種目"].exists)
         XCTAssertFalse(
             app.buttons["overview-recent-workout-row-\(overviewOldestSessionID)"].exists
         )
@@ -87,6 +85,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
         recentWorkoutsAttachment.lifetime = .keepAlways
         add(recentWorkoutsAttachment)
 
+        let allExercises = app.buttons["overview-all-exercise-records"]
+        XCTAssertTrue(scrollToHittable(allExercises, in: app))
+        XCTAssertTrue(allExercises.exists)
+
         let benchCard = app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
@@ -97,15 +99,19 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(scrollToHittable(benchCard, in: app))
         XCTAssertTrue(benchCard.label.contains("自己ベスト"))
 
-        let plankCard = app.descendants(matching: .any).matching(
-            NSPredicate(
-                format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
-                "overview-exercise-card-",
-                "プランク"
-            )
-        ).firstMatch
-        XCTAssertTrue(scrollToHittable(plankCard, in: app))
-        XCTAssertTrue(plankCard.label.contains("自重"))
+        XCTAssertTrue(allExercises.waitForExistence(timeout: 5))
+        allExercises.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["exercise-records-screen"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(
+                NSPredicate(
+                    format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+                    "exercise-record-list-row-",
+                    "プランク"
+                )
+            ).firstMatch.exists
+        )
+        app.navigationBars["すべての種目"].buttons["概要"].tap()
 
         let searchButton = app.buttons["検索"]
         XCTAssertTrue(searchButton.waitForExistence(timeout: 10))

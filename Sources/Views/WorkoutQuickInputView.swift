@@ -9,6 +9,7 @@ struct WorkoutQuickInputView: View {
     @Bindable var draftStore: WorkoutDraftStore
     let exercises: [Exercise]
     @State private var viewModel: WorkoutQuickInputViewModel
+    @FocusState private var isTextInputFocused: Bool
     @FocusState private var focusedInput: WorkoutQuickInputFocus?
 
     init(
@@ -88,6 +89,7 @@ struct WorkoutQuickInputView: View {
             }
             if viewModel.draft == nil {
                 TextEditor(text: $viewModel.text)
+                    .focused($isTextInputFocused)
                     .frame(minHeight: 150)
                     .padding(8)
                     .background(.background, in: RoundedRectangle(cornerRadius: 14))
@@ -110,9 +112,7 @@ struct WorkoutQuickInputView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
-                Button {
-                    Task { await viewModel.analyze(availableExercises: exercises) }
-                } label: {
+                Button(action: analyze) {
                     HStack {
                         if viewModel.isAnalyzing { ProgressView() }
                         Text(viewModel.isAnalyzing ? "解析中…" : "Apple Intelligenceで解析")
@@ -368,6 +368,11 @@ struct WorkoutQuickInputView: View {
             viewModel.errorMessage = error.localizedDescription
             viewModel.isApplying = false
         }
+    }
+
+    private func analyze() {
+        isTextInputFocused = false
+        Task { await viewModel.analyze(availableExercises: exercises) }
     }
 
     private func setBinding(exerciseID: UUID, setID: UUID) -> Binding<SetEntryDraft> {
