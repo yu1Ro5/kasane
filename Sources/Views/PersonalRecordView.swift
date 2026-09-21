@@ -14,7 +14,7 @@ struct PersonalRecordSequenceView: View {
         if currentIndex < achievements.count {
             PersonalRecordView(
                 achievement: achievements[currentIndex],
-                actionTitle: currentIndex == achievements.count - 1 ? "完了画面へ" : "次へ"
+                actionTitle: "次へ"
             ) {
                 currentIndex += 1
             }
@@ -116,7 +116,6 @@ struct PersonalRecordView: View {
             .controlSize(.large)
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
-            .background(.ultraThinMaterial)
             .accessibilityIdentifier("personal-record-continue-button")
         }
         .navigationBarBackButtonHidden()
@@ -186,7 +185,7 @@ private extension View {
                 previousBest: 63,
                 newBest: 72
             ),
-            actionTitle: "完了画面へ",
+            actionTitle: "次へ",
             onContinue: {}
         )
     }
