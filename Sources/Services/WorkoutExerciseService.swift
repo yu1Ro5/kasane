@@ -13,9 +13,11 @@ enum WorkoutExerciseError: LocalizedError {
 @MainActor
 struct WorkoutExerciseService {
     private let context: ModelContext
+    private let save: @MainActor () throws -> Void
 
-    init(context: ModelContext) {
+    init(context: ModelContext, save: (@MainActor () throws -> Void)? = nil) {
         self.context = context
+        self.save = save ?? { try context.save() }
     }
 
     /// 有効な未確定Draftがあれば、既存種目への追加または最初のセットとして保存する。
@@ -58,7 +60,7 @@ struct WorkoutExerciseService {
         Self.moveToFront(entry, in: session)
         do {
             _ = try WorkoutSetService(context: context).insert(draft: draft, to: entry)
-            try context.save()
+            try save()
             return entry
         } catch {
             context.rollback()
@@ -77,7 +79,7 @@ struct WorkoutExerciseService {
             item.order = order
         }
         do {
-            try context.save()
+            try save()
         } catch {
             context.rollback()
             Self.restoreOrder(originalOrder)
