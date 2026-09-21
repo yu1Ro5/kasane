@@ -92,7 +92,9 @@ struct KASANEPersistenceCoordinator {
             throw migrationError
         }
         markerStore.save(Self.currentVersion)
-        try snapshotStore.deletePendingSnapshot()
+        if snapshotStore.hasPendingSnapshot() {
+            try snapshotStore.deletePendingSnapshot()
+        }
         return container
     }
 }
