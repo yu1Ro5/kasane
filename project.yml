@@ -77,10 +77,12 @@ schemes:
     build:
       targets:
         KASANE: all
+        KASANETests: [test]
         KASANEUITests: [test]
     test:
       gatherCoverageData: false
       targets:
+        - name: KASANETests
         - name: KASANEUITests
           selectedTests:
             - KASANEUISmokeTests/testAppLaunchSmoke()
