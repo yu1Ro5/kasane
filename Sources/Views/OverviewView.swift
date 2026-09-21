@@ -56,7 +56,7 @@ struct OverviewView: View {
                 }
                 recentWorkouts
                 if !exerciseCardContents.isEmpty {
-                    exerciseRecords(exerciseCardContents)
+                    exerciseRecords(featuredExerciseRecords(from: exerciseCardContents))
                 }
             }
             .padding(.horizontal, 18)
@@ -85,6 +85,7 @@ struct OverviewView: View {
             case .search: WorkoutSearchView()
             case .workoutDetail(let id): WorkoutDetailDestinationView(sessionID: id)
             case .exerciseProgress(let id): ExerciseProgressDestinationView(exerciseID: id)
+            case .exerciseRecords: ExerciseRecordsView()
             }
         }
     }
@@ -225,12 +226,22 @@ struct OverviewView: View {
 
     private func exerciseRecords(_ contents: [ExerciseOverviewCardContent]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("種目の記録")
-                    .font(.title3.bold())
-                Text("これまでに記録した種目")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("種目の記録")
+                        .font(.title3.bold())
+                    Text("最近使った種目")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                NavigationLink(value: OverviewRoute.exerciseRecords) {
+                    Label("すべて", systemImage: "chevron.right")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityLabel("すべての種目を表示")
+                .accessibilityIdentifier("overview-all-exercise-records")
             }
             ForEach(contents) { content in
                 NavigationLink(value: OverviewRoute.exerciseProgress(content.exerciseID)) {
@@ -239,6 +250,12 @@ struct OverviewView: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private func featuredExerciseRecords(
+        from contents: [ExerciseOverviewCardContent]
+    ) -> [ExerciseOverviewCardContent] {
+        Array(contents.prefix(3))
     }
 }
 
@@ -737,7 +754,7 @@ private extension View {
 }
 
 enum OverviewRoute: Hashable {
-    case about, history, search, workoutDetail(UUID), exerciseProgress(UUID)
+    case about, history, search, workoutDetail(UUID), exerciseProgress(UUID), exerciseRecords
 }
 
 #Preview {
