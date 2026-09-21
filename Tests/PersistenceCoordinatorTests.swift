@@ -196,6 +196,7 @@ private extension PersistenceCoordinatorTests {
             self.factoryError = factoryError
         }
 
+        @MainActor
         func coordinator() -> KASANEPersistenceCoordinator {
             KASANEPersistenceCoordinator(
                 configuration: configuration,
