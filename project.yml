@@ -73,6 +73,22 @@ targets:
         SKIP_INSTALL: YES
 
 schemes:
+  KASANESmoke:
+    build:
+      targets:
+        KASANE: all
+        KASANETests: [test]
+        KASANEUITests: [test]
+    test:
+      gatherCoverageData: false
+      targets:
+        - name: KASANETests
+        - name: KASANEUITests
+          selectedTests:
+            - KASANEUISmokeTests/testAppLaunchSmoke()
+            - KASANEUISmokeTests/testWorkoutHappyPathSmoke()
+            - KASANEUISmokeTests/testWorkoutDraftPersistsAcrossNavigation()
+
   KASANEScreenshot:
     build:
       targets:
@@ -81,4 +97,40 @@ schemes:
     test:
       gatherCoverageData: false
       targets:
-        - KASANEUITests
+        - name: KASANEUITests
+          selectedTests:
+            - KASANEUIScreenshotTests/testEmptyScreenshots()
+            - KASANEUIScreenshotTests/testAboutScreenshot()
+            - KASANEUIScreenshotTests/testOverviewScreenshots()
+            - KASANEUIScreenshotTests/testOverviewPreviousMonthScreenshot()
+            - KASANEUIScreenshotTests/testOverviewUnavailableInsightScreenshot()
+            - KASANEUIScreenshotTests/testOverviewDarkModeScreenshot()
+            - KASANEUIScreenshotTests/testOverviewDynamicTypeScreenshot()
+            - KASANEUIScreenshotTests/testWorkoutInteractionScreenshots()
+            - KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots()
+            - KASANEUIScreenshotTests/testWorkoutCompletionInsightScreenshot()
+            - KASANEUIScreenshotTests/testPersonalRecordScreenshotsAndCompletionNavigation()
+            - KASANEUIScreenshotTests/testWorkoutPreviousRecordScreenshots()
+            - KASANEUIScreenshotTests/testWorkoutDynamicTypeScreenshot()
+            - KASANEUIScreenshotTests/testWorkoutHistoryScreenshots()
+
+  KASANERegression:
+    build:
+      targets:
+        KASANE: all
+        KASANEUITests: [test]
+    test:
+      gatherCoverageData: false
+      targets:
+        - name: KASANEUITests
+          selectedTests:
+            - KASANEUIRegressionTests/testDataManagementNavigationAndActions()
+            - KASANEUIRegressionTests/testOverviewRecentWorkoutOpensDetail()
+            - KASANEUIRegressionTests/testOverviewSearchKeepsQueryAfterViewingDetail()
+            - KASANEUIRegressionTests/testCompletedWorkoutDeletionFlow()
+            - KASANEUIRegressionTests/testWorkoutRepSuggestionsApplyToFocusedInput()
+            - KASANEUIRegressionTests/testWorkoutCompletionWithoutImprovementOmitsInsight()
+            - KASANEUIRegressionTests/testWorkoutAIQuickInputReviewAndApply()
+            - KASANEUIRegressionTests/testWorkoutAIQuickInputAddsSetBeforeApply()
+            - KASANEUIRegressionTests/testWorkoutAIQuickInputAddsExerciseBeforeApply()
+            - KASANEUIRegressionTests/testWorkoutAIQuickInputShowsClassifiedError()
