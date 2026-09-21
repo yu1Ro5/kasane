@@ -1,8 +1,10 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import KASANE
 
+@MainActor
 final class MigrationSnapshotStoreTests: XCTestCase {
     func testFailedSnapshotDoesNotPublishPendingDirectory() throws {
         let directory = temporaryDirectory()
@@ -18,7 +20,7 @@ final class MigrationSnapshotStoreTests: XCTestCase {
         XCTAssertThrowsError(
             try snapshot.createPendingSnapshot(storeURL: storeURL, sourceVersion: nil, targetVersion: 1)
         )
-        XCTAssertFalse(snapshot.hasPendingSnapshot())
+        XCTAssertNil(try snapshot.pendingSnapshotMetadata())
     }
 
     func testSnapshotAndRestorePreserveMainStoreAndEveryExistingSidecar() throws {
@@ -35,7 +37,10 @@ final class MigrationSnapshotStoreTests: XCTestCase {
         }
 
         try snapshot.createPendingSnapshot(storeURL: storeURL, sourceVersion: nil, targetVersion: 1)
-        XCTAssertTrue(snapshot.hasPendingSnapshot())
+        XCTAssertEqual(
+            try snapshot.pendingSnapshotMetadata(),
+            MigrationSnapshotMetadata(sourceVersion: nil, targetVersion: 1)
+        )
         XCTAssertThrowsError(
             try snapshot.createPendingSnapshot(storeURL: storeURL, sourceVersion: nil, targetVersion: 1)
         )
@@ -52,7 +57,7 @@ final class MigrationSnapshotStoreTests: XCTestCase {
             )
         }
         try snapshot.deletePendingSnapshot()
-        XCTAssertFalse(snapshot.hasPendingSnapshot())
+        XCTAssertNil(try snapshot.pendingSnapshotMetadata())
     }
 
     func testRestoreRemovesSidecarThatDidNotExistAtSnapshotTime() throws {
@@ -66,6 +71,130 @@ final class MigrationSnapshotStoreTests: XCTestCase {
         try Data("migration wal".utf8).write(to: walURL)
         try snapshot.restorePendingSnapshot(storeURL: storeURL)
         XCTAssertFalse(FileManager.default.fileExists(atPath: walURL.path))
+    }
+
+    func testPendingDirectoryWithoutManifestIsPreservedAndReported() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let snapshot = MigrationSnapshotStore(rootURL: directory.appendingPathComponent("snapshots"))
+        try FileManager.default.createDirectory(
+            at: snapshot.pendingURL,
+            withIntermediateDirectories: true
+        )
+
+        XCTAssertThrowsError(try snapshot.pendingSnapshotMetadata()) { error in
+            guard case MigrationSnapshotStore.SnapshotError.missingManifest = error else {
+                return XCTFail("unexpected error: \(error)")
+            }
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot.pendingURL.path))
+    }
+
+    func testRestoredDiskStoreReopensWithOriginalValuesAndRelationships() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storeURL = directory.appendingPathComponent("default.store")
+        let schema = Schema(versionedSchema: CurrentKASANESchema.self)
+        let configuration = ModelConfiguration(schema: schema, url: storeURL)
+        let sessionID = try XCTUnwrap(
+            UUID(uuidString: "10000000-0000-4000-8000-000000000001")
+        )
+        let exerciseID = try XCTUnwrap(
+            UUID(uuidString: "20000000-0000-4000-8000-000000000001")
+        )
+        let entryID = try XCTUnwrap(
+            UUID(uuidString: "30000000-0000-4000-8000-000000000001")
+        )
+        let setID = try XCTUnwrap(
+            UUID(uuidString: "40000000-0000-4000-8000-000000000001")
+        )
+
+        do {
+            let container = try ModelContainer(
+                for: schema,
+                migrationPlan: KASANEMigrationPlan.self,
+                configurations: configuration
+            )
+            let session = WorkoutSession(
+                id: sessionID,
+                startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                endedAt: Date(timeIntervalSince1970: 1_700_003_600),
+                note: "original note"
+            )
+            let exercise = Exercise(
+                id: exerciseID,
+                name: "Original Press",
+                primaryBodyPart: .chest
+            )
+            let entry = ExerciseEntry(
+                id: entryID,
+                workoutSession: session,
+                exercise: exercise,
+                order: 0
+            )
+            let set = SetEntry(
+                id: setID,
+                exerciseEntry: entry,
+                order: 0,
+                weightKg: 80,
+                reps: 8
+            )
+            container.mainContext.insert(session)
+            container.mainContext.insert(exercise)
+            container.mainContext.insert(entry)
+            container.mainContext.insert(set)
+            try container.mainContext.save()
+        }
+
+        let snapshot = MigrationSnapshotStore(
+            rootURL: directory.appendingPathComponent("snapshots")
+        )
+        try snapshot.createPendingSnapshot(
+            storeURL: storeURL,
+            sourceVersion: 1,
+            targetVersion: 2
+        )
+
+        do {
+            let container = try ModelContainer(
+                for: schema,
+                migrationPlan: KASANEMigrationPlan.self,
+                configurations: configuration
+            )
+            let session = try XCTUnwrap(
+                container.mainContext.fetch(FetchDescriptor<WorkoutSession>()).first
+            )
+            session.note = "changed note"
+            let entry = try XCTUnwrap(session.exerciseEntries.first)
+            entry.exercise?.name = "Changed Press"
+            entry.setEntries.first?.weightKg = 120
+            try container.mainContext.save()
+        }
+
+        try snapshot.restorePendingSnapshot(storeURL: storeURL)
+
+        let restoredContainer = try ModelContainer(
+            for: schema,
+            migrationPlan: KASANEMigrationPlan.self,
+            configurations: configuration
+        )
+        let restoredSession = try XCTUnwrap(
+            restoredContainer.mainContext.fetch(FetchDescriptor<WorkoutSession>()).first
+        )
+        XCTAssertEqual(restoredSession.id, sessionID)
+        XCTAssertEqual(restoredSession.note, "original note")
+        let restoredEntry = try XCTUnwrap(restoredSession.exerciseEntries.first)
+        XCTAssertEqual(restoredEntry.id, entryID)
+        XCTAssertIdentical(restoredEntry.workoutSession, restoredSession)
+        let restoredExercise = try XCTUnwrap(restoredEntry.exercise)
+        XCTAssertEqual(restoredExercise.id, exerciseID)
+        XCTAssertEqual(restoredExercise.name, "Original Press")
+        XCTAssertEqual(restoredExercise.exerciseEntries.map(\.id), [entryID])
+        let restoredSet = try XCTUnwrap(restoredEntry.setEntries.first)
+        XCTAssertEqual(restoredSet.id, setID)
+        XCTAssertEqual(restoredSet.weightKg, 80)
+        XCTAssertEqual(restoredSet.reps, 8)
+        XCTAssertIdentical(restoredSet.exerciseEntry, restoredEntry)
     }
 
     private func temporaryDirectory() -> URL {

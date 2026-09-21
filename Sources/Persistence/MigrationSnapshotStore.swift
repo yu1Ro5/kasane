@@ -1,7 +1,13 @@
 import Foundation
 
+/// 保留中のmigration snapshotを識別するためのschema version情報。
+struct MigrationSnapshotMetadata: Equatable {
+    let sourceVersion: Int?
+    let targetVersion: Int
+}
+
 protocol MigrationSnapshotStoring {
-    func hasPendingSnapshot() -> Bool
+    func pendingSnapshotMetadata() throws -> MigrationSnapshotMetadata?
     func createPendingSnapshot(storeURL: URL, sourceVersion: Int?, targetVersion: Int) throws
     func restorePendingSnapshot(storeURL: URL) throws
     func deletePendingSnapshot() throws
@@ -38,8 +44,13 @@ struct MigrationSnapshotStore: MigrationSnapshotStoring {
 
     var pendingURL: URL { rootURL.appendingPathComponent("pending", isDirectory: true) }
 
-    func hasPendingSnapshot() -> Bool {
-        fileManager.fileExists(atPath: pendingURL.path)
+    func pendingSnapshotMetadata() throws -> MigrationSnapshotMetadata? {
+        guard pendingSnapshotExists else { return nil }
+        let manifest = try loadManifest()
+        return MigrationSnapshotMetadata(
+            sourceVersion: manifest.sourceVersion,
+            targetVersion: manifest.targetVersion
+        )
     }
 
     func createPendingSnapshot(
@@ -47,7 +58,7 @@ struct MigrationSnapshotStore: MigrationSnapshotStoring {
         sourceVersion: Int?,
         targetVersion: Int
     ) throws {
-        guard !hasPendingSnapshot() else { throw SnapshotError.pendingSnapshotAlreadyExists }
+        guard !pendingSnapshotExists else { throw SnapshotError.pendingSnapshotAlreadyExists }
 
         try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
         let temporaryURL = rootURL.appendingPathComponent("temporary-\(UUID().uuidString)", isDirectory: true)
@@ -78,11 +89,7 @@ struct MigrationSnapshotStore: MigrationSnapshotStoring {
     }
 
     func restorePendingSnapshot(storeURL: URL) throws {
-        let manifestURL = pendingURL.appendingPathComponent("manifest.json")
-        guard fileManager.fileExists(atPath: manifestURL.path) else {
-            throw SnapshotError.missingManifest
-        }
-        let manifest = try JSONDecoder().decode(Manifest.self, from: Data(contentsOf: manifestURL))
+        let manifest = try loadManifest()
 
         // コピー元がすべて揃っていることを、現行storeへ触れる前に確認する。
         for name in manifest.files
@@ -105,7 +112,19 @@ struct MigrationSnapshotStore: MigrationSnapshotStoring {
     }
 
     func deletePendingSnapshot() throws {
-        guard hasPendingSnapshot() else { return }
+        guard pendingSnapshotExists else { return }
         try fileManager.removeItem(at: pendingURL)
+    }
+
+    private var pendingSnapshotExists: Bool {
+        fileManager.fileExists(atPath: pendingURL.path)
+    }
+
+    private func loadManifest() throws -> Manifest {
+        let manifestURL = pendingURL.appendingPathComponent("manifest.json")
+        guard fileManager.fileExists(atPath: manifestURL.path) else {
+            throw SnapshotError.missingManifest
+        }
+        return try JSONDecoder().decode(Manifest.self, from: Data(contentsOf: manifestURL))
     }
 }

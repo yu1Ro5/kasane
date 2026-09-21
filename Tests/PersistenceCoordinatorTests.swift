@@ -51,6 +51,45 @@ final class PersistenceCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.factoryCallCount, 1)
     }
 
+    func testNewerPendingSnapshotIsPreservedWithoutOpeningStore() throws {
+        let harness = try Harness(
+            storeExists: true,
+            marker: 1,
+            pending: true,
+            pendingTargetVersion: 2
+        )
+        defer { harness.cleanup() }
+
+        XCTAssertThrowsError(try harness.coordinator().make()) { error in
+            guard
+                case .downgradeDetected(storedVersion: 2, currentVersion: 1) = error
+                    as? KASANEPersistenceCoordinator.PersistenceError
+            else { return XCTFail("unexpected error: \(error)") }
+        }
+        XCTAssertTrue(harness.snapshot.pending)
+        XCTAssertEqual(harness.snapshot.restoreCount, 0)
+        XCTAssertEqual(harness.snapshot.deleteCount, 0)
+        XCTAssertEqual(harness.factoryCallCount, 0)
+    }
+
+    func testUnreadablePendingSnapshotIsPreservedWithoutOpeningStore() throws {
+        let harness = try Harness(
+            storeExists: true,
+            marker: 1,
+            pending: true,
+            metadataError: TestError.metadata
+        )
+        defer { harness.cleanup() }
+
+        XCTAssertThrowsError(try harness.coordinator().make()) { error in
+            XCTAssertEqual(error as? TestError, .metadata)
+        }
+        XCTAssertTrue(harness.snapshot.pending)
+        XCTAssertEqual(harness.snapshot.restoreCount, 0)
+        XCTAssertEqual(harness.snapshot.deleteCount, 0)
+        XCTAssertEqual(harness.factoryCallCount, 0)
+    }
+
     func testOpenFailureRestoresSnapshotDoesNotAdvanceMarkerAndPropagatesError() throws {
         let harness = try Harness(storeExists: true, factoryError: TestError.open)
         defer { harness.cleanup() }
@@ -122,30 +161,53 @@ final class PersistenceCoordinatorTests: XCTestCase {
 private extension PersistenceCoordinatorTests {
     enum TestError: Error, Equatable {
         case open
+        case metadata
         case restore
         case snapshot
     }
 
     final class SnapshotSpy: MigrationSnapshotStoring {
         var pending: Bool
+        var sourceVersion: Int?
+        var targetVersion: Int
+        var metadataError: Error?
         var createError: Error?
         var restoreError: Error?
         var createCount = 0
         var restoreCount = 0
         var deleteCount = 0
 
-        init(pending: Bool, createError: Error?, restoreError: Error?) {
+        init(
+            pending: Bool,
+            sourceVersion: Int?,
+            targetVersion: Int,
+            metadataError: Error?,
+            createError: Error?,
+            restoreError: Error?
+        ) {
             self.pending = pending
+            self.sourceVersion = sourceVersion
+            self.targetVersion = targetVersion
+            self.metadataError = metadataError
             self.createError = createError
             self.restoreError = restoreError
         }
 
-        func hasPendingSnapshot() -> Bool { pending }
+        func pendingSnapshotMetadata() throws -> MigrationSnapshotMetadata? {
+            if let metadataError { throw metadataError }
+            guard pending else { return nil }
+            return MigrationSnapshotMetadata(
+                sourceVersion: sourceVersion,
+                targetVersion: targetVersion
+            )
+        }
 
         func createPendingSnapshot(storeURL: URL, sourceVersion: Int?, targetVersion: Int) throws {
             createCount += 1
             if let createError { throw createError }
             pending = true
+            self.sourceVersion = sourceVersion
+            self.targetVersion = targetVersion
         }
 
         func restorePendingSnapshot(storeURL: URL) throws {
@@ -173,6 +235,8 @@ private extension PersistenceCoordinatorTests {
             storeExists: Bool,
             marker version: Int? = nil,
             pending: Bool = false,
+            pendingTargetVersion: Int = 1,
+            metadataError: Error? = nil,
             createError: Error? = nil,
             restoreError: Error? = nil,
             factoryError: Error? = nil
@@ -188,6 +252,9 @@ private extension PersistenceCoordinatorTests {
             if let version { marker.save(version) }
             snapshot = SnapshotSpy(
                 pending: pending,
+                sourceVersion: version,
+                targetVersion: pendingTargetVersion,
+                metadataError: metadataError,
                 createError: createError,
                 restoreError: restoreError
             )

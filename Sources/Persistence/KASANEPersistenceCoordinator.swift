@@ -58,12 +58,20 @@ struct KASANEPersistenceCoordinator {
 
         let storeExists = fileManager.fileExists(atPath: configuration.url.path)
         let needsMigrationProtection = storeExists && marker != Self.currentVersion
+        var hasRecoverySnapshot = false
 
-        if snapshotStore.hasPendingSnapshot() {
+        if let pendingSnapshot = try snapshotStore.pendingSnapshotMetadata() {
+            if pendingSnapshot.targetVersion > Self.currentVersion {
+                throw PersistenceError.downgradeDetected(
+                    storedVersion: pendingSnapshot.targetVersion,
+                    currentVersion: Self.currentVersion
+                )
+            }
             if marker == Self.currentVersion {
                 try snapshotStore.deletePendingSnapshot()
             } else {
                 try snapshotStore.restorePendingSnapshot(storeURL: configuration.url)
+                hasRecoverySnapshot = true
             }
         } else if needsMigrationProtection {
             try snapshotStore.createPendingSnapshot(
@@ -71,6 +79,7 @@ struct KASANEPersistenceCoordinator {
                 sourceVersion: marker,
                 targetVersion: Self.currentVersion
             )
+            hasRecoverySnapshot = true
         }
 
         let container: ModelContainer
@@ -80,7 +89,7 @@ struct KASANEPersistenceCoordinator {
                 configuration
             )
         } catch let migrationError {
-            guard snapshotStore.hasPendingSnapshot() else { throw migrationError }
+            guard hasRecoverySnapshot else { throw migrationError }
             do {
                 try snapshotStore.restorePendingSnapshot(storeURL: configuration.url)
             } catch let restoreError {
@@ -92,7 +101,7 @@ struct KASANEPersistenceCoordinator {
             throw migrationError
         }
         markerStore.save(Self.currentVersion)
-        if snapshotStore.hasPendingSnapshot() {
+        if hasRecoverySnapshot {
             try snapshotStore.deletePendingSnapshot()
         }
         return container
