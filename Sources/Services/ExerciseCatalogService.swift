@@ -44,9 +44,11 @@ struct ExerciseCatalogService {
     ]
 
     private let context: ModelContext
+    private let save: @MainActor () throws -> Void
 
-    init(context: ModelContext) {
+    init(context: ModelContext, save: (@MainActor () throws -> Void)? = nil) {
         self.context = context
+        self.save = save ?? { try context.save() }
     }
 
     /// 組み込み種目を追加する。
@@ -59,7 +61,12 @@ struct ExerciseCatalogService {
             context.insert(Exercise(id: id, name: item.name, primaryBodyPart: item.bodyPart))
         }
         if context.hasChanges {
-            try context.save()
+            do {
+                try save()
+            } catch {
+                context.rollback()
+                throw error
+            }
         }
     }
 }

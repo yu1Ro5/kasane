@@ -3,7 +3,7 @@ options:
   bundleIdPrefix: com.yu1Ro5
   deploymentTarget:
     iOS: "26.0"
-  xcodeVersion: "26.0"
+  xcodeVersion: "27.0"
   generateEmptyDirectories: true
   groupSortPosition: top
 

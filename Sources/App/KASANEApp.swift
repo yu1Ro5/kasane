@@ -31,16 +31,11 @@ struct KASANEApp: App {
 
 @MainActor
 private enum AppModelContainer {
-    private static let schema = Schema([
-        WorkoutSession.self,
-        Exercise.self,
-        ExerciseEntry.self,
-        SetEntry.self,
-    ])
+    private static let schema = Schema(versionedSchema: CurrentKASANESchema.self)
 
     static func make(arguments: [String] = ProcessInfo.processInfo.arguments) throws -> ModelContainer {
         guard arguments.contains("--ui-testing") else {
-            return try ModelContainer(for: schema)
+            return try KASANEPersistenceCoordinator().make()
         }
 
         let container = try ModelContainer(

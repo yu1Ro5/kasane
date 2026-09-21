@@ -13,18 +13,18 @@ concurrency:
 
 jobs:
   build-and-test:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode 26
+      - name: Select Xcode 27
         shell: bash
         run: |
           set -euo pipefail
-          xcode_path="$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' | sort | tail -1)"
+          xcode_path="$(find /Applications -maxdepth 1 -type d -name 'Xcode_27*.app' | sort | tail -1)"
           test -n "$xcode_path"
           sudo xcode-select --switch "$xcode_path"
           xcodebuild -version
@@ -44,13 +44,13 @@ jobs:
           import json, sys
           devices = json.load(sys.stdin)["devices"]
           for runtime in sorted(devices, reverse=True):
-              if "iOS-26" not in runtime:
+              if "iOS-27" not in runtime:
                   continue
               for device in devices[runtime]:
                   if device["isAvailable"] and device["name"].startswith("iPhone"):
                       print(device["udid"])
                       raise SystemExit
-          raise SystemExit("No available iOS 26 iPhone simulator found")
+          raise SystemExit("No available iOS 27 iPhone simulator found")
           ')"
           echo "id=$simulator_id" >> "$GITHUB_OUTPUT"
 

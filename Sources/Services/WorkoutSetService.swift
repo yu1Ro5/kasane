@@ -5,9 +5,11 @@ import SwiftData
 @MainActor
 struct WorkoutSetService {
     private let context: ModelContext
+    private let save: @MainActor () throws -> Void
 
-    init(context: ModelContext) {
+    init(context: ModelContext, save: (@MainActor () throws -> Void)? = nil) {
         self.context = context
+        self.save = save ?? { try context.save() }
     }
 
     @discardableResult
@@ -16,7 +18,7 @@ struct WorkoutSetService {
         let setEntry = try insert(draft: draft, to: exerciseEntry)
         moveExerciseToFront(exerciseEntry)
         do {
-            try context.save()
+            try save()
             return setEntry
         } catch {
             context.rollback()
@@ -49,7 +51,7 @@ struct WorkoutSetService {
             moveExerciseToFront(exerciseEntry)
         }
         do {
-            try context.save()
+            try save()
         } catch {
             context.rollback()
             WorkoutExerciseService.restoreOrder(originalOrder)
@@ -66,7 +68,7 @@ struct WorkoutSetService {
         }
         moveExerciseToFront(exerciseEntry)
         do {
-            try context.save()
+            try save()
         } catch {
             context.rollback()
             WorkoutExerciseService.restoreOrder(originalOrder)

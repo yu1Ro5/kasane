@@ -6,9 +6,9 @@ KASANEは、積み重ねたトレーニング履歴を、月間・年間の楽�
 
 ## 必要な環境
 
-- Xcode 26をインストールしたmacOS
+- Xcode 27をインストールしたmacOS
 - XcodeGen（`brew install xcodegen`でインストール）
-- iOS 26シミュレーター
+- iOS 27シミュレーター
 
 ## セットアップ
 
@@ -23,13 +23,13 @@ open KASANE.xcodeproj
 
 ## ビルドとテスト
 
-ローカルにインストールされているiOS 26シミュレーターを指定して、次のコマンドを実行します。
+ローカルにインストールされているiOS 27シミュレーターを指定して、次のコマンドを実行します。
 
 ```sh
 xcodebuild -project KASANE.xcodeproj \
   -scheme KASANE \
   -sdk iphonesimulator \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' \
   -configuration Debug \
   CODE_SIGNING_ALLOWED=NO \
   build
@@ -37,7 +37,7 @@ xcodebuild -project KASANE.xcodeproj \
 xcodebuild -project KASANE.xcodeproj \
   -scheme KASANE \
   -sdk iphonesimulator \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' \
   -configuration Debug \
   CODE_SIGNING_ALLOWED=NO \
   test
