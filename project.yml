@@ -35,6 +35,7 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         PRIVACY_MANIFEST_PATH: Sources/PrivacyInfo.xcprivacy
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Sources/KASANE.entitlements
     scheme:
       testTargets:
         - KASANETests
