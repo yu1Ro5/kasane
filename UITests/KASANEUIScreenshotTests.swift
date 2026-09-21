@@ -150,7 +150,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
             )
         )
         XCTAssertTrue(app.staticTexts["種目の記録"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["これまでに記録した種目"].exists)
         XCTAssertFalse(
             app.buttons["overview-recent-workout-row-\(overviewOldestSessionID)"].exists
         )
@@ -165,6 +164,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
         recentWorkoutsAttachment.name = "overview-recent-workouts"
         recentWorkoutsAttachment.lifetime = .keepAlways
         add(recentWorkoutsAttachment)
+
+        let exerciseRecordsDescription = app.staticTexts["これまでに記録した種目"]
+        XCTAssertTrue(scrollToHittable(exerciseRecordsDescription, in: app))
+        XCTAssertTrue(exerciseRecordsDescription.exists)
 
         let benchCard = app.descendants(matching: .any).matching(
             NSPredicate(
