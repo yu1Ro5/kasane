@@ -250,6 +250,8 @@ struct OverviewView: View {
                 .buttonStyle(.plain)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("overview-exercise-records-section")
     }
 
     private func featuredExerciseRecords(

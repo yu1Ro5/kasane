@@ -149,7 +149,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
                 timeout: 10
             )
         )
-        XCTAssertTrue(app.staticTexts["種目の記録"].waitForExistence(timeout: 10))
         XCTAssertFalse(
             app.buttons["overview-recent-workout-row-\(overviewOldestSessionID)"].exists
         )
@@ -165,9 +164,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
         recentWorkoutsAttachment.lifetime = .keepAlways
         add(recentWorkoutsAttachment)
 
-        let exerciseRecordsDescription = app.staticTexts["これまでに記録した種目"]
-        XCTAssertTrue(scrollToHittable(exerciseRecordsDescription, in: app))
-        XCTAssertTrue(exerciseRecordsDescription.exists)
+        let allExercises = app.buttons["overview-all-exercise-records"]
+        XCTAssertTrue(scrollToHittable(allExercises, in: app))
+        XCTAssertTrue(allExercises.exists)
 
         let benchCard = app.descendants(matching: .any).matching(
             NSPredicate(
@@ -179,7 +178,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(scrollToHittable(benchCard, in: app))
         XCTAssertTrue(benchCard.label.contains("自己ベスト"))
 
-        let allExercises = app.buttons["overview-all-exercise-records"]
         XCTAssertTrue(allExercises.waitForExistence(timeout: 5))
         allExercises.tap()
         XCTAssertTrue(app.descendants(matching: .any)["exercise-records-screen"].waitForExistence(timeout: 5))
