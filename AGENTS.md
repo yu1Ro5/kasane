@@ -34,21 +34,21 @@ open KASANE.xcodeproj
 
 ## ビルドとテスト
 
-ローカルにインストールされているiOS 26シミュレーターを指定して実行します。
+ローカルにインストールされているiOS 27シミュレーターを指定して実行します。
 
 ```sh
 xcodegen generate
 xcodebuild -project KASANE.xcodeproj \
   -scheme KASANE \
   -sdk iphonesimulator \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' \
   -configuration Debug \
   CODE_SIGNING_ALLOWED=NO \
   build
 xcodebuild -project KASANE.xcodeproj \
   -scheme KASANE \
   -sdk iphonesimulator \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' \
   -configuration Debug \
   CODE_SIGNING_ALLOWED=NO \
   test

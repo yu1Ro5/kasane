@@ -256,7 +256,7 @@ jobs:
               "pr_number": int(os.environ["PR_NUMBER"]),
               "head_sha": os.environ["HEAD_SHA"],
               "simulator": os.environ["SIMULATOR_NAME"],
-              "ios": "26.x",
+              "ios": "27.x",
               "screenshots": metadata_screenshots,
           }
           path = artifact_dir / "metadata.json"
