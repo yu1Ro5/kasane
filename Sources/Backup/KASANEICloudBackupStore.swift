@@ -121,13 +121,10 @@ actor KASANEICloudBackupStore: KASANECloudBackupStoring {
     private func ensureDownloaded(_ url: URL) async throws {
         do {
             let values = try url.resourceValues(forKeys: [
-                .ubiquitousItemIsDownloadedKey,
                 .ubiquitousItemDownloadingStatusKey,
                 .ubiquitousItemDownloadingErrorKey,
             ])
-            if values.ubiquitousItemIsDownloaded == true
-                || values.ubiquitousItemDownloadingStatus == .current
-            {
+            if values.ubiquitousItemDownloadingStatus == .current {
                 return
             }
             try FileManager.default.startDownloadingUbiquitousItem(at: url)
@@ -140,13 +137,10 @@ actor KASANEICloudBackupStore: KASANECloudBackupStoring {
         while clock.now < deadline {
             do {
                 let values = try url.resourceValues(forKeys: [
-                    .ubiquitousItemIsDownloadedKey,
                     .ubiquitousItemDownloadingStatusKey,
                     .ubiquitousItemDownloadingErrorKey,
                 ])
-                if values.ubiquitousItemIsDownloaded == true
-                    || values.ubiquitousItemDownloadingStatus == .current
-                {
+                if values.ubiquitousItemDownloadingStatus == .current {
                     return
                 }
                 if values.ubiquitousItemDownloadingError != nil {
