@@ -153,6 +153,7 @@ jobs:
             -configuration Debug \
             -enableCodeCoverage NO \
             CODE_SIGNING_ALLOWED=NO \
+            -collect-test-diagnostics never \
             test-without-building
           xcodebuild_end="$(date +%s)"
           xctest_reported_seconds="$(
