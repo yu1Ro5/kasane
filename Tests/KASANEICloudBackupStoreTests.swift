@@ -31,7 +31,8 @@ final class KASANEICloudBackupStoreTests: XCTestCase {
             requiresUbiquitousDownload: false
         )
 
-        XCTAssertFalse(try await store.latestBackupExists())
+        let latestBackupExists = try await store.latestBackupExists()
+        XCTAssertFalse(latestBackupExists)
         await XCTAssertThrowsErrorAsync(try await store.loadLatest()) { error in
             XCTAssertEqual(error as? KASANEICloudBackupStoreError, .backupNotFound)
         }

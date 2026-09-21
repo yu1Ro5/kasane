@@ -114,6 +114,8 @@ struct KASANEICloudBackupService {
             throw KASANEICloudBackupServiceError.invalidBackup
         }
 
+        try ensureNoWorkoutInProgress()
+
         let safetyData: Data
         do {
             safetyData = try KASANEBackupExporter(container: container).makeJSONData(now: now)
@@ -129,6 +131,24 @@ struct KASANEICloudBackupService {
             ).importBackup(prepared.backup)
         } catch KASANEBackupImportError.workoutInProgress {
             throw KASANEICloudBackupServiceError.workoutInProgress
+        } catch {
+            throw KASANEICloudBackupServiceError.importFailed
+        }
+    }
+
+    private func ensureNoWorkoutInProgress() throws {
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        var descriptor = FetchDescriptor<WorkoutSession>(
+            predicate: #Predicate { $0.endedAt == nil }
+        )
+        descriptor.fetchLimit = 1
+        do {
+            guard try context.fetch(descriptor).isEmpty else {
+                throw KASANEICloudBackupServiceError.workoutInProgress
+            }
+        } catch let error as KASANEICloudBackupServiceError {
+            throw error
         } catch {
             throw KASANEICloudBackupServiceError.importFailed
         }

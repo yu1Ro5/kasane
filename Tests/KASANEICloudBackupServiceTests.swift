@@ -41,7 +41,8 @@ final class KASANEICloudBackupServiceTests: XCTestCase {
     func testNoBackupReturnsNilSeparatelyFromUnavailable() async throws {
         let container = try makeContainer()
         let noBackup = makeService(container: container, cloud: MemoryCloudStore())
-        XCTAssertNil(try await noBackup.latestBackupSummary())
+        let summary = try await noBackup.latestBackupSummary()
+        XCTAssertNil(summary)
 
         let unavailable = makeService(
             container: container,
@@ -156,7 +157,9 @@ final class KASANEICloudBackupServiceTests: XCTestCase {
 
         XCTAssertEqual(try ModelContext(container).fetchCount(FetchDescriptor<WorkoutSession>()), 1)
         let storedSafetyData = await safety.data
-        XCTAssertNotNil(storedSafetyData)
+        let saveCallCount = await safety.saveCallCount
+        XCTAssertNil(storedSafetyData)
+        XCTAssertEqual(saveCallCount, 0)
     }
 
     private func makeService(
@@ -258,7 +261,12 @@ private actor MemoryCloudStore: KASANECloudBackupStoring {
 
 private actor MemorySafetyStore: KASANEPreRestoreBackupStoring {
     var data: Data?
-    func save(_ data: Data) { self.data = data }
+    private(set) var saveCallCount = 0
+
+    func save(_ data: Data) {
+        self.data = data
+        saveCallCount += 1
+    }
 }
 
 private struct FailingSafetyStore: KASANEPreRestoreBackupStoring {
