@@ -24,6 +24,18 @@
     <false/>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>NSUbiquitousContainers</key>
+    <dict>
+        <key>iCloud.com.yu1Ro5.kasane</key>
+        <dict>
+            <key>NSUbiquitousContainerIsDocumentScopePublic</key>
+            <false/>
+            <key>NSUbiquitousContainerName</key>
+            <string>KASANE</string>
+            <key>NSUbiquitousContainerSupportedFolderLevels</key>
+            <string>Any</string>
+        </dict>
+    </dict>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>

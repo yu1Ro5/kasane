@@ -11,6 +11,9 @@ final class KASANEUIRegressionTests: XCTestCase {
         dataManagement.tap()
 
         XCTAssertTrue(app.navigationBars["データ管理"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["icloud-backup-section"].exists)
+        XCTAssertTrue(app.buttons["icloud-backup"].exists)
+        XCTAssertTrue(app.buttons["icloud-restore"].exists)
         XCTAssertTrue(app.buttons["backup-export"].exists)
         XCTAssertTrue(app.buttons["backup-import"].exists)
     }

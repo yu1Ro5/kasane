@@ -13,6 +13,7 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "6.0"
     DEVELOPMENT_TEAM: 58Y7Q3D4A7
+    "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]": NO
 
 targets:
   KASANE:
@@ -35,6 +36,7 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         PRIVACY_MANIFEST_PATH: Sources/PrivacyInfo.xcprivacy
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Sources/KASANE.entitlements
     scheme:
       testTargets:
         - KASANETests
