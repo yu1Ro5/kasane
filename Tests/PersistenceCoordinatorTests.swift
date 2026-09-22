@@ -12,7 +12,6 @@ final class PersistenceCoordinatorTests: XCTestCase {
 
         let configuration = KASANEPersistenceCoordinator.localConfiguration(schema: schema)
 
-        XCTAssertEqual(configuration.cloudKitDatabase, .none)
         XCTAssertEqual(configuration.url, previousConfiguration.url)
     }
 
@@ -37,7 +36,11 @@ final class PersistenceCoordinatorTests: XCTestCase {
             let existingContainer = try ModelContainer(
                 for: schema,
                 migrationPlan: KASANEMigrationPlan.self,
-                configurations: ModelConfiguration(schema: schema, url: storeURL)
+                configurations: ModelConfiguration(
+                    schema: schema,
+                    url: storeURL,
+                    cloudKitDatabase: .none
+                )
             )
             let context = existingContainer.mainContext
             let session = WorkoutSession(
@@ -76,7 +79,6 @@ final class PersistenceCoordinatorTests: XCTestCase {
             schema: schema,
             url: storeURL
         )
-        XCTAssertEqual(localConfiguration.cloudKitDatabase, .none)
         let reopenedContainer = try ModelContainer(
             for: schema,
             migrationPlan: KASANEMigrationPlan.self,
