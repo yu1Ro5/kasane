@@ -318,6 +318,98 @@ final class KASANEUIRegressionTests: XCTestCase {
     }
 
     @MainActor
+    func testOverviewPreviousMonthNavigation() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "overview-previous-month"])
+
+        XCTAssertTrue(app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
+        XCTAssertTrue(app.staticTexts["デッドリフト"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-month-selector"].exists)
+        app.descendants(matching: .any)["overview-month-selector"].tap()
+        app.buttons["2026年8月"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["overview-monthly-insight-card"].waitForExistence(
+                timeout: 10
+            )
+        )
+    }
+
+    @MainActor
+    func testWorkoutCompletionInsightAppears() throws {
+        let app = launchApp(additionalArguments: [
+            "--fixture", "workout-set-layout", "--workout-insight-fixture",
+        ])
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["終了"].tap()
+        XCTAssertTrue(app.buttons["終了して保存"].waitForExistence(timeout: 5))
+        app.buttons["終了して保存"].tap()
+
+        XCTAssertTrue(app.staticTexts["NEW RECORD"].waitForExistence(timeout: 10))
+        app.buttons["personal-record-continue-button"].tap()
+        let insightCard = app.descendants(matching: .any)["workout-insight-card"]
+        XCTAssertTrue(insightCard.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["完了"].isEnabled)
+    }
+
+    @MainActor
+    func testPersonalRecordCompletionNavigation() throws {
+        for appearance in ["light", "dark"] {
+            let app = launchApp(
+                additionalArguments: [
+                    "--fixture", "personal-record", "-AppleInterfaceStyle", appearance,
+                ]
+            )
+            app.tabBars.buttons["ワークアウト"].tap()
+            app.buttons["終了"].tap()
+            XCTAssertTrue(app.buttons["終了して保存"].waitForExistence(timeout: 5))
+            app.buttons["終了して保存"].tap()
+
+            XCTAssertTrue(app.staticTexts["NEW RECORD"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["レッグプレス"].exists)
+            XCTAssertTrue(app.staticTexts["72.00 kg"].exists)
+            XCTAssertTrue(app.staticTexts["Previous"].exists)
+            XCTAssertTrue(app.staticTexts["前回より +9.00 kg"].exists)
+            XCTAssertFalse(app.tabBars.buttons["ワークアウト"].exists)
+
+            app.buttons["personal-record-continue-button"].tap()
+            XCTAssertTrue(app.staticTexts["今日も積み重ねました"].waitForExistence(timeout: 10))
+            app.terminate()
+        }
+    }
+
+    @MainActor
+    func testWorkoutPreviousRecordState() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "workout-set-layout"])
+
+        app.tabBars.buttons["ワークアウト"].tap()
+        app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
+
+        app.swipeUp()
+
+        let previousRecord = app.descendants(matching: .any)[
+            "previous-workout-record-\(workoutSeatedRowExerciseID)"
+        ]
+        XCTAssertTrue(previousRecord.waitForExistence(timeout: 10))
+        for order in 0..<3 {
+            XCTAssertTrue(
+                app.descendants(matching: .any)[
+                    "previous-set-row-\(workoutSeatedRowExerciseID)-\(order)"
+                ].exists
+            )
+        }
+
+        app.navigationBars.buttons["ワークアウト"].tap()
+        app.buttons["current-exercise-\(workoutNoPreviousExerciseID)"].tap()
+        let noPreviousWeightInput = app.textFields["draft-weight-input-\(workoutNoPreviousEntryID)"]
+        XCTAssertTrue(noPreviousWeightInput.waitForExistence(timeout: 10))
+        XCTAssertFalse(
+            app.descendants(matching: .any)[
+                "previous-workout-record-\(workoutNoPreviousExerciseID)"
+            ].exists
+        )
+    }
+
+    @MainActor
     private func launchAIQuickInputReview() -> XCUIApplication {
         let app = launchApp(additionalArguments: [
             "--fixture", "workout-set-layout", "--workout-ai-fixture",

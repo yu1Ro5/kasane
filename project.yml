@@ -102,18 +102,9 @@ schemes:
         - name: KASANEUITests
           selectedTests:
             - KASANEUIScreenshotTests/testEmptyScreenshots()
-            - KASANEUIScreenshotTests/testAboutScreenshot()
             - KASANEUIScreenshotTests/testOverviewScreenshots()
-            - KASANEUIScreenshotTests/testOverviewPreviousMonthScreenshot()
-            - KASANEUIScreenshotTests/testOverviewUnavailableInsightScreenshot()
-            - KASANEUIScreenshotTests/testOverviewDarkModeScreenshot()
-            - KASANEUIScreenshotTests/testOverviewDynamicTypeScreenshot()
             - KASANEUIScreenshotTests/testWorkoutInteractionScreenshots()
             - KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots()
-            - KASANEUIScreenshotTests/testWorkoutCompletionInsightScreenshot()
-            - KASANEUIScreenshotTests/testPersonalRecordScreenshotsAndCompletionNavigation()
-            - KASANEUIScreenshotTests/testWorkoutPreviousRecordScreenshots()
-            - KASANEUIScreenshotTests/testWorkoutDynamicTypeScreenshot()
             - KASANEUIScreenshotTests/testWorkoutHistoryScreenshots()
 
   KASANERegression:
@@ -136,3 +127,23 @@ schemes:
             - KASANEUIRegressionTests/testWorkoutAIQuickInputAddsSetBeforeApply()
             - KASANEUIRegressionTests/testWorkoutAIQuickInputAddsExerciseBeforeApply()
             - KASANEUIRegressionTests/testWorkoutAIQuickInputShowsClassifiedError()
+            - KASANEUIRegressionTests/testOverviewPreviousMonthNavigation()
+            - KASANEUIRegressionTests/testWorkoutCompletionInsightAppears()
+            - KASANEUIRegressionTests/testPersonalRecordCompletionNavigation()
+            - KASANEUIRegressionTests/testWorkoutPreviousRecordState()
+
+  KASANEVisualEdgeCases:
+    build:
+      targets:
+        KASANE: all
+        KASANEUITests: [test]
+    test:
+      gatherCoverageData: false
+      targets:
+        - name: KASANEUITests
+          selectedTests:
+            - KASANEUIVisualEdgeCaseTests/testAboutScreenshot()
+            - KASANEUIVisualEdgeCaseTests/testOverviewUnavailableInsightScreenshot()
+            - KASANEUIVisualEdgeCaseTests/testOverviewDarkModeScreenshot()
+            - KASANEUIVisualEdgeCaseTests/testOverviewDynamicTypeScreenshot()
+            - KASANEUIVisualEdgeCaseTests/testWorkoutDynamicTypeScreenshot()
