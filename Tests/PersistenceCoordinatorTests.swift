@@ -6,6 +6,108 @@ import XCTest
 
 @MainActor
 final class PersistenceCoordinatorTests: XCTestCase {
+    func testLocalConfigurationDisablesCloudKitWithoutChangingDefaultStoreURL() {
+        let schema = Schema(versionedSchema: CurrentKASANESchema.self)
+        let previousConfiguration = ModelConfiguration(schema: schema)
+
+        let configuration = KASANEPersistenceCoordinator.localConfiguration(schema: schema)
+
+        XCTAssertEqual(configuration.url, previousConfiguration.url)
+    }
+
+    func testExistingOnDiskStoreReopensWithLocalConfigurationWithoutLosingData() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storeURL = directory.appendingPathComponent("existing.store")
+        let schema = Schema(versionedSchema: CurrentKASANESchema.self)
+
+        let sessionID = try XCTUnwrap(UUID(uuidString: "10000000-0000-4000-8000-000000000175"))
+        let exerciseID = try XCTUnwrap(UUID(uuidString: "20000000-0000-4000-8000-000000000175"))
+        let entryID = try XCTUnwrap(UUID(uuidString: "30000000-0000-4000-8000-000000000175"))
+        let setID = try XCTUnwrap(UUID(uuidString: "40000000-0000-4000-8000-000000000175"))
+        let startedAt = Date(timeIntervalSince1970: 1_750_000_000)
+        let endedAt = Date(timeIntervalSince1970: 1_750_003_600)
+
+        do {
+            let existingContainer = try ModelContainer(
+                for: schema,
+                migrationPlan: KASANEMigrationPlan.self,
+                configurations: ModelConfiguration(
+                    schema: schema,
+                    url: storeURL,
+                    cloudKitDatabase: .none
+                )
+            )
+            let context = existingContainer.mainContext
+            let session = WorkoutSession(
+                id: sessionID,
+                startedAt: startedAt,
+                endedAt: endedAt,
+                note: "existing workout"
+            )
+            let exercise = Exercise(
+                id: exerciseID,
+                name: "Existing Bench Press",
+                primaryBodyPart: .chest
+            )
+            let entry = ExerciseEntry(
+                id: entryID,
+                workoutSession: session,
+                exercise: exercise,
+                order: 2
+            )
+            let set = SetEntry(
+                id: setID,
+                exerciseEntry: entry,
+                order: 3,
+                weightKg: 82.5,
+                reps: 7,
+                isWarmup: true
+            )
+            context.insert(session)
+            context.insert(exercise)
+            context.insert(entry)
+            context.insert(set)
+            try context.save()
+        }
+
+        let localConfiguration = KASANEPersistenceCoordinator.localConfiguration(
+            schema: schema,
+            url: storeURL
+        )
+        let reopenedContainer = try ModelContainer(
+            for: schema,
+            migrationPlan: KASANEMigrationPlan.self,
+            configurations: localConfiguration
+        )
+        let sessions = try reopenedContainer.mainContext.fetch(FetchDescriptor<WorkoutSession>())
+        let session = try XCTUnwrap(sessions.first)
+        XCTAssertEqual(session.id, sessionID)
+        XCTAssertEqual(session.startedAt, startedAt)
+        XCTAssertEqual(session.endedAt, endedAt)
+        XCTAssertEqual(session.note, "existing workout")
+        let entry = try XCTUnwrap(session.exerciseEntries.first)
+        XCTAssertEqual(entry.id, entryID)
+        XCTAssertEqual(entry.order, 2)
+        XCTAssertIdentical(entry.workoutSession, session)
+        let exercise = try XCTUnwrap(entry.exercise)
+        XCTAssertEqual(exercise.id, exerciseID)
+        XCTAssertEqual(exercise.name, "Existing Bench Press")
+        XCTAssertEqual(exercise.primaryBodyPart, BodyPart.chest.rawValue)
+        XCTAssertEqual(exercise.exerciseEntries.map(\.id), [entryID])
+        let set = try XCTUnwrap(entry.setEntries.first)
+        XCTAssertEqual(set.id, setID)
+        XCTAssertEqual(set.order, 3)
+        XCTAssertEqual(set.weightKg, 82.5)
+        XCTAssertEqual(set.reps, 7)
+        XCTAssertTrue(set.isWarmup)
+        XCTAssertIdentical(set.exerciseEntry, entry)
+    }
+
     func testFreshInstallOpensWithoutSnapshotAndSavesMarker() throws {
         let harness = try Harness(storeExists: false)
         defer { harness.cleanup() }

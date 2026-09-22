@@ -539,7 +539,10 @@ private final class WorkoutExerciseInputPreviewFixture {
                 Exercise.self,
                 ExerciseEntry.self,
                 SetEntry.self,
-                configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+                configurations: ModelConfiguration(
+                    isStoredInMemoryOnly: true,
+                    cloudKitDatabase: .none
+                )
             )
         } catch {
             fatalError("Preview用のSwiftDataコンテナを作成できませんでした: \(error)")
