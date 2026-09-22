@@ -40,7 +40,11 @@ private enum AppModelContainer {
 
         let container = try ModelContainer(
             for: schema,
-            configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
         )
         if fixtureName(in: arguments) == "workout-set-layout" {
             try insertWorkoutSetLayoutFixture(into: container.mainContext)

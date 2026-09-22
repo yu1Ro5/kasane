@@ -26,7 +26,7 @@ struct KASANEPersistenceCoordinator {
         makeContainer: ContainerFactory? = nil
     ) {
         let schema = Schema(versionedSchema: CurrentKASANESchema.self)
-        let resolvedConfiguration = configuration ?? ModelConfiguration(schema: schema)
+        let resolvedConfiguration = configuration ?? Self.localConfiguration(schema: schema)
         self.configuration = resolvedConfiguration
         self.markerStore = markerStore
         self.snapshotStore =
@@ -45,6 +45,13 @@ struct KASANEPersistenceCoordinator {
                     configurations: configuration
                 )
             }
+    }
+
+    static func localConfiguration(schema: Schema, url: URL? = nil) -> ModelConfiguration {
+        if let url {
+            return ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
+        }
+        return ModelConfiguration(schema: schema, cloudKitDatabase: .none)
     }
 
     func make() throws -> ModelContainer {
