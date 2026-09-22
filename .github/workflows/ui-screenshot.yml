@@ -109,18 +109,9 @@ jobs:
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANEScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testEmptyScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testAboutScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewPreviousMonthScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewUnavailableInsightScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewDarkModeScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewDynamicTypeScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutInteractionScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutCompletionInsightScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testPersonalRecordScreenshotsAndCompletionNavigation \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutPreviousRecordScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDynamicTypeScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
@@ -141,18 +132,9 @@ jobs:
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANEScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testEmptyScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testAboutScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewPreviousMonthScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewUnavailableInsightScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewDarkModeScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewDynamicTypeScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutInteractionScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutCompletionInsightScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testPersonalRecordScreenshotsAndCompletionNavigation \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutPreviousRecordScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutDynamicTypeScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
@@ -209,32 +191,21 @@ jobs:
           export_dir = runner_temp / "ui-screenshot-attachments"
           scenarios = [
               ("overview-empty", "Overview — Empty"),
-              ("about", "About"),
+              ("workout-root-empty", "Workout — Empty"),
               ("overview-recent-workouts", "Overview — Recent Workouts"),
-              ("overview-previous-month", "Overview — Previous Month"),
-              ("overview-monthly-insight-unavailable", "Overview — Monthly Insight Unavailable"),
-              ("overview-dark-mode", "Overview — Dark Mode"),
-              ("overview-dynamic-type", "Overview — Dynamic Type"),
               ("overview-search-results", "Overview — Search Results"),
               ("overview-search-empty", "Overview — Search Empty"),
-              ("workout-root-empty", "Workout — Empty"),
               ("workout-root-active", "Workout — Active"),
               ("workout-session-active", "Workout — Session Active"),
               ("workout-exercise-input", "Workout — Exercise Input"),
               ("workout-exercise-search", "Workout — Exercise Search"),
               ("workout-weight-input", "Workout — Weight Input"),
               ("workout-validation-error", "Workout — Validation Error"),
-              ("workout-dynamic-type", "Workout — Dynamic Type"),
               ("workout-cancel-confirmation", "Workout — Cancel Confirmation"),
               ("workout-history", "Workout — History"),
               ("workout-detail", "Workout — Detail"),
               ("workout-detail-edit-mode", "Workout — Detail Edit Mode"),
               ("workout-completed", "Workout — Completed"),
-              ("workout-completed-insight", "Workout — Completion Insight"),
-              ("personal-record-light", "Personal Record — Light"),
-              ("personal-record-dark", "Personal Record — Dark"),
-              ("workout-previous-record-available", "Previous Record — Available"),
-              ("workout-previous-record-unavailable", "Previous Record — Unavailable"),
           ]
           artifact_dir = runner_temp / "ui-screenshot-artifact"
           manifest = json.loads((export_dir / "manifest.json").read_text())
