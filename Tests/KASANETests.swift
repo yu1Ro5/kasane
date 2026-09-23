@@ -1633,6 +1633,35 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(stats.dailyWorkoutCounts[calendar.startOfDay(for: first.startedAt)], 2)
     }
 
+    /// テスト概要: 月間総重量を境界値に応じてkgまたはtで表示する。
+    /// 期待値: 1,000kg未満はkg、1,000kg以上は小数1桁のtで表示される。
+    func testOverviewStatsFormatsTotalVolumeByMagnitude() throws {
+        let calendar = utcCalendar
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 15)))
+        let fixtures: [(volume: Double, expected: String)] = [
+            (999.9, "999.9kg"),
+            (1_000, "1.0t"),
+            (1_240, "1.2t"),
+            (32_868.2, "32.9t"),
+        ]
+
+        for fixture in fixtures {
+            let session = try makeDashboardSession(
+                year: 2026,
+                month: 9,
+                day: 3,
+                duration: 600,
+                calendar: calendar,
+                weight: fixture.volume,
+                reps: 1
+            )
+
+            let stats = OverviewStats(sessions: [session], now: now, calendar: calendar)
+
+            XCTAssertEqual(stats.totalVolumeText, fixture.expected, "volume: \(fixture.volume)")
+        }
+    }
+
     /// テスト概要: 月初を含み、前月末・翌月初・進行中Workoutを月間集計から除外する。
     /// 期待値: 月初の完了Workoutだけを集計する。
     func testOverviewStatsUsesMonthBoundaryAndExcludesIncompleteWorkout() throws {
