@@ -200,10 +200,6 @@ struct WorkoutExerciseInputView: View {
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
         .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Color.accentColor.opacity(0.22), lineWidth: 1)
-        }
         .padding(.vertical, 2)
     }
 
