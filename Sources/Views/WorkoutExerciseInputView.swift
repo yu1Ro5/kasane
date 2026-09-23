@@ -94,18 +94,22 @@ struct WorkoutExerciseInputView: View {
                         .accessibilityIdentifier("draft-validation-message")
                     }
 
-                    Button {
-                        addSet(using: proxy)
-                    } label: {
-                        Label("セットを追加", systemImage: "plus")
-                            .frame(maxWidth: .infinity)
-                        //                            .padding(.vertical, 10)
+                    HStack {
+                        Spacer()
+                        Button {
+                            addSet(using: proxy)
+                        } label: {
+                            Text("＋ セットを追加")
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 5)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("セットを追加")
+                        .accessibilityIdentifier("add-set-button-\(inputIdentity.uuidString)")
+                        .disabled(!canAddSet)
+                        .accessibilityHint("入力した重量と回数を保存します")
+                        Spacer()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .accessibilityIdentifier("add-set-button-\(inputIdentity.uuidString)")
-                    .disabled(!canAddSet)
-                    .accessibilityHint("入力した重量と回数を保存します")
                 }
 
                 Section("前回の記録") {
