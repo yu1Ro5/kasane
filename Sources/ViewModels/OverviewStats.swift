@@ -76,7 +76,7 @@ struct OverviewStats {
         if totalVolume >= 1_000 {
             return (totalVolume / 1_000).formatted(.number.precision(.fractionLength(1))) + "t"
         }
-        totalVolume.formatted(.number.precision(.fractionLength(0...1))) + "kg"
+        return totalVolume.formatted(.number.precision(.fractionLength(0...1))) + "kg"
     }
 
     static func weeklyStreak(
