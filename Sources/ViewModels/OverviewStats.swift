@@ -73,7 +73,10 @@ struct OverviewStats {
     }
 
     var totalVolumeText: String {
-        totalVolume.formatted(.number.precision(.fractionLength(0...1))) + "kg"
+        if totalVolume >= 1_000 {
+            return (totalVolume / 1_000).formatted(.number.precision(.fractionLength(1))) + "t"
+        }
+        return totalVolume.formatted(.number.precision(.fractionLength(0...1))) + "kg"
     }
 
     static func weeklyStreak(
