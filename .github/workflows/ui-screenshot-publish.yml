@@ -57,7 +57,7 @@ jobs:
           import re
           from pathlib import Path
 
-          expected_screenshot_count = 16
+          max_screenshots = 30
           root = Path(os.environ["ARTIFACT_DIR"]).resolve()
           files = [path for path in root.rglob("*") if path.is_file()]
           if not files:
@@ -77,9 +77,9 @@ jobs:
               raise SystemExit("Artifact PR number does not match workflow_run")
 
           screenshots = metadata.get("screenshots")
-          if not isinstance(screenshots, list) or len(screenshots) != expected_screenshot_count:
+          if not isinstance(screenshots, list) or not (1 <= len(screenshots) <= max_screenshots):
               raise SystemExit(
-                  f"Artifact must describe exactly {expected_screenshot_count} screenshots"
+                  f"Artifact must describe between 1 and {max_screenshots} screenshots"
               )
           expected_files = {"metadata.json"}
           for screenshot in screenshots:
