@@ -383,14 +383,14 @@ private enum DataManagementNotice: Identifiable {
     var title: String {
         switch self {
         case .error(let error): error.title
-        case .iCloudBackupSucceeded: "iCloudにバックアップしました"
+        case .iCloudBackupSucceeded: "iCloud Driveに保存しました"
         case .iCloudRestoreSucceeded, .fileRestoreSucceeded: "復元しました"
         }
     }
     var message: String {
         switch self {
         case .error(let error): error.message
-        case .iCloudBackupSucceeded: "最新のトレーニング記録をiCloudに保存しました。"
+        case .iCloudBackupSucceeded: "    最新のトレーニング記録をiCloud Driveに保存しました。ほかの端末に反映されるまで時間がかかる場合があります。"
         case .iCloudRestoreSucceeded: "iCloudバックアップのデータで置き換えました。"
         case .fileRestoreSucceeded: "バックアップのデータで置き換えました。"
         }
