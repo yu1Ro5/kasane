@@ -37,7 +37,7 @@ jobs:
             core.exportVariable('EXPECTED_PR_NUMBER', String(pullRequests[0].number));
 
       - name: Download screenshot artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: ui-screenshot-review
           path: ${{ runner.temp }}/ui-screenshot-artifact
