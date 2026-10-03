@@ -20,7 +20,7 @@ struct OverviewView: View {
         self.referenceDate = date
         self.insightGenerator = insightGenerator
         _selectedMonth = State(initialValue: Calendar.current.dateInterval(of: .month, for: date)?.start ?? date)
-        _completedSessions = Query(OverviewWorkoutLoader.dashboardDescriptor(through: date))
+        _completedSessions = Query(OverviewWorkoutLoader.dashboardDescriptor)
         _exerciseOverviewEntries = Query(OverviewWorkoutLoader.exerciseOverviewEntryDescriptor)
     }
 

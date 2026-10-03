@@ -19,9 +19,9 @@ enum OverviewWorkoutLoader {
     }
 
     /// 選択月の集計、週次継続、記録比較に使う完了履歴を一度だけ取得する。
-    static func dashboardDescriptor(through date: Date) -> FetchDescriptor<WorkoutSession> {
+    static var dashboardDescriptor: FetchDescriptor<WorkoutSession> {
         var descriptor = FetchDescriptor<WorkoutSession>(
-            predicate: #Predicate { $0.endedAt != nil && $0.startedAt <= date },
+            predicate: #Predicate { $0.endedAt != nil },
             sortBy: [
                 SortDescriptor(\WorkoutSession.startedAt, order: .reverse),
                 SortDescriptor(\WorkoutSession.id, order: .forward),
