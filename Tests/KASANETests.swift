@@ -1567,6 +1567,27 @@ final class KASANETests: XCTestCase {
         XCTAssertFalse(entries.contains { $0.exerciseNameSnapshot == "active種目" })
     }
 
+    /// テスト概要: Overview生成時より後に開始したWorkoutをDashboard用に取得する。
+    /// 期待値: 完了済みWorkoutは開始時刻にかかわらず取得され、進行中Workoutは除外される。
+    func testOverviewDashboardDescriptorIncludesCompletedWorkoutStartedAfterViewCreation() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let overviewCreationDate = Date(timeIntervalSince1970: 1_000)
+        let descriptor = OverviewWorkoutLoader.dashboardDescriptor
+        let completed = WorkoutSession(
+            startedAt: overviewCreationDate.addingTimeInterval(1_800),
+            endedAt: overviewCreationDate.addingTimeInterval(3_000)
+        )
+        let active = WorkoutSession(startedAt: overviewCreationDate.addingTimeInterval(3_600))
+        context.insert(completed)
+        context.insert(active)
+        try context.save()
+
+        let fetched = try ModelContext(container).fetch(descriptor)
+
+        XCTAssertEqual(fetched.map(\.id), [completed.id])
+    }
+
     /// テスト概要: 完了Workoutの履歴行表示を生成する。
     /// 期待値: 種目はorder順のスナップショットから先頭2件と残数に要約され、所要時間と種目数が表示用文字列になる。
     func testWorkoutHistoryRowContentUsesSnapshotOrderAndSummarizesExercises() throws {
