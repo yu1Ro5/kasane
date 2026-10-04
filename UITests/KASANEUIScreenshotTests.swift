@@ -203,6 +203,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         add(inputAttachment)
 
         weightInput.tap()
+        XCTAssertTrue(app.buttons["weight-suggestion-42.5"].waitForExistence(timeout: 5))
+        let suggestionAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        suggestionAttachment.name = "workout-weight-suggestion"
+        suggestionAttachment.lifetime = .keepAlways
+        add(suggestionAttachment)
         weightInput.typeText("47.5")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 1)
