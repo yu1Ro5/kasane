@@ -98,10 +98,15 @@ final class KASANEUIRegressionTests: XCTestCase {
         draftWeight.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["rep-suggestion-10"].exists)
+        XCTAssertEqual(draftWeight.value as? String, "0")
+        XCTAssertTrue(app.buttons["weight-suggestion-42.5"].waitForExistence(timeout: 5))
+        app.buttons["weight-suggestion-42.5"].tap()
+        XCTAssertEqual(draftWeight.value as? String, "42.5")
         XCTAssertTrue(app.buttons["次へ"].exists)
         XCTAssertTrue(app.buttons["完了"].exists)
 
         draftReps.tap()
+        XCTAssertFalse(app.buttons["weight-suggestion-42.5"].exists)
         for reps in [10, 8, 12, 15] {
             XCTAssertTrue(app.buttons["rep-suggestion-\(reps)"].waitForExistence(timeout: 5))
         }

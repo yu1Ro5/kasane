@@ -65,6 +65,27 @@ struct WorkoutExerciseInputView: View {
         )
     }
 
+    private var inputSuggestions: [String] {
+        guard let focusedInput, focusedInput.exerciseID == inputIdentity else { return [] }
+        if focusedInput.isReps { return repSuggestions.map(String.init) }
+        let index: Int
+        if let identity = focusedInput.savedSetIdentity {
+            guard let savedIndex = setEntries.firstIndex(where: { $0.id == identity.setID }) else { return [] }
+            index = savedIndex
+        } else {
+            index = setEntries.count
+        }
+        let weights = setEntries.map { editDrafts[$0.id] ?? .savedValues(from: $0) }
+        guard
+            let suggestion = WeightSuggestionProvider.suggestion(
+                at: index,
+                currentSets: weights,
+                previousWeights: previousRecord?.setEntries.map(\.weightKg) ?? []
+            )
+        else { return [] }
+        return [suggestion]
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             List {
@@ -137,13 +158,13 @@ struct WorkoutExerciseInputView: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     if focusedInput != nil {
-                        if focusedInput?.isReps == true {
-                            ForEach(repSuggestions, id: \.self) { reps in
-                                Button("\(reps)") { applyRepSuggestion(reps) }
-                                    .font(.caption)
-                                    .accessibilityLabel("\(reps)回")
-                                    .accessibilityIdentifier("rep-suggestion-\(reps)")
-                            }
+                        ForEach(inputSuggestions, id: \.self) { value in
+                            Button(value) { applySuggestion(value) }
+                                .font(.caption)
+                                .accessibilityLabel(focusedInput?.isReps == true ? "\(value)回" : "\(value) kg")
+                                .accessibilityIdentifier(
+                                    "\(focusedInput?.isReps == true ? "rep" : "weight")-suggestion-\(value)"
+                                )
                         }
                         Spacer()
                         Button("次へ") { advanceFocus(using: proxy) }
@@ -282,20 +303,20 @@ struct WorkoutExerciseInputView: View {
         focusedInput = nextFocus
     }
 
-    private func applyRepSuggestion(_ reps: Int) {
+    private func applySuggestion(_ value: String) {
         guard let focusedInput else { return }
-        switch focusedInput {
-        case .draftReps(let exerciseID) where exerciseID == inputIdentity:
+        if let identity = focusedInput.savedSetIdentity {
+            guard identity.exerciseID == inputIdentity,
+                let setEntry = setEntries.first(where: { $0.id == identity.setID })
+            else { return }
+            var updatedDraft = editDrafts[identity.setID] ?? .savedValues(from: setEntry)
+            if focusedInput.isReps { updatedDraft.reps = value } else { updatedDraft.weight = value }
+            editDrafts[identity.setID] = updatedDraft
+        } else {
+            guard focusedInput.exerciseID == inputIdentity else { return }
             var updatedDraft = draft.wrappedValue
-            updatedDraft.reps = String(reps)
+            if focusedInput.isReps { updatedDraft.reps = value } else { updatedDraft.weight = value }
             draft.wrappedValue = updatedDraft
-        case .savedReps(let exerciseID, let setID) where exerciseID == inputIdentity:
-            guard let setEntry = setEntries.first(where: { $0.id == setID }) else { return }
-            var updatedDraft = editDrafts[setID] ?? .savedValues(from: setEntry)
-            updatedDraft.reps = String(reps)
-            editDrafts[setID] = updatedDraft
-        case .draftWeight, .savedWeight, .draftReps, .savedReps:
-            return
         }
     }
 
