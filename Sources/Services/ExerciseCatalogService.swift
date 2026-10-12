@@ -41,6 +41,7 @@ struct ExerciseCatalogService {
         BuiltIn(id: "00000000-0000-4000-8000-000000000024", name: "ダンベルフライ", bodyPart: .chest),
         BuiltIn(id: "00000000-0000-4000-8000-000000000025", name: "ケーブルカール", bodyPart: .arms),
         BuiltIn(id: "00000000-0000-4000-8000-000000000026", name: "リアデルト", bodyPart: .back),
+        BuiltIn(id: "00000000-0000-4000-8000-000000000027", name: "ストレートアームプルダウン", bodyPart: .back),
     ]
 
     private let context: ModelContext
