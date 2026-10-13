@@ -366,6 +366,24 @@ final class KASANEUIScreenshotTests: XCTestCase {
         detailAttachment.lifetime = .keepAlways
         add(detailAttachment)
 
+        app.buttons["その他"].tap()
+        let dateEditButton = app.buttons["edit-workout-dates"]
+        XCTAssertTrue(dateEditButton.waitForExistence(timeout: 5))
+        dateEditButton.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["workout-date-edit-view"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["workout-start-date-input"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["workout-end-date-input"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["workout-date-duration"].exists)
+        XCTAssertFalse(app.buttons["save-workout-dates"].isEnabled)
+
+        let dateAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        dateAttachment.name = "workout-date-edit"
+        dateAttachment.lifetime = .keepAlways
+        add(dateAttachment)
+
+        app.buttons["キャンセル"].tap()
+        XCTAssertTrue(detailView.waitForExistence(timeout: 10))
+
         let editButton = app.buttons["編集"]
         XCTAssertTrue(editButton.waitForExistence(timeout: 10))
         editButton.tap()
