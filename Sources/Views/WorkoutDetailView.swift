@@ -35,6 +35,8 @@ struct WorkoutDetailView: View {
     @Bindable var session: WorkoutSession
     @Query(sort: \ExerciseEntry.order) private var observedExerciseEntries: [ExerciseEntry]
     @Query(sort: \SetEntry.order) private var observedSetEntries: [SetEntry]
+    @State private var isEditingDates = false
+    @State private var dateDraft: WorkoutDateEditDraft
     @State private var isEditing = false
     @State private var editDraft: WorkoutHistoryEditDraft
     @State private var isShowingExercisePicker = false
@@ -46,6 +48,7 @@ struct WorkoutDetailView: View {
 
     init(session: WorkoutSession) {
         self.session = session
+        _dateDraft = State(initialValue: WorkoutDateEditDraft(session: session))
         _editDraft = State(initialValue: WorkoutHistoryEditDraft(session: session))
     }
 
@@ -59,7 +62,9 @@ struct WorkoutDetailView: View {
 
     var body: some View {
         Group {
-            if isEditing {
+            if isEditingDates {
+                WorkoutDateEditContent(draft: $dateDraft)
+            } else if isEditing {
                 WorkoutHistoryEditContent(
                     content: content,
                     draft: $editDraft
@@ -68,12 +73,21 @@ struct WorkoutDetailView: View {
                 WorkoutDetailReadContent(content: content)
             }
         }
-        .navigationTitle("ワークアウト詳細")
+        .navigationTitle(isEditingDates ? "日時を編集" : "ワークアウト詳細")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(isEditing)
-        .interactiveDismissDisabled(isEditing && editDraft.hasChanges)
+        .navigationBarBackButtonHidden(isEditing || isEditingDates)
+        .interactiveDismissDisabled((isEditing && editDraft.hasChanges) || (isEditingDates && dateDraft.hasChanges))
         .toolbar {
-            if isEditing {
+            if isEditingDates {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル", systemImage: "xmark") { requestDiscard() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存", systemImage: "checkmark") { saveDates() }
+                        .disabled(!dateDraft.hasChanges || dateDraft.validationMessage != nil || isSaving)
+                        .accessibilityIdentifier("save-workout-dates")
+                }
+            } else if isEditing {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("キャンセル", systemImage: "xmark") { requestDiscard() }
                 }
@@ -87,6 +101,11 @@ struct WorkoutDetailView: View {
             } else if session.endedAt != nil {
                 ToolbarItemGroup(placement: .confirmationAction) {
                     Menu("その他", systemImage: "ellipsis.circle") {
+                        Button("日時を編集", systemImage: "calendar.badge.clock") {
+                            dateDraft = WorkoutDateEditDraft(session: session)
+                            isEditingDates = true
+                        }
+                        .accessibilityIdentifier("edit-workout-dates")
                         Button("ワークアウトを削除", systemImage: "trash", role: .destructive) {
                             isConfirmingDeletion = true
                         }
@@ -141,7 +160,7 @@ struct WorkoutDetailView: View {
     }
 
     private func requestDiscard() {
-        if editDraft.hasChanges {
+        if isEditingDates ? dateDraft.hasChanges : editDraft.hasChanges {
             isConfirmingDiscard = true
         } else {
             finishEditing()
@@ -151,6 +170,7 @@ struct WorkoutDetailView: View {
     private func finishEditing() {
         isShowingExercisePicker = false
         isEditing = false
+        isEditingDates = false
     }
 
     private func save() {
@@ -159,6 +179,19 @@ struct WorkoutDetailView: View {
         defer { isSaving = false }
         do {
             try WorkoutHistoryEditService(context: modelContext).save(editDraft, to: session)
+            finishEditing()
+        } catch {
+            errorTitle = "変更を保存できませんでした"
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func saveDates() {
+        guard !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try WorkoutDateEditService(context: modelContext).save(dateDraft, to: session)
             finishEditing()
         } catch {
             errorTitle = "変更を保存できませんでした"
@@ -206,6 +239,7 @@ private struct WorkoutDetailReadContent: View {
 }
 
 struct WorkoutDetailHeader: View {
+    @Environment(\.calendar) private var calendar
     let content: WorkoutDetailContent
 
     var body: some View {
@@ -217,7 +251,11 @@ struct WorkoutDetailHeader: View {
                     Text(content.startedAt, format: .dateTime.hour().minute())
                     Text("〜")
                     if let endedAt = content.endedAt {
-                        Text(endedAt, format: .dateTime.hour().minute())
+                        if calendar.isDate(content.startedAt, inSameDayAs: endedAt) {
+                            Text(endedAt, format: .dateTime.hour().minute())
+                        } else {
+                            Text(endedAt, format: .dateTime.year().month().day().hour().minute())
+                        }
                     } else {
                         Text("--")
                     }
