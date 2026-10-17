@@ -66,6 +66,8 @@ struct OverviewStats {
         improvement = highlights.improvement
     }
 
+    var trainingDayCount: Int { dailyWorkoutCounts.count }
+
     var durationText: String {
         if duration > 0 && duration < 60 { return "1分未満" }
         let minutes = Int(duration / 60)
@@ -172,5 +174,38 @@ struct OverviewStats {
             return $0.exerciseID != record.exerciseID || !calendar.isDate($0.date, inSameDayAs: record.date)
         }.max { $0.date < $1.date }
         return (record, improvement)
+    }
+}
+
+/// カレンダーと同じローカル日付で表示と読み上げの状態を判定する。
+struct OverviewCalendarDay {
+    let date: Date
+    let hasTraining: Bool
+    let isToday: Bool
+    let isFuture: Bool
+    private let calendar: Calendar
+
+    init(date: Date, count: Int, referenceDate: Date, calendar: Calendar) {
+        self.date = date
+        self.calendar = calendar
+        hasTraining = count > 0
+        isToday = calendar.isDate(date, inSameDayAs: referenceDate)
+        isFuture = calendar.startOfDay(for: date) > calendar.startOfDay(for: referenceDate)
+    }
+
+    var text: String {
+        if !isToday && !isFuture && !hasTraining { return "・" }
+        return String(calendar.component(.day, from: date))
+    }
+
+    var accessibilityLabel: String {
+        date.formatted(
+            Date.FormatStyle(date: .complete, time: .omitted, calendar: calendar, timeZone: calendar.timeZone))
+    }
+
+    var accessibilityValue: String {
+        if isFuture { return "未来の日付" }
+        let training = hasTraining ? "トレーニングあり" : "トレーニングなし"
+        return isToday ? "今日、\(training)" : training
     }
 }

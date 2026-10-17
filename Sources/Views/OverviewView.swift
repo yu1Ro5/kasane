@@ -6,6 +6,7 @@ struct OverviewView: View {
     @Environment(\.calendar) private var calendar
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let referenceDate: Date
+    private let fixedReferenceDate: Date?
     private let insightGenerator: any MonthlyInsightGenerating
     @State private var selectedMonth: Date
     @State private var insightViewModel = MonthlyInsightViewModel()
@@ -18,6 +19,7 @@ struct OverviewView: View {
     ) {
         let date = referenceDate ?? Date()
         self.referenceDate = date
+        self.fixedReferenceDate = referenceDate
         self.insightGenerator = insightGenerator
         _selectedMonth = State(initialValue: Calendar.current.dateInterval(of: .month, for: date)?.start ?? date)
         _completedSessions = Query(OverviewWorkoutLoader.dashboardDescriptor)
@@ -49,8 +51,11 @@ struct OverviewView: View {
                 if let insight = insightViewModel.insight {
                     MonthlyInsightCard(insight: insight)
                 }
-                OverviewCalendarCard(
-                    stats: stats, selectedMonth: selectedMonth, referenceDate: referenceDate, calendar: calendar)
+                TimelineView(.periodic(from: referenceDate, by: 60)) { context in
+                    OverviewCalendarCard(
+                        stats: stats, selectedMonth: selectedMonth,
+                        referenceDate: fixedReferenceDate ?? context.date, calendar: calendar)
+                }
                 if stats.personalRecord != nil || stats.improvement != nil {
                     highlights(stats)
                 }
@@ -422,7 +427,7 @@ private struct OverviewCalendarCard: View {
                 Text(selectedMonth, format: .dateTime.year().month())
                     .font(.headline)
                 Spacer()
-                Text("今月 \(stats.workoutCount)回のワークアウト")
+                Text("今月 \(stats.trainingDayCount)日トレーニング")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.tint)
             }
@@ -431,19 +436,13 @@ private struct OverviewCalendarCard: View {
                 ForEach(Array(calendarDays.enumerated()), id: \.offset) { _, day in
                     if let day {
                         CalendarDay(
-                            date: day, count: stats.dailyWorkoutCounts[calendar.startOfDay(for: day), default: 0],
-                            isToday: isToday(day), calendar: calendar)
+                            day: OverviewCalendarDay(
+                                date: day, count: stats.dailyWorkoutCounts[calendar.startOfDay(for: day), default: 0],
+                                referenceDate: referenceDate, calendar: calendar))
                     } else {
                         Color.clear.frame(height: 38)
                     }
                 }
-            }
-            HStack(spacing: 14) {
-                Spacer()
-                legend("3回以上", opacity: 1)
-                legend("2回", opacity: 0.65)
-                legend("1回", opacity: 0.32)
-                legend("なし", opacity: 0.08)
             }
         }
         .padding(20)
@@ -467,38 +466,27 @@ private struct OverviewCalendarCard: View {
         return Array(repeating: nil, count: leading)
             + range.compactMap { calendar.date(byAdding: .day, value: $0 - 1, to: first) }
     }
-    private func isToday(_ date: Date) -> Bool {
-        calendar.isDate(selectedMonth, equalTo: referenceDate, toGranularity: .month)
-            && calendar.isDate(date, inSameDayAs: referenceDate)
-    }
-    private func legend(_ text: String, opacity: Double) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(Color.accentColor.opacity(opacity)).frame(width: 9, height: 9)
-            Text(text).font(.caption2).foregroundStyle(.secondary)
-        }
-    }
 }
 
 private struct CalendarDay: View {
-    let date: Date
-    let count: Int
-    let isToday: Bool
-    let calendar: Calendar
+    let day: OverviewCalendarDay
+
     var body: some View {
-        VStack(spacing: 3) {
-            Text(String(calendar.component(.day, from: date)))
-                .font(.subheadline.weight(isToday ? .bold : .regular))
-                .foregroundStyle(isToday ? .white : .primary)
-                .frame(width: isToday ? 34 : 26, height: isToday ? 34 : 26)
-                .background(isToday ? Color.accentColor : Color.clear, in: Circle())
-            Circle()
-                .fill(Color.accentColor.opacity(count >= 3 ? 1 : count == 2 ? 0.65 : count == 1 ? 0.32 : 0))
-                .frame(width: 7, height: 7)
-        }
-        .frame(height: 42)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(date.formatted(.dateTime.month().day()))
-        .accessibilityValue(count == 0 ? "ワークアウトなし" : "ワークアウト\(count)回")
+        Text(day.text)
+            .font(.subheadline.weight(day.isToday ? .bold : .regular))
+            .foregroundStyle(foregroundColor)
+            .frame(width: 34, height: 34)
+            .background(day.isToday ? Color.accentColor : Color.clear, in: Circle())
+            .frame(maxWidth: .infinity, minHeight: 38)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(day.accessibilityLabel)
+            .accessibilityValue(day.accessibilityValue)
+    }
+
+    private var foregroundColor: Color {
+        if day.isToday { return .white }
+        if day.isFuture || !day.hasTraining { return Color.secondary.opacity(0.5) }
+        return .accentColor
     }
 }
 
