@@ -16,6 +16,7 @@ final class WorkoutRootViewModel {
     }
 
     func startWorkout(startOrResume: () throws -> WorkoutSession) {
+        guard activeSession == nil else { return }
         do {
             activeSession = try startOrResume()
         } catch {

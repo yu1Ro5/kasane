@@ -23,6 +23,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let startButton = app.buttons["workout-start-button"]
         XCTAssertTrue(startButton.waitForExistence(timeout: 10))
         XCTAssertEqual(startButton.label, "ワークアウトを開始")
+        XCTAssertTrue(app.staticTexts["今日も、積み重ねよう。"].exists)
+        XCTAssertFalse(app.staticTexts["最近のワークアウトから開始"].exists)
 
         let workoutAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         workoutAttachment.name = "workout-root-empty"
@@ -33,6 +35,33 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["すべての種目"].exists)
         XCTAssertFalse(app.navigationBars["ワークアウト"].buttons["ワークアウト"].exists)
+    }
+
+    @MainActor
+    func testSmartStartHistoryScreenshotAndReuse() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "smart-start"])
+        app.tabBars.buttons["ワークアウト"].tap()
+        XCTAssertTrue(app.buttons["workout-start-button"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["最近のワークアウトから開始"].exists)
+        let ids = (1...3).map { "40000000-0000-4000-8000-00000000000\($0)" }
+        for id in ids {
+            XCTAssertTrue(app.buttons["workout-reuse-\(id)"].exists)
+        }
+        XCTAssertFalse(app.buttons["workout-reuse-\(overviewOldestSessionID)"].exists)
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "workout-smart-start-history"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        let reuse = app.buttons["workout-reuse-\(ids[1])"]
+        XCTAssertTrue(scrollToHittable(reuse, in: app))
+        reuse.tap()
+        XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.buttons.matching(
+                NSPredicate(format: "identifier BEGINSWITH %@", "current-exercise-")
+            ).firstMatch.exists
+        )
     }
 
     @MainActor
