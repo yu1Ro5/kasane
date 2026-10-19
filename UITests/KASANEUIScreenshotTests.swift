@@ -25,6 +25,12 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertEqual(startButton.label, "ワークアウトを開始")
         XCTAssertTrue(app.staticTexts["今日も、積み重ねよう。"].exists)
         XCTAssertFalse(app.staticTexts["最近のワークアウトから開始"].exists)
+        let windowFrame = app.windows.firstMatch.frame
+        let copy = app.staticTexts["今日も、積み重ねよう。"]
+        XCTAssertEqual(copy.frame.midX, windowFrame.midX, accuracy: 2)
+        XCTAssertEqual(startButton.frame.midX, windowFrame.midX, accuracy: 2)
+        XCTAssertGreaterThan(copy.frame.midY, windowFrame.height * 0.3)
+        XCTAssertLessThan(startButton.frame.midY, windowFrame.height * 0.75)
 
         let workoutAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         workoutAttachment.name = "workout-root-empty"
@@ -48,6 +54,20 @@ final class KASANEUIScreenshotTests: XCTestCase {
             XCTAssertTrue(app.buttons["workout-reuse-\(id)"].exists)
         }
         XCTAssertFalse(app.buttons["workout-reuse-\(overviewOldestSessionID)"].exists)
+        let firstCard = app.buttons["workout-reuse-\(ids[0])"]
+        let secondCard = app.buttons["workout-reuse-\(ids[1])"]
+        XCTAssertTrue(firstCard.label.contains("2種目"))
+        XCTAssertTrue(firstCard.label.contains("ベンチプレス、ラットプルダウン"))
+        XCTAssertTrue(firstCard.label.contains("ワークアウトを開始"))
+        XCTAssertTrue(secondCard.label.contains("スクワット"))
+        XCTAssertNotEqual(firstCard.label, secondCard.label)
+        XCTAssertEqual(
+            app.buttons["workout-start-button"].frame.width,
+            firstCard.frame.width,
+            accuracy: 2
+        )
+        XCTAssertGreaterThanOrEqual(firstCard.frame.height, 44)
+        XCTAssertLessThan(firstCard.frame.height, 110)
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         attachment.name = "workout-smart-start-history"
         attachment.lifetime = .keepAlways
@@ -55,7 +75,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         let reuse = app.buttons["workout-reuse-\(ids[1])"]
         XCTAssertTrue(scrollToHittable(reuse, in: app))
-        reuse.tap()
+        reuse.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.7)).tap()
         XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
         XCTAssertTrue(
             app.buttons.matching(
