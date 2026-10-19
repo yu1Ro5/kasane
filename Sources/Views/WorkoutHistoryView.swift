@@ -13,6 +13,7 @@ struct WorkoutHistoryView: View {
     @State private var deletionErrorMessage: String?
 
     var body: some View {
+        let entriesBySession = Dictionary(grouping: observedExerciseEntries) { $0.workoutSession?.id }
         Group {
             if completedSessions.isEmpty {
                 ContentUnavailableView(
@@ -24,13 +25,18 @@ struct WorkoutHistoryView: View {
                 List(completedSessions) { session in
                     if let content = WorkoutHistoryRowContent(
                         session: session,
-                        exerciseEntries: observedExerciseEntries.filter {
-                            $0.workoutSession?.id == session.id
-                        }
+                        exerciseEntries: entriesBySession[session.id] ?? []
                     ) {
                         NavigationLink(value: OverviewRoute.workoutDetail(session.id)) {
                             WorkoutHistoryRow(content: content)
                         }
+                        .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color(.secondarySystemGroupedBackground))
+                        )
+                        .accessibilityHint("ワークアウト詳細を表示")
                         .accessibilityIdentifier("workout-history-row-\(session.id.uuidString)")
                         .swipeActions {
                             Button("削除", systemImage: "trash", role: .destructive) {
@@ -42,6 +48,8 @@ struct WorkoutHistoryView: View {
                         }
                     }
                 }
+                .listStyle(.insetGrouped)
+                .listRowSpacing(8)
             }
         }
         .navigationTitle("履歴")
@@ -89,16 +97,47 @@ struct WorkoutHistoryView: View {
 struct WorkoutHistoryRow: View {
     let content: WorkoutHistoryRowContent
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(content.completedAt, format: .dateTime.month().day().hour().minute())
-                .font(.headline)
-            Text(content.exerciseSummary)
-            Text("\(content.durationText)・\(content.exerciseCountText)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(content.completedAt, format: .dateTime.month().day())
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(content.completedAt, format: .dateTime.hour().minute())
+                    .font(.subheadline.weight(.regular))
+                    .foregroundStyle(.secondary)
+            }
+            Text(content.exerciseSummary.isEmpty ? "ワークアウト" : content.exerciseSummary)
+                .font(.subheadline.weight(.regular))
+                .foregroundStyle(.primary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .fixedSize(horizontal: false, vertical: true)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    Text(content.durationText)
+                    Text(content.exerciseCountText)
+                    Text(content.setCountText)
+                    Text(content.totalVolumeText)
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(content.durationText)
+                    Text(content.exerciseCountText)
+                    Text(content.setCountText)
+                    Text(content.totalVolumeText)
+                }
+            }
+            .font(.caption.weight(.regular))
+            .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 4)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(content.completedAt.formatted(.dateTime.year().month().day().hour().minute()))、"
+                + "\(content.exerciseSummary)、所要時間\(content.durationText)、"
+                + "\(content.exerciseCountText)、\(content.setCountText)、総Volume\(content.totalVolumeText)"
+        )
     }
 }
 

@@ -341,9 +341,20 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let app = launchApp(additionalArguments: ["--fixture", "workout-history"])
 
         let historyLink = app.buttons["すべて見る"]
-        XCTAssertTrue(historyLink.waitForExistence(timeout: 10))
+        XCTAssertTrue(scrollToHittable(historyLink, in: app))
         historyLink.tap()
-        XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン、ほか1種目"].waitForExistence(timeout: 10))
+        let firstRow = app.buttons["workout-history-row-\(historySessionID)"]
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 10))
+        XCTAssertTrue(firstRow.label.contains("ベンチプレス、ラットプルダウン、ほか1種目"))
+        XCTAssertTrue(firstRow.label.contains("52分"))
+        XCTAssertTrue(firstRow.label.contains("3種目"))
+        XCTAssertTrue(firstRow.label.contains("8セット"))
+        XCTAssertTrue(firstRow.label.contains("2,352kg"))
+        let rows = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
+        )
+        XCTAssertEqual(rows.count, 5)
+        XCTAssertGreaterThanOrEqual(rows.allElementsBoundByIndex.filter { $0.isHittable }.count, 4)
 
         let historyAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         historyAttachment.name = "workout-history"
@@ -402,5 +413,27 @@ final class KASANEUIScreenshotTests: XCTestCase {
         attachment.name = "workout-detail-edit-mode"
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        app.terminate()
+        for (arguments, name) in [
+            (["-AppleInterfaceStyle", "Dark"], "workout-history-dark-mode"),
+            (
+                ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityLarge"],
+                "workout-history-dynamic-type"
+            ),
+        ] {
+            let variant = launchApp(additionalArguments: ["--fixture", "workout-history"] + arguments)
+            let showAll = variant.buttons["すべて見る"]
+            XCTAssertTrue(scrollToHittable(showAll, in: variant))
+            showAll.tap()
+            let row = variant.buttons["workout-history-row-\(historySessionID)"]
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            XCTAssertTrue(row.label.contains("8セット"))
+            let screenshot = XCTAttachment(screenshot: takeStableScreenshot(variant))
+            screenshot.name = name
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            variant.terminate()
+        }
     }
 }

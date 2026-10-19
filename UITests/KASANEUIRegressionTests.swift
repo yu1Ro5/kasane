@@ -85,6 +85,36 @@ final class KASANEUIRegressionTests: XCTestCase {
         XCTAssertFalse(historyRow.exists)
     }
 
+    /// カードの削除キャンセルと、最後の履歴を削除した後のEmpty Stateを確認する。
+    @MainActor
+    func testHistoryCardsDeletionCancellationAndEmptyState() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "workout-history"])
+        let showAll = app.buttons["すべて見る"]
+        XCTAssertTrue(scrollToHittable(showAll, in: app))
+        showAll.tap()
+        let firstRow = app.buttons["workout-history-row-\(historySessionID)"]
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 10))
+        firstRow.swipeLeft()
+        app.buttons["delete-workout-\(historySessionID)"].tap()
+        XCTAssertTrue(app.buttons["キャンセル"].waitForExistence(timeout: 5))
+        app.buttons["キャンセル"].tap()
+        XCTAssertTrue(firstRow.exists)
+
+        for _ in 0..<5 {
+            let row = app.buttons.matching(
+                NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
+            ).firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            let identifier = row.identifier.replacingOccurrences(of: "workout-history-row-", with: "")
+            row.swipeLeft()
+            app.buttons["delete-workout-\(identifier)"].tap()
+            XCTAssertTrue(app.buttons["キャンセル"].waitForExistence(timeout: 5))
+            app.buttons["削除"].tap()
+            XCTAssertTrue(row.waitForNonExistence(timeout: 5))
+        }
+        XCTAssertTrue(app.staticTexts["履歴がありません"].waitForExistence(timeout: 5))
+    }
+
     /// 回数候補が回数欄だけに表示され、現在のDraftまたは保存済みSetだけを置換することを確認する。
     @MainActor
     func testWorkoutRepSuggestionsApplyToFocusedInput() throws {
