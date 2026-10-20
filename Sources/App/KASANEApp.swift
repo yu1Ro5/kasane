@@ -320,6 +320,25 @@ private enum AppModelContainer {
                 primaryBodyPart: .fullBody
             )
         )
+        // 一覧の密度、長い種目名、大きな集計値を同じScreenshot scenarioで確認する。
+        for index in 1...4 {
+            let endedAt = session.endedAt?.addingTimeInterval(Double(-index * 86_400))
+            let older = WorkoutSession(
+                startedAt: session.startedAt.addingTimeInterval(Double(-index * 86_400)),
+                endedAt: endedAt
+            )
+            context.insert(older)
+            let exercise = Exercise(
+                name: index == 1
+                    ? "トライセプスプレスダウン（ロープアタッチメント）、レッグエクステンション"
+                    : "ダンベルカール",
+                primaryBodyPart: .other
+            )
+            context.insert(exercise)
+            let entry = ExerciseEntry(workoutSession: older, exercise: exercise, order: 0)
+            context.insert(entry)
+            context.insert(SetEntry(exerciseEntry: entry, order: 0, weightKg: 100, reps: 100))
+        }
         try context.save()
     }
 

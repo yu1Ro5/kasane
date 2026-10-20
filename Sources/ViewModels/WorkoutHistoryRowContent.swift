@@ -4,17 +4,21 @@ struct WorkoutHistoryRowContent {
     let completedAt: Date
     let duration: TimeInterval
     let exerciseNames: [String]
+    let setCount: Int
     let totalVolume: Double
 
     init?(session: WorkoutSession, exerciseEntries: [ExerciseEntry]? = nil) {
         guard let endedAt = session.endedAt else { return nil }
 
+        let entries = exerciseEntries ?? session.exerciseEntries
+        let sets = entries.flatMap(\.setEntries)
+        setCount = sets.count
         completedAt = endedAt
         duration = max(endedAt.timeIntervalSince(session.startedAt), 0)
-        exerciseNames = (exerciseEntries ?? session.exerciseEntries)
+        exerciseNames = entries
             .sorted { $0.order < $1.order }
             .map(\.exerciseNameSnapshot)
-        totalVolume = (exerciseEntries ?? session.exerciseEntries).flatMap(\.setEntries).reduce(0) {
+        totalVolume = sets.reduce(0) {
             $0 + max($1.weightKg, 0) * Double(max($1.reps, 0))
         }
     }
@@ -35,6 +39,10 @@ struct WorkoutHistoryRowContent {
 
     var exerciseCountText: String {
         "\(exerciseNames.count)種目"
+    }
+
+    var setCountText: String {
+        "\(setCount)セット"
     }
 
     var totalVolumeText: String {
