@@ -176,7 +176,6 @@ struct WorkoutRootView: View {
         }
         .buttonStyle(.plain)
         .disabled(!canReuse)
-        .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(accessibilityText))
         .accessibilityHint(
             Text(
