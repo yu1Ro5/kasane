@@ -54,6 +54,13 @@ private enum AppModelContainer {
             try insertPersonalRecordFixture(into: container.mainContext)
         } else if fixtureName(in: arguments) == "workout-history" {
             try insertHistoryFixture(into: container.mainContext)
+        } else if fixtureName(in: arguments) == "smart-start" {
+            try insertOverviewRecentWorkoutsFixture(into: container.mainContext)
+            let activeSessions = try container.mainContext.fetch(
+                FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.endedAt == nil })
+            )
+            for session in activeSessions { container.mainContext.delete(session) }
+            try container.mainContext.save()
         } else if fixtureName(in: arguments) == "overview-recent-workouts" {
             try insertOverviewRecentWorkoutsFixture(into: container.mainContext)
         } else if fixtureName(in: arguments) == "overview-previous-month" {

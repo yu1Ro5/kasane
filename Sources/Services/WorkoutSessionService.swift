@@ -47,19 +47,52 @@ struct WorkoutSessionService {
     }
 
     /// 進行中セッションがあれば再利用し、なければ作成して即時保存する。
-    func startOrResume() throws -> WorkoutSession {
+    func startOrResume(reusing source: WorkoutSession? = nil) throws -> WorkoutSession {
         if let session = try activeSession() {
             return session
         }
 
+        let exercises: [Exercise]
+        if let source {
+            guard source.endedAt != nil else { throw WorkoutSessionError.notCompleted }
+            exercises = Self.reusableExercises(from: source)
+            guard !exercises.isEmpty else { throw WorkoutSessionError.noReusableExercises }
+        } else {
+            exercises = []
+        }
+
         let session = WorkoutSession(startedAt: now(), endedAt: nil, note: nil)
         context.insert(session)
+        for (order, exercise) in exercises.enumerated() {
+            context.insert(ExerciseEntry(workoutSession: session, exercise: exercise, order: order))
+        }
         do {
             try save()
             return session
         } catch {
             context.rollback()
             throw error
+        }
+    }
+
+    /// 同じ構成の履歴も独立した履歴として、終了日時順に最大3件取得する。
+    static var recentCompletedDescriptor: FetchDescriptor<WorkoutSession> {
+        var descriptor = FetchDescriptor<WorkoutSession>(
+            predicate: #Predicate { $0.endedAt != nil },
+            sortBy: [SortDescriptor(\WorkoutSession.endedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 3
+        return descriptor
+    }
+
+    /// 利用可能な種目だけを、最初の出現順で重複なく返す。
+    static func reusableExercises(from session: WorkoutSession) -> [Exercise] {
+        var seen = Set<UUID>()
+        return session.exerciseEntries.sorted { $0.order < $1.order }.compactMap { entry in
+            guard let exercise = entry.exercise, exercise.isSelectable,
+                seen.insert(exercise.id).inserted
+            else { return nil }
+            return exercise
         }
     }
 
@@ -141,6 +174,8 @@ struct WorkoutSessionService {
 
 /// ワークアウトセッションのライフサイクル操作で発生するドメインエラー。
 enum WorkoutSessionError: LocalizedError, Equatable {
+    /// 履歴に利用可能な種目がない。
+    case noReusableExercises
     /// 保存済みセットがなく、完了済みセッションとして保存できない。
     case noSavedSets
     /// すでに終了済みのセッションに対する重複終了操作。
@@ -151,6 +186,8 @@ enum WorkoutSessionError: LocalizedError, Equatable {
     /// ユーザーへ表示するエラー内容。
     var errorDescription: String? {
         switch self {
+        case .noReusableExercises:
+            "引き継げる種目がありません。通常の開始ボタンから始めてください。"
         case .noSavedSets:
             "記録されたセットがありません。"
         case .alreadyFinished:

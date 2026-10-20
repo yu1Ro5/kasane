@@ -109,6 +109,7 @@ jobs:
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANEScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testEmptyScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testSmartStartHistoryScreenshotAndReuse \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutInteractionScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots \
@@ -132,6 +133,7 @@ jobs:
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANEScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testEmptyScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testSmartStartHistoryScreenshotAndReuse \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutInteractionScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots \
@@ -192,6 +194,7 @@ jobs:
           scenarios = [
               ("overview-empty", "Overview — Empty"),
               ("workout-root-empty", "Workout — Empty"),
+              ("workout-smart-start-history", "Workout — Smart Start"),
               ("overview-recent-workouts", "Overview — Recent Workouts"),
               ("overview-search-results", "Overview — Search Results"),
               ("overview-search-empty", "Overview — Search Empty"),

@@ -102,6 +102,7 @@ schemes:
         - name: KASANEUITests
           selectedTests:
             - KASANEUIScreenshotTests/testEmptyScreenshots()
+            - KASANEUIScreenshotTests/testSmartStartHistoryScreenshotAndReuse()
             - KASANEUIScreenshotTests/testOverviewScreenshots()
             - KASANEUIScreenshotTests/testWorkoutInteractionScreenshots()
             - KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots()
