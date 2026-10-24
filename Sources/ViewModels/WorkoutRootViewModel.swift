@@ -15,12 +15,16 @@ final class WorkoutRootViewModel {
         }
     }
 
-    func startWorkout(startOrResume: () throws -> WorkoutSession) {
-        guard activeSession == nil else { return }
+    @discardableResult
+    func startWorkout(startOrResume: () throws -> WorkoutSession) -> WorkoutSession? {
+        guard activeSession == nil else { return activeSession }
         do {
-            activeSession = try startOrResume()
+            let session = try startOrResume()
+            activeSession = session
+            return session
         } catch {
             errorMessage = error.localizedDescription
+            return nil
         }
     }
 }

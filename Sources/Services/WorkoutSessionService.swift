@@ -123,9 +123,22 @@ struct WorkoutSessionService {
     /// 保存済みセットを持つ種目だけを残し、セッションを終了して即時保存する。
     func finish(
         _ session: WorkoutSession,
-        drafts: [UUID: SetEntryDraft] = [:]
+        drafts: [UUID: SetEntryDraft] = [:],
+        endedAt requestedEndedAt: Date? = nil
     ) throws -> WorkoutCompletionSummary {
         guard session.endedAt == nil else { throw WorkoutSessionError.alreadyFinished }
+
+        let currentDate = now()
+        let completedAt = requestedEndedAt ?? currentDate
+        if requestedEndedAt != nil,
+            WorkoutEndDateValidation.message(
+                startedAt: session.startedAt,
+                endedAt: completedAt,
+                latestAllowedDate: currentDate
+            ) != nil
+        {
+            throw WorkoutSessionError.invalidEndDate
+        }
 
         let setService = WorkoutSetService(context: context)
         do {
@@ -139,7 +152,6 @@ struct WorkoutSessionService {
             throw error
         }
 
-        let completedAt = now()
         let completedEntries = session.exerciseEntries
             .filter { !$0.setEntries.isEmpty }
             .sorted { $0.order < $1.order }
@@ -182,6 +194,8 @@ enum WorkoutSessionError: LocalizedError, Equatable {
     case alreadyFinished
     /// 進行中セッションに対する履歴削除操作。
     case notCompleted
+    /// 開始前または未来の終了日時を指定した終了操作。
+    case invalidEndDate
 
     /// ユーザーへ表示するエラー内容。
     var errorDescription: String? {
@@ -194,6 +208,8 @@ enum WorkoutSessionError: LocalizedError, Equatable {
             "このワークアウトはすでに終了しています。"
         case .notCompleted:
             "進行中のワークアウトは履歴から削除できません。"
+        case .invalidEndDate:
+            "終了日時は開始日時以降、現在日時以前にしてください。"
         }
     }
 }

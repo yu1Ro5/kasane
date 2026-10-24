@@ -95,4 +95,24 @@ final class KASANEUISmokeTests: XCTestCase {
         XCTAssertEqual(pendingWeightInput.value as? String, "14")
         app.navigationBars.buttons["ワークアウト"].tap()
     }
+
+    /// 終了忘れ確認はシステム通知ダイアログなしで表示され、継続操作で閉じられる。
+    @MainActor
+    func testWorkoutEndReminderCanContinue() throws {
+        let app = launchApp(
+            additionalArguments: [
+                "--fixture", "workout-set-layout",
+                "--workout-reminder-fixture",
+            ]
+        )
+
+        let reminderSheet = app.descendants(matching: .any)["workout-end-reminder-sheet"]
+        XCTAssertTrue(reminderSheet.waitForExistence(timeout: 10))
+
+        let continueButton = app.buttons["workout-end-reminder-continue-button"]
+        XCTAssertTrue(continueButton.isHittable)
+        continueButton.tap()
+        XCTAssertFalse(reminderSheet.waitForExistence(timeout: 1))
+        XCTAssertTrue(app.staticTexts["今回のワークアウト"].exists)
+    }
 }

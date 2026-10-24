@@ -4,6 +4,7 @@ import SwiftUI
 struct WorkoutRootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(WorkoutEndReminderCoordinator.self) private var reminderCoordinator
     @State private var viewModel = WorkoutRootViewModel()
     @Query(WorkoutSessionService.recentCompletedDescriptor) private var recentSessions: [WorkoutSession]
     let draftStore: WorkoutDraftStore
@@ -14,6 +15,7 @@ struct WorkoutRootView: View {
                 WorkoutSessionView(
                     session: activeSession,
                     draftStore: draftStore,
+                    reminderCoordinator: reminderCoordinator,
                     onReturnHome: refreshActiveSession
                 )
             } else {
@@ -25,9 +27,30 @@ struct WorkoutRootView: View {
         } message: {
             Text(viewModel.errorMessage ?? "不明なエラーが発生しました。")
         }
-        .task {
-            seedExercises()
-            refreshActiveSession()
+        .task { seedExercises() }
+        .task(id: reminderCoordinator.checkGeneration) {
+            await refreshReminderState()
+        }
+        .alert("終了忘れ通知", isPresented: permissionExplanationIsPresented) {
+            Button("通知を許可") {
+                Task {
+                    await reminderCoordinator.allowNotifications(
+                        for: activeSessionsForReminder()
+                    )
+                }
+            }
+            Button("今はしない", role: .cancel) {
+                reminderCoordinator.skipNotificationPermission()
+            }
+        } message: {
+            Text(
+                "ワークアウト開始から長時間経過したとき、終了忘れをiPhoneの通知でお知らせします。"
+            )
+        }
+        .alert("通知を設定できませんでした", isPresented: notificationErrorIsPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(reminderCoordinator.notificationErrorMessage ?? "不明なエラーが発生しました。")
         }
     }
 
@@ -112,7 +135,8 @@ struct WorkoutRootView: View {
         let fullNames = entries.map(\.exerciseNameSnapshot).joined(separator: "、")
         let accessibleNames = fullNames.isEmpty ? "種目の記録なし" : fullNames
         let accessibleDate = session.startedAt.formatted(date: .complete, time: .omitted)
-        let accessibilityText = canReuse
+        let accessibilityText =
+            canReuse
             ? "\(accessibleDate)、\(entries.count)種目、\(accessibleNames)でワークアウトを開始"
             : "\(accessibleDate)、\(entries.count)種目、\(accessibleNames)。引き継げる種目がありません"
 
@@ -120,7 +144,8 @@ struct WorkoutRootView: View {
             startWorkout(reusing: session)
         } label: {
             VStack(alignment: .leading, spacing: 8) {
-                let headerLayout = dynamicTypeSize.isAccessibilitySize
+                let headerLayout =
+                    dynamicTypeSize.isAccessibilitySize
                     ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
                     : AnyLayout(HStackLayout(spacing: 8))
                 headerLayout {
@@ -209,9 +234,32 @@ struct WorkoutRootView: View {
         )
     }
 
+    private var permissionExplanationIsPresented: Binding<Bool> {
+        Binding(
+            get: { reminderCoordinator.isShowingPermissionExplanation },
+            set: { if !$0 { reminderCoordinator.skipNotificationPermission() } }
+        )
+    }
+
+    private var notificationErrorIsPresented: Binding<Bool> {
+        Binding(
+            get: { reminderCoordinator.notificationErrorMessage != nil },
+            set: { if !$0 { reminderCoordinator.notificationErrorMessage = nil } }
+        )
+    }
+
     private func startWorkout(reusing session: WorkoutSession? = nil) {
-        viewModel.startWorkout {
-            try WorkoutSessionService(context: modelContext).startOrResume(reusing: session)
+        let hadActiveSession = (try? WorkoutSessionService(context: modelContext).activeSession()) != nil
+        guard
+            let startedSession = viewModel.startWorkout({
+                try WorkoutSessionService(context: modelContext).startOrResume(reusing: session)
+            })
+        else { return }
+        Task {
+            await reminderCoordinator.workoutStarted(
+                startedSession,
+                isNew: !hadActiveSession
+            )
         }
     }
 
@@ -219,6 +267,39 @@ struct WorkoutRootView: View {
         viewModel.refreshActiveSession {
             try WorkoutSessionService(context: modelContext).activeSession()
         }
+    }
+
+    private func activeSessionsForReminder() -> [WorkoutSession] {
+        let descriptor = FetchDescriptor<WorkoutSession>(
+            predicate: #Predicate { $0.endedAt == nil },
+            sortBy: [SortDescriptor(\WorkoutSession.startedAt)]
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private func refreshReminderState() async {
+        let activeSessions = activeSessionsForReminder()
+        await reminderCoordinator.reconcile(activeSessions: activeSessions)
+
+        if let tappedWorkoutID = reminderCoordinator.takeTappedWorkoutID() {
+            if let tappedSession = activeSessions.first(where: { $0.id == tappedWorkoutID }) {
+                viewModel.refreshActiveSession { tappedSession }
+                reminderCoordinator.presentReminder(for: tappedWorkoutID)
+            } else {
+                refreshActiveSession()
+            }
+            return
+        }
+
+        refreshActiveSession()
+        guard
+            reminderCoordinator.presentedWorkoutID == nil,
+            let overdueSession = activeSessions.first(where: {
+                reminderCoordinator.shouldPresentReminder(for: $0)
+            })
+        else { return }
+        viewModel.refreshActiveSession { overdueSession }
+        reminderCoordinator.presentReminder(for: overdueSession.id)
     }
 
     private func seedExercises() {
@@ -237,5 +318,10 @@ struct WorkoutRootView: View {
     .modelContainer(
         for: [WorkoutSession.self, Exercise.self, ExerciseEntry.self, SetEntry.self],
         inMemory: true
+    )
+    .environment(
+        WorkoutEndReminderCoordinator(
+            notificationCenter: DisabledWorkoutEndReminderNotificationCenter()
+        )
     )
 }
