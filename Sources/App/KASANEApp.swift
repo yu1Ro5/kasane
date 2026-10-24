@@ -3,10 +3,15 @@ import SwiftUI
 
 @main
 struct KASANEApp: App {
+    @UIApplicationDelegateAdaptor(WorkoutEndReminderAppDelegate.self) private var appDelegate
     private let container: Result<ModelContainer, Error>
+    @State private var workoutEndReminderCoordinator: WorkoutEndReminderCoordinator
 
     init() {
         container = Result { try AppModelContainer.make() }
+        _workoutEndReminderCoordinator = State(
+            initialValue: WorkoutEndReminderCoordinator.live()
+        )
     }
 
     var body: some Scene {
@@ -18,6 +23,7 @@ struct KASANEApp: App {
                     monthlyInsightGenerator: AppModelContainer.monthlyInsightGenerator()
                 )
                 .modelContainer(container)
+                .environment(workoutEndReminderCoordinator)
             case .failure(let error):
                 ContentUnavailableView(
                     "データを読み込めませんでした",

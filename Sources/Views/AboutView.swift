@@ -30,6 +30,13 @@ struct AboutView: View {
                 .accessibilityIdentifier("data-management-link")
             }
 
+            Section("通知") {
+                NavigationLink("終了忘れ通知") {
+                    WorkoutEndReminderSettingsView()
+                }
+                .accessibilityIdentifier("workout-end-reminder-settings-link")
+            }
+
             Section {
                 Text("© 2026 yu1Ro5")
                     .foregroundStyle(.secondary)
@@ -62,4 +69,9 @@ private struct AboutLink: View {
     NavigationStack {
         AboutView()
     }
+    .environment(
+        WorkoutEndReminderCoordinator(
+            notificationCenter: DisabledWorkoutEndReminderNotificationCenter()
+        )
+    )
 }
