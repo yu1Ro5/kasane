@@ -21,7 +21,11 @@ struct WorkoutDateEditDraft {
     }
 
     var validationMessage: String? {
-        endedAt < startedAt ? "終了日時は開始日時以降にしてください。" : nil
+        WorkoutEndDateValidation.message(
+            startedAt: startedAt,
+            endedAt: endedAt,
+            latestAllowedDate: nil
+        )
     }
 
     var durationText: String {

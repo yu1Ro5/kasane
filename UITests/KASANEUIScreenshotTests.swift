@@ -414,6 +414,30 @@ final class KASANEUIScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutEndReminderScreenshot() throws {
+        let app = launchApp(
+            additionalArguments: [
+                "--fixture", "workout-set-layout",
+                "--workout-reminder-fixture",
+            ]
+        )
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-end-reminder-sheet"]
+                .waitForExistence(timeout: 10)
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["workout-end-reminder-started-at"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["workout-end-reminder-elapsed-time"].exists)
+        XCTAssertTrue(app.buttons["workout-end-reminder-finish-button"].isHittable)
+        XCTAssertTrue(app.buttons["workout-end-reminder-continue-button"].isHittable)
+
+        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        attachment.name = "workout-end-reminder"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     func testWorkoutHistoryScreenshots() throws {
         let app = launchApp(additionalArguments: ["--fixture", "workout-history"])
 
