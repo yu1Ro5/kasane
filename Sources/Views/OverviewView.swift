@@ -9,6 +9,7 @@ struct OverviewView: View {
     private let fixedReferenceDate: Date?
     private let insightGenerator: any MonthlyInsightGenerating
     @State private var selectedMonth: Date
+    @State private var isMonthSelectorPresented = false
     @State private var insightViewModel = MonthlyInsightViewModel()
     @Query private var completedSessions: [WorkoutSession]
     @Query private var exerciseOverviewEntries: [ExerciseEntry]
@@ -121,18 +122,8 @@ struct OverviewView: View {
     }
 
     private var monthSelector: some View {
-        Menu {
-            ForEach(selectableMonths, id: \.self) { month in
-                Button {
-                    selectedMonth = month
-                } label: {
-                    if calendar.isDate(month, equalTo: selectedMonth, toGranularity: .month) {
-                        Label(month.formatted(.dateTime.year().month()), systemImage: "checkmark")
-                    } else {
-                        Text(month, format: .dateTime.year().month())
-                    }
-                }
-            }
+        Button {
+            isMonthSelectorPresented.toggle()
         } label: {
             HStack(spacing: 7) {
                 Text(selectedMonth, format: .dateTime.year().month())
@@ -141,12 +132,74 @@ struct OverviewView: View {
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
             }
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .popover(
+            isPresented: $isMonthSelectorPresented,
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .top
+        ) {
+            ViewThatFits(in: .vertical) {
+                VStack(spacing: 0) {
+                    monthOptions
+                }
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        monthOptions
+                    }
+                }
+            }
+            .frame(width: dynamicTypeSize.isAccessibilitySize ? 320 : 260)
+            .frame(maxHeight: 420)
+            .padding(.vertical, 8)
+            .presentationCompactAdaptation(.popover)
+            .accessibilityIdentifier("overview-month-selector-popover")
+        }
         .accessibilityLabel("表示する月")
         .accessibilityValue(selectedMonth.formatted(.dateTime.year().month()))
         .accessibilityIdentifier("overview-month-selector")
+    }
+
+    private var monthOptions: some View {
+        ForEach(selectableMonths, id: \.self) { month in
+            monthOption(month)
+        }
+    }
+
+    private func monthOption(_ month: Date) -> some View {
+        let isSelected = calendar.isDate(
+            month,
+            equalTo: selectedMonth,
+            toGranularity: .month
+        )
+        return Button {
+            selectedMonth = month
+            isMonthSelectorPresented = false
+        } label: {
+            HStack(spacing: 12) {
+                Text(month, format: .dateTime.year().month())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "checkmark")
+                    .font(.body.weight(.semibold))
+                    .opacity(isSelected ? 1 : 0)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(month.formatted(.dateTime.year().month()))
+        .accessibilityValue(isSelected ? "選択中" : "未選択")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("overview-month-option-\(monthOptionIdentifier(month))")
+    }
+
+    private func monthOptionIdentifier(_ month: Date) -> String {
+        let components = calendar.dateComponents([.year, .month], from: month)
+        return "\(components.year ?? 0)-\(components.month ?? 0)"
     }
 
     private var selectableMonths: [Date] {
@@ -187,17 +240,19 @@ struct OverviewView: View {
 
     private var recentWorkouts: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("最近のワークアウト")
-                    .font(.title3.bold())
-                Spacer()
-                NavigationLink(value: OverviewRoute.history) {
-                    HStack(spacing: 4) {
-                        Text("すべて見る")
-                        Image(systemName: "chevron.right")
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("最近のワークアウト")
+                        .font(.title3.bold())
+                    allWorkoutsLink
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            } else {
+                HStack {
+                    Text("最近のワークアウト")
+                        .font(.title3.bold())
+                    Spacer()
+                    allWorkoutsLink
                 }
             }
             let sessions = Array(completedSessions.prefix(OverviewWorkoutLoader.recentWorkoutLimit))
@@ -229,24 +284,28 @@ struct OverviewView: View {
         }
     }
 
+    private var allWorkoutsLink: some View {
+        NavigationLink(value: OverviewRoute.history) {
+            showAllLinkLabel
+        }
+        .accessibilityLabel("すべてのワークアウトを表示")
+        .accessibilityIdentifier("overview-all-workouts")
+    }
+
     private func exerciseRecords(_ contents: [ExerciseOverviewCardContent]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("種目の記録")
-                        .font(.title3.bold())
-                    Text("最近使った種目")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    exerciseRecordsTitle
+                    allExerciseRecordsLink
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                Spacer()
-                NavigationLink(value: OverviewRoute.exerciseRecords) {
-                    Label("すべて", systemImage: "chevron.right")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            } else {
+                HStack(alignment: .firstTextBaseline) {
+                    exerciseRecordsTitle
+                    Spacer()
+                    allExerciseRecordsLink
                 }
-                .accessibilityLabel("すべての種目を表示")
-                .accessibilityIdentifier("overview-all-exercise-records")
             }
             ForEach(contents) { content in
                 NavigationLink(value: OverviewRoute.exerciseProgress(content.exerciseID)) {
@@ -257,6 +316,34 @@ struct OverviewView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("overview-exercise-records-section")
+    }
+
+    private var exerciseRecordsTitle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("種目の記録")
+                .font(.title3.bold())
+            Text("最近使った種目")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var allExerciseRecordsLink: some View {
+        NavigationLink(value: OverviewRoute.exerciseRecords) {
+            showAllLinkLabel
+        }
+        .accessibilityLabel("すべての種目を表示")
+        .accessibilityIdentifier("overview-all-exercise-records")
+    }
+
+    private var showAllLinkLabel: some View {
+        HStack(spacing: 4) {
+            Text("すべて表示")
+            Image(systemName: "chevron.right")
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private func featuredExerciseRecords(

@@ -67,8 +67,9 @@ final class KASANEUIRegressionTests: XCTestCase {
     func testCompletedWorkoutDeletionFlow() throws {
         let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
 
-        let showAllButton = app.buttons["すべて見る"]
+        let showAllButton = app.buttons["overview-all-workouts"]
         XCTAssertTrue(scrollToHittable(showAllButton, in: app))
+        XCTAssertEqual(showAllButton.label, "すべてのワークアウトを表示")
         showAllButton.tap()
         XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
 
@@ -89,8 +90,9 @@ final class KASANEUIRegressionTests: XCTestCase {
     @MainActor
     func testHistoryCardsDeletionCancellationAndEmptyState() throws {
         let app = launchApp(additionalArguments: ["--fixture", "workout-history"])
-        let showAll = app.buttons["すべて見る"]
+        let showAll = app.buttons["overview-all-workouts"]
         XCTAssertTrue(scrollToHittable(showAll, in: app))
+        XCTAssertEqual(showAll.label, "すべてのワークアウトを表示")
         showAll.tap()
         let firstRow = app.buttons["workout-history-row-\(historySessionID)"]
         XCTAssertTrue(firstRow.waitForExistence(timeout: 10))
@@ -359,14 +361,49 @@ final class KASANEUIRegressionTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
         XCTAssertTrue(app.staticTexts["デッドリフト"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["overview-month-selector"].exists)
-        app.descendants(matching: .any)["overview-month-selector"].tap()
-        app.buttons["2026年8月"].tap()
+        let monthSelector = app.descendants(matching: .any)["overview-month-selector"]
+        XCTAssertTrue(monthSelector.exists)
+        XCTAssertEqual(monthSelector.value as? String, "2026年9月")
+        monthSelector.tap()
+
+        let currentMonth = app.buttons["overview-month-option-2026-9"]
+        let previousMonth = app.buttons["overview-month-option-2026-8"]
+        XCTAssertTrue(currentMonth.waitForExistence(timeout: 5))
+        XCTAssertTrue(previousMonth.exists)
+        XCTAssertEqual(currentMonth.value as? String, "選択中")
+        XCTAssertEqual(previousMonth.value as? String, "未選択")
+        XCTAssertEqual(currentMonth.frame.minX, previousMonth.frame.minX, accuracy: 1)
+        XCTAssertEqual(currentMonth.frame.width, previousMonth.frame.width, accuracy: 1)
+
+        previousMonth.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["overview-month-selector-popover"]
+                .waitForNonExistence(timeout: 5)
+        )
+        XCTAssertEqual(monthSelector.value as? String, "2026年8月")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["overview-workout-count"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["overview-workout-count"].label.contains("2回"))
         XCTAssertTrue(
             app.descendants(matching: .any)["overview-monthly-insight-card"].waitForExistence(
                 timeout: 10
             )
         )
+
+        monthSelector.tap()
+        let selectedPreviousMonth = app.buttons["overview-month-option-2026-8"]
+        XCTAssertEqual(
+            selectedPreviousMonth.value as? String,
+            "選択中"
+        )
+        XCTAssertEqual(
+            app.buttons["overview-month-option-2026-9"].value as? String,
+            "未選択"
+        )
+        selectedPreviousMonth.tap()
+        XCTAssertTrue(selectedPreviousMonth.waitForNonExistence(timeout: 5))
     }
 
     @MainActor
