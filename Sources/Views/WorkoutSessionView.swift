@@ -4,9 +4,9 @@ import SwiftUI
 struct WorkoutSessionView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(WorkoutEndReminderCoordinator.self) private var reminderCoordinator
     @Bindable var session: WorkoutSession
     @Bindable var draftStore: WorkoutDraftStore
-    let reminderCoordinator: WorkoutEndReminderCoordinator
     let onReturnHome: () -> Void
 
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
@@ -21,7 +21,6 @@ struct WorkoutSessionView: View {
     @State private var isConfirmingDiscard = false
     @State private var isConfirmingFinish = false
     @State private var isConfirmingEmptyDiscard = false
-    @State private var isEmptyDiscardFromReminder = false
     @State private var isFinishing = false
     @State private var completionSummary: WorkoutCompletionSummary?
     @State private var completionInsightFacts: WorkoutInsightFacts?
@@ -220,22 +219,9 @@ struct WorkoutSessionView: View {
         }
         .confirmationDialog("記録されたセットがありません", isPresented: $isConfirmingEmptyDiscard) {
             Button("中止する", role: .destructive) { discardWorkout() }
-            Button("続ける", role: .cancel) { continueAfterEmptyDiscard() }
+            Button("続ける", role: .cancel) {}
         } message: {
             Text("完了済みとして保存せず、このワークアウトを中止します。")
-        }
-        .sheet(isPresented: reminderSheetIsPresented) {
-            WorkoutEndReminderSheet(
-                session: session,
-                finishBlockingMessage: reminderFinishBlockingMessage,
-                onFinish: finishWorkoutFromReminder,
-                onContinue: {
-                    await reminderCoordinator.continueWorkout(session)
-                },
-                onSessionEnded: {
-                    reminderCoordinator.dismissReminder(for: session.id)
-                }
-            )
         }
         .alert(errorTitle, isPresented: errorIsPresented) {
             Button("OK", role: .cancel) {}
@@ -296,25 +282,6 @@ struct WorkoutSessionView: View {
 
     private var errorIsPresented: Binding<Bool> {
         Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
-    }
-
-    private var reminderSheetIsPresented: Binding<Bool> {
-        Binding(
-            get: {
-                reminderCoordinator.presentedWorkoutID == session.id && session.endedAt == nil
-            },
-            set: { _ in }
-        )
-    }
-
-    private var reminderFinishBlockingMessage: String? {
-        if !pendingExerciseDrafts.isEmpty {
-            return "入力中の種目でセットを追加するか入力を消してから終了してください。"
-        }
-        if sessionDrafts.values.contains(where: { !$0.isEmpty && $0.values() == nil }) {
-            return "重量と回数を正しく入力するか、入力を消してから終了してください。"
-        }
-        return nil
     }
 
     private var usesQuickInputFixture: Bool {
@@ -415,7 +382,6 @@ struct WorkoutSessionView: View {
             errorTitle = "未追加のセットがあります"
             errorMessage = "重量と回数を正しく入力するか、入力を消してから終了してください。"
         } else if completionCounts.setCount == 0 {
-            isEmptyDiscardFromReminder = false
             isConfirmingEmptyDiscard = true
         } else {
             isConfirmingFinish = true
@@ -423,72 +389,45 @@ struct WorkoutSessionView: View {
     }
 
     private func finishWorkout() {
-        Task {
-            do {
-                try await completeWorkout(endedAt: nil)
-            } catch {
-                errorTitle = "ワークアウトを終了できませんでした"
-                errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    private func finishWorkoutFromReminder(endedAt: Date) async throws {
-        if completionCounts.setCount == 0 {
-            reminderCoordinator.dismissReminder(for: session.id)
-            isEmptyDiscardFromReminder = true
-            isConfirmingEmptyDiscard = true
-            return
-        }
-        try await completeWorkout(endedAt: endedAt)
-    }
-
-    private func completeWorkout(endedAt: Date?) async throws {
         guard !isFinishing else { return }
         isFinishing = true
         defer { isFinishing = false }
-
-        let summary = try WorkoutSessionService(context: modelContext).finish(
-            session,
-            drafts: sessionDrafts,
-            endedAt: endedAt
-        )
-        await reminderCoordinator.workoutEnded(session.id)
-        let achievements = PersonalRecordDetector.achievements(
-            for: session,
-            among: observedSessions
-        )
-        personalRecords = achievements
-        completionInsightFacts = WorkoutInsightFactsBuilder.build(
-            summary: summary,
-            session: session,
-            personalRecords: achievements,
-            sessions: observedSessions
-        )
-        completionSummary = summary
-        draftStore.removeAllDrafts(in: session.id)
-    }
-
-    private func discardWorkout() {
-        Task {
-            do {
-                let workoutID = session.id
-                isEmptyDiscardFromReminder = false
-                try WorkoutSessionService(context: modelContext).discard(session)
-                await reminderCoordinator.workoutEnded(workoutID)
-                draftStore.removeAllDrafts(in: workoutID)
-                onReturnHome()
-            } catch {
-                errorTitle = "ワークアウトを中止できませんでした"
-                errorMessage = error.localizedDescription
-            }
+        do {
+            let summary = try WorkoutSessionService(context: modelContext).finish(
+                session,
+                drafts: sessionDrafts
+            )
+            reminderCoordinator.cancelReminder(workoutID: session.id)
+            let achievements = PersonalRecordDetector.achievements(
+                for: session,
+                among: observedSessions
+            )
+            personalRecords = achievements
+            completionInsightFacts = WorkoutInsightFactsBuilder.build(
+                summary: summary,
+                session: session,
+                personalRecords: achievements,
+                sessions: observedSessions
+            )
+            completionSummary = summary
+            draftStore.removeAllDrafts(in: session.id)
+        } catch {
+            errorTitle = "ワークアウトを終了できませんでした"
+            errorMessage = error.localizedDescription
         }
     }
 
-    private func continueAfterEmptyDiscard() {
-        guard isEmptyDiscardFromReminder else { return }
-        isEmptyDiscardFromReminder = false
-        Task { await reminderCoordinator.continueWorkout(session) }
+    private func discardWorkout() {
+        do {
+            let workoutID = session.id
+            try WorkoutSessionService(context: modelContext).discard(session)
+            reminderCoordinator.cancelReminder(workoutID: workoutID)
+            draftStore.removeAllDrafts(in: workoutID)
+            onReturnHome()
+        } catch {
+            errorTitle = "ワークアウトを中止できませんでした"
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func returnHomeAfterCompletion() {

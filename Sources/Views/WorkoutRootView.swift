@@ -15,7 +15,6 @@ struct WorkoutRootView: View {
                 WorkoutSessionView(
                     session: activeSession,
                     draftStore: draftStore,
-                    reminderCoordinator: reminderCoordinator,
                     onReturnHome: refreshActiveSession
                 )
             } else {
@@ -27,16 +26,14 @@ struct WorkoutRootView: View {
         } message: {
             Text(viewModel.errorMessage ?? "不明なエラーが発生しました。")
         }
-        .task { seedExercises() }
-        .task(id: reminderCoordinator.checkGeneration) {
-            await refreshReminderState()
+        .task {
+            seedExercises()
+            refreshActiveSession()
         }
         .alert("終了忘れ通知", isPresented: permissionExplanationIsPresented) {
             Button("通知を許可") {
                 Task {
-                    await reminderCoordinator.allowNotifications(
-                        for: activeSessionsForReminder()
-                    )
+                    await reminderCoordinator.allowNotifications(for: viewModel.activeSession)
                 }
             }
             Button("今はしない", role: .cancel) {
@@ -44,7 +41,7 @@ struct WorkoutRootView: View {
             }
         } message: {
             Text(
-                "ワークアウト開始から長時間経過したとき、終了忘れをiPhoneの通知でお知らせします。"
+                "ワークアウト開始から3時間後に、終了忘れをiPhoneの通知でお知らせします。"
             )
         }
         .alert("通知を設定できませんでした", isPresented: notificationErrorIsPresented) {
@@ -135,8 +132,7 @@ struct WorkoutRootView: View {
         let fullNames = entries.map(\.exerciseNameSnapshot).joined(separator: "、")
         let accessibleNames = fullNames.isEmpty ? "種目の記録なし" : fullNames
         let accessibleDate = session.startedAt.formatted(date: .complete, time: .omitted)
-        let accessibilityText =
-            canReuse
+        let accessibilityText = canReuse
             ? "\(accessibleDate)、\(entries.count)種目、\(accessibleNames)でワークアウトを開始"
             : "\(accessibleDate)、\(entries.count)種目、\(accessibleNames)。引き継げる種目がありません"
 
@@ -144,8 +140,7 @@ struct WorkoutRootView: View {
             startWorkout(reusing: session)
         } label: {
             VStack(alignment: .leading, spacing: 8) {
-                let headerLayout =
-                    dynamicTypeSize.isAccessibilitySize
+                let headerLayout = dynamicTypeSize.isAccessibilitySize
                     ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
                     : AnyLayout(HStackLayout(spacing: 8))
                 headerLayout {
@@ -249,17 +244,18 @@ struct WorkoutRootView: View {
     }
 
     private func startWorkout(reusing session: WorkoutSession? = nil) {
-        let hadActiveSession = (try? WorkoutSessionService(context: modelContext).activeSession()) != nil
-        guard
-            let startedSession = viewModel.startWorkout({
-                try WorkoutSessionService(context: modelContext).startOrResume(reusing: session)
-            })
-        else { return }
+        var startedSession: WorkoutSession?
+        var isNewSession = false
+        viewModel.startWorkout {
+            let service = WorkoutSessionService(context: modelContext)
+            isNewSession = try service.activeSession() == nil
+            let result = try service.startOrResume(reusing: session)
+            startedSession = result
+            return result
+        }
+        guard isNewSession, let startedSession else { return }
         Task {
-            await reminderCoordinator.workoutStarted(
-                startedSession,
-                isNew: !hadActiveSession
-            )
+            await reminderCoordinator.workoutStarted(startedSession)
         }
     }
 
@@ -267,39 +263,6 @@ struct WorkoutRootView: View {
         viewModel.refreshActiveSession {
             try WorkoutSessionService(context: modelContext).activeSession()
         }
-    }
-
-    private func activeSessionsForReminder() -> [WorkoutSession] {
-        let descriptor = FetchDescriptor<WorkoutSession>(
-            predicate: #Predicate { $0.endedAt == nil },
-            sortBy: [SortDescriptor(\WorkoutSession.startedAt)]
-        )
-        return (try? modelContext.fetch(descriptor)) ?? []
-    }
-
-    private func refreshReminderState() async {
-        let activeSessions = activeSessionsForReminder()
-        await reminderCoordinator.reconcile(activeSessions: activeSessions)
-
-        if let tappedWorkoutID = reminderCoordinator.takeTappedWorkoutID() {
-            if let tappedSession = activeSessions.first(where: { $0.id == tappedWorkoutID }) {
-                viewModel.refreshActiveSession { tappedSession }
-                reminderCoordinator.presentReminder(for: tappedWorkoutID)
-            } else {
-                refreshActiveSession()
-            }
-            return
-        }
-
-        refreshActiveSession()
-        guard
-            reminderCoordinator.presentedWorkoutID == nil,
-            let overdueSession = activeSessions.first(where: {
-                reminderCoordinator.shouldPresentReminder(for: $0)
-            })
-        else { return }
-        viewModel.refreshActiveSession { overdueSession }
-        reminderCoordinator.presentReminder(for: overdueSession.id)
     }
 
     private func seedExercises() {

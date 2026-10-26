@@ -16,14 +16,14 @@ final class WorkoutEndReminderAppDelegate: NSObject, UIApplicationDelegate,
         return true
     }
 
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
         [.banner, .list, .sound]
     }
 
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
@@ -34,8 +34,8 @@ final class WorkoutEndReminderAppDelegate: NSObject, UIApplicationDelegate,
             let workoutID = UUID(uuidString: value)
         else { return }
 
-        WorkoutEndReminderPreferences().savePendingTappedWorkoutID(workoutID)
         await MainActor.run {
+            WorkoutEndReminderPreferences().savePendingTappedWorkoutID(workoutID)
             NotificationCenter.default.post(name: .workoutEndReminderTapped, object: nil)
         }
     }

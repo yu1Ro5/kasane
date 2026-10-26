@@ -113,7 +113,6 @@ jobs:
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutInteractionScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutEndReminderScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
@@ -138,7 +137,6 @@ jobs:
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutInteractionScreenshots \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutEndReminderScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
@@ -213,7 +211,6 @@ jobs:
               ("workout-detail", "Workout — Detail"),
               ("workout-detail-edit-mode", "Workout — Detail Edit Mode"),
               ("workout-completed", "Workout — Completed"),
-              ("workout-end-reminder", "Workout — End Reminder"),
           ]
           artifact_dir = runner_temp / "ui-screenshot-artifact"
           manifest = json.loads((export_dir / "manifest.json").read_text())

@@ -90,7 +90,6 @@ schemes:
             - KASANEUISmokeTests/testAppLaunchSmoke()
             - KASANEUISmokeTests/testWorkoutHappyPathSmoke()
             - KASANEUISmokeTests/testWorkoutDraftPersistsAcrossNavigation()
-            - KASANEUISmokeTests/testWorkoutEndReminderCanContinue()
 
   KASANEScreenshot:
     build:
@@ -107,7 +106,6 @@ schemes:
             - KASANEUIScreenshotTests/testOverviewScreenshots()
             - KASANEUIScreenshotTests/testWorkoutInteractionScreenshots()
             - KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots()
-            - KASANEUIScreenshotTests/testWorkoutEndReminderScreenshot()
             - KASANEUIScreenshotTests/testWorkoutHistoryScreenshots()
 
   KASANERegression:

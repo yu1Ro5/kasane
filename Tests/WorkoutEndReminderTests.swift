@@ -22,20 +22,27 @@ final class WorkoutEndReminderTests: XCTestCase {
 
         var status: WorkoutEndReminderAuthorizationStatus = .authorized
         var requestAuthorizationResult = true
+        var requestAuthorizationCount = 0
         var added: [AddedReminder] = []
         var pending: Set<String> = []
         var removedPending: [String] = []
         var removedDelivered: [String] = []
+        var onPending: (() -> Void)?
         var onAdd: (() async -> Void)?
 
         func authorizationStatus() async -> WorkoutEndReminderAuthorizationStatus { status }
 
         func requestAuthorization() async throws -> Bool {
+            requestAuthorizationCount += 1
             status = requestAuthorizationResult ? .authorized : .denied
             return requestAuthorizationResult
         }
 
-        func pendingRequestIdentifiers() async -> Set<String> { pending }
+        func pendingRequestIdentifiers() async -> Set<String> {
+            onPending?()
+            onPending = nil
+            return pending
+        }
 
         func addReminder(identifier: String, workoutID: UUID, fireDate: Date) async throws {
             if let onAdd {
@@ -73,138 +80,121 @@ final class WorkoutEndReminderTests: XCTestCase {
         )
     }
 
-    func testReminderDetectionStartsAtSixHours() throws {
+    func testThreeHourSchedulingBoundary() {
         let startedAt = Date(timeIntervalSince1970: 1_000)
         let session = WorkoutSession(startedAt: startedAt)
+        let deadline = startedAt.addingTimeInterval(3 * 60 * 60)
 
-        XCTAssertFalse(
-            WorkoutEndReminderPolicy.isOverdue(
+        XCTAssertEqual(WorkoutEndReminderPolicy.notificationDate(for: session), deadline)
+        XCTAssertTrue(
+            WorkoutEndReminderPolicy.canSchedule(
                 session,
-                at: startedAt.addingTimeInterval(5 * 60 * 60 + 59 * 60)
+                at: deadline.addingTimeInterval(-1)
             )
         )
-        XCTAssertTrue(
-            WorkoutEndReminderPolicy.isOverdue(
+        XCTAssertFalse(WorkoutEndReminderPolicy.canSchedule(session, at: deadline))
+        XCTAssertFalse(
+            WorkoutEndReminderPolicy.canSchedule(
                 session,
-                at: startedAt.addingTimeInterval(6 * 60 * 60)
+                at: deadline.addingTimeInterval(1)
             )
         )
     }
 
-    func testSchedulesSixAndEightHourNotificationsWithoutDuplicates() async throws {
+    func testSchedulesOneReminderAtThreeHoursWithoutDuplicatesAcrossRestart() async throws {
+        let (preferences, suiteName) = try makePreferences()
+        defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
+        let center = FakeNotificationCenter()
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+        let session = WorkoutSession(startedAt: startedAt)
+        let makeCoordinator = {
+            WorkoutEndReminderCoordinator(
+                notificationCenter: center,
+                preferences: preferences,
+                now: { startedAt }
+            )
+        }
+
+        let firstCoordinator = makeCoordinator()
+        await firstCoordinator.workoutStarted(session)
+        await firstCoordinator.workoutStarted(session)
+        await makeCoordinator().workoutStarted(session)
+
+        XCTAssertEqual(center.added.count, 1)
+        XCTAssertEqual(
+            center.added.first,
+            .init(
+                identifier: WorkoutEndReminderNotification.identifier(workoutID: session.id),
+                workoutID: session.id,
+                fireDate: startedAt.addingTimeInterval(3 * 60 * 60)
+            )
+        )
+    }
+
+    func testDeliveredReminderIsNotRegisteredAgainAfterDeadline() async throws {
         let (preferences, suiteName) = try makePreferences()
         defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
         let center = FakeNotificationCenter()
         let startedAt = Date(timeIntervalSince1970: 1_000)
         let clock = Clock(startedAt)
+        let session = WorkoutSession(startedAt: startedAt)
+        let makeCoordinator = {
+            WorkoutEndReminderCoordinator(
+                notificationCenter: center,
+                preferences: preferences,
+                now: { clock.now }
+            )
+        }
+
+        await makeCoordinator().workoutStarted(session)
+        center.pending.removeAll()
+        clock.now = WorkoutEndReminderPolicy.notificationDate(for: session)
+        await makeCoordinator().workoutStarted(session)
+
+        XCTAssertEqual(center.added.count, 1)
+        XCTAssertTrue(center.pending.isEmpty)
+    }
+
+    func testDoesNotScheduleWhenDeadlinePassesDuringPendingRequestCheck() async throws {
+        let (preferences, suiteName) = try makePreferences()
+        defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
+        let center = FakeNotificationCenter()
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+        let deadline = startedAt.addingTimeInterval(3 * 60 * 60)
+        let clock = Clock(deadline.addingTimeInterval(-1))
         let coordinator = WorkoutEndReminderCoordinator(
             notificationCenter: center,
             preferences: preferences,
             now: { clock.now }
         )
-        let session = WorkoutSession(startedAt: startedAt)
+        center.onPending = { clock.now = deadline }
 
-        await coordinator.workoutStarted(session, isNew: false)
-        await coordinator.reconcile(activeSessions: [session])
+        await coordinator.workoutStarted(WorkoutSession(startedAt: startedAt))
 
-        XCTAssertEqual(center.added.count, 2)
-        XCTAssertEqual(
-            center.added.map(\.identifier),
-            WorkoutEndReminderNotification.identifiers(workoutID: session.id)
-        )
-        XCTAssertEqual(
-            center.added.map(\.fireDate),
-            [
-                startedAt.addingTimeInterval(6 * 60 * 60),
-                startedAt.addingTimeInterval(8 * 60 * 60),
-            ]
-        )
+        XCTAssertTrue(center.added.isEmpty)
     }
 
-    func testEndingWorkoutCancelsBothNotificationSlots() async throws {
+    func testEndingOrDiscardingRemovesOnlyThatWorkoutReminder() async throws {
         let (preferences, suiteName) = try makePreferences()
         defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
         let center = FakeNotificationCenter()
-        let session = WorkoutSession(startedAt: Date(timeIntervalSince1970: 1_000))
-        let coordinator = WorkoutEndReminderCoordinator(
-            notificationCenter: center,
-            preferences: preferences,
-            now: { session.startedAt }
-        )
-        await coordinator.workoutStarted(session, isNew: false)
-
-        await coordinator.workoutEnded(session.id)
-
-        let identifiers = Set(WorkoutEndReminderNotification.identifiers(workoutID: session.id))
-        XCTAssertEqual(Set(center.removedPending), identifiers)
-        XCTAssertEqual(Set(center.removedDelivered), identifiers)
-        XCTAssertTrue(center.pending.isEmpty)
-    }
-
-    func testDisablingNotificationsCancelsPendingAndReenableCanRestoreFutureSlots() async throws {
-        let (preferences, suiteName) = try makePreferences()
-        defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
-        let center = FakeNotificationCenter()
-        let startedAt = Date(timeIntervalSince1970: 1_000)
-        let session = WorkoutSession(startedAt: startedAt)
-        let coordinator = WorkoutEndReminderCoordinator(
-            notificationCenter: center,
-            preferences: preferences,
-            now: { startedAt }
-        )
-        await coordinator.workoutStarted(session, isNew: false)
-
-        await coordinator.setNotificationsEnabled(false, activeSessions: [session])
-        XCTAssertTrue(center.pending.isEmpty)
-
-        await coordinator.setNotificationsEnabled(true, activeSessions: [session])
-        XCTAssertEqual(center.added.count, 4)
-        XCTAssertEqual(center.pending.count, 2)
-    }
-
-    func testDeniedNotificationPermissionDoesNotBlockWorkoutStart() async throws {
-        let (preferences, suiteName) = try makePreferences()
-        defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
-        let center = FakeNotificationCenter()
-        center.status = .denied
         let coordinator = WorkoutEndReminderCoordinator(
             notificationCenter: center,
             preferences: preferences
         )
-        let container = try makeContainer()
+        let workoutID = UUID()
+        let otherID = WorkoutEndReminderNotification.identifier(workoutID: UUID())
+        let identifier = WorkoutEndReminderNotification.identifier(workoutID: workoutID)
+        center.pending = [identifier, otherID]
 
-        let session = try WorkoutSessionService(context: container.mainContext).startOrResume()
-        await coordinator.workoutStarted(session, isNew: true)
+        coordinator.cancelReminder(workoutID: workoutID)
 
-        XCTAssertNil(session.endedAt)
-        XCTAssertEqual(
-            try WorkoutSessionService(context: container.mainContext).activeSession()?.id,
-            session.id
-        )
-        XCTAssertTrue(center.added.isEmpty)
+        XCTAssertEqual(center.removedPending, [identifier])
+        XCTAssertEqual(center.removedDelivered, [identifier])
+        XCTAssertEqual(center.pending, [otherID])
     }
 
-    func testFirstWorkoutExplainsPermissionOnlyOnceBeforeRequest() async throws {
-        let (preferences, suiteName) = try makePreferences()
-        defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
-        let center = FakeNotificationCenter()
-        center.status = .notDetermined
-        let coordinator = WorkoutEndReminderCoordinator(
-            notificationCenter: center,
-            preferences: preferences
-        )
-        let session = WorkoutSession()
-
-        await coordinator.workoutStarted(session, isNew: true)
-        XCTAssertTrue(coordinator.isShowingPermissionExplanation)
-        XCTAssertTrue(center.added.isEmpty)
-
-        coordinator.skipNotificationPermission()
-        await coordinator.workoutStarted(session, isNew: true)
-        XCTAssertFalse(coordinator.isShowingPermissionExplanation)
-    }
-
-    func testDisablingWhileAddIsInFlightRemovesLateRequest() async throws {
+    func testCancellationWinsWhenSchedulingIsInFlight() async throws {
         let (preferences, suiteName) = try makePreferences()
         defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
         let center = FakeNotificationCenter()
@@ -216,197 +206,91 @@ final class WorkoutEndReminderTests: XCTestCase {
             now: { startedAt }
         )
         center.onAdd = {
-            await coordinator.setNotificationsEnabled(false, activeSessions: [session])
+            coordinator.cancelReminder(workoutID: session.id)
         }
 
-        await coordinator.workoutStarted(session, isNew: false)
+        await coordinator.workoutStarted(session)
 
-        XCTAssertFalse(coordinator.notificationsEnabled)
-        XCTAssertEqual(center.added.count, 1)
         XCTAssertTrue(center.pending.isEmpty)
     }
 
-    func testContinuingSuppressesSheetForTwoHoursAndMovesOnlyPendingFollowUp() async throws {
+    func testDeniedPermissionDoesNotBlockWorkoutLifecycle() async throws {
         let (preferences, suiteName) = try makePreferences()
         defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
         let center = FakeNotificationCenter()
-        let startedAt = Date(timeIntervalSince1970: 1_000)
-        let clock = Clock(startedAt)
-        let session = WorkoutSession(startedAt: startedAt)
+        center.status = .denied
         let coordinator = WorkoutEndReminderCoordinator(
             notificationCenter: center,
-            preferences: preferences,
-            now: { clock.now }
+            preferences: preferences
         )
-        await coordinator.workoutStarted(session, isNew: false)
-        let initialID = WorkoutEndReminderNotification.identifier(
-            workoutID: session.id,
-            slot: .initial
-        )
-        center.pending.remove(initialID)
-        clock.now = startedAt.addingTimeInterval(6 * 60 * 60 + 30 * 60)
+        let container = try makeContainer()
+        let service = WorkoutSessionService(context: container.mainContext)
 
-        await coordinator.continueWorkout(session)
+        let session = try service.startOrResume()
+        await coordinator.workoutStarted(session)
+        try service.discard(session)
+        coordinator.cancelReminder(workoutID: session.id)
 
-        XCTAssertFalse(coordinator.shouldPresentReminder(for: session))
-        XCTAssertEqual(center.added.count, 3)
-        XCTAssertEqual(
-            center.added.last?.fireDate,
-            clock.now.addingTimeInterval(2 * 60 * 60)
-        )
-        clock.now = clock.now.addingTimeInterval(2 * 60 * 60)
-        XCTAssertTrue(coordinator.shouldPresentReminder(for: session))
+        XCTAssertTrue(center.added.isEmpty)
+        XCTAssertNil(try service.activeSession())
     }
 
-    func testContinuingWithBothSlotsPendingKeepsOnlyFollowUpSlot() async throws {
+    func testPermissionExplanationIsNotRepeatedAfterSkipping() async throws {
         let (preferences, suiteName) = try makePreferences()
         defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
         let center = FakeNotificationCenter()
-        let startedAt = Date(timeIntervalSince1970: 1_000)
-        let clock = Clock(startedAt)
-        let session = WorkoutSession(startedAt: startedAt)
-        let coordinator = WorkoutEndReminderCoordinator(
+        center.status = .notDetermined
+        let session = WorkoutSession()
+        let firstCoordinator = WorkoutEndReminderCoordinator(
             notificationCenter: center,
-            preferences: preferences,
-            now: { clock.now }
+            preferences: preferences
         )
-        await coordinator.workoutStarted(session, isNew: false)
-        clock.now = startedAt.addingTimeInterval(6 * 60 * 60)
 
-        await coordinator.continueWorkout(session)
+        await firstCoordinator.workoutStarted(session)
+        XCTAssertTrue(firstCoordinator.isShowingPermissionExplanation)
+        firstCoordinator.skipNotificationPermission()
 
-        XCTAssertEqual(center.added.count, 3)
-        XCTAssertEqual(
-            center.added.last?.identifier,
-            WorkoutEndReminderNotification.identifier(workoutID: session.id, slot: .followUp)
-        )
-        XCTAssertEqual(center.pending.count, 1)
-    }
-
-    func testReconcileDoesNotRegisterPastNotificationSlots() async throws {
-        let (preferences, suiteName) = try makePreferences()
-        defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
-        let center = FakeNotificationCenter()
-        let startedAt = Date(timeIntervalSince1970: 1_000)
-        let clock = Clock(startedAt.addingTimeInterval(9 * 60 * 60))
-        let session = WorkoutSession(startedAt: startedAt)
-        let coordinator = WorkoutEndReminderCoordinator(
+        let restartedCoordinator = WorkoutEndReminderCoordinator(
             notificationCenter: center,
-            preferences: preferences,
-            now: { clock.now }
+            preferences: preferences
         )
-
-        await coordinator.reconcile(activeSessions: [session])
-        await coordinator.reconcile(activeSessions: [session])
-
+        await restartedCoordinator.workoutStarted(session)
+        XCTAssertFalse(restartedCoordinator.isShowingPermissionExplanation)
+        XCTAssertEqual(center.requestAuthorizationCount, 0)
         XCTAssertTrue(center.added.isEmpty)
     }
 
-    func testEndDateValidationRejectsBeforeStartAndFuture() throws {
-        let startedAt = Date(timeIntervalSince1970: 1_000)
-        let now = Date(timeIntervalSince1970: 2_000)
-        XCTAssertNotNil(
-            WorkoutEndDateValidation.message(
-                startedAt: startedAt,
-                endedAt: Date(timeIntervalSince1970: 999),
-                latestAllowedDate: now
-            )
-        )
-        XCTAssertNotNil(
-            WorkoutEndDateValidation.message(
-                startedAt: startedAt,
-                endedAt: Date(timeIntervalSince1970: 2_001),
-                latestAllowedDate: now
-            )
-        )
-        XCTAssertNil(
-            WorkoutEndDateValidation.message(
-                startedAt: startedAt,
-                endedAt: now,
-                latestAllowedDate: now
-            )
-        )
-    }
-
-    func testSpecifiedEndDateUsesExistingFinishCleanupAndSummary() throws {
-        let container = try makeContainer()
-        let context = container.mainContext
-        let startedAt = Date(timeIntervalSince1970: 1_000)
-        let now = Date(timeIntervalSince1970: 10_000)
-        let requestedEnd = Date(timeIntervalSince1970: 5_000)
-        let session = WorkoutSession(startedAt: startedAt)
-        let savedEntry = ExerciseEntry(
-            workoutSession: session,
-            exercise: Exercise(name: "保存済み", primaryBodyPart: .other),
-            order: 3
-        )
-        let emptyEntry = ExerciseEntry(
-            workoutSession: session,
-            exercise: Exercise(name: "空", primaryBodyPart: .other),
-            order: 4
-        )
-        context.insert(savedEntry)
-        context.insert(emptyEntry)
-        context.insert(SetEntry(exerciseEntry: savedEntry, order: 0, weightKg: 20, reps: 10))
-        try context.save()
-
-        let summary = try WorkoutSessionService(context: context, now: { now }).finish(
-            session,
-            endedAt: requestedEnd
-        )
-
-        XCTAssertEqual(session.endedAt, requestedEnd)
-        XCTAssertEqual(summary.duration, 4_000)
-        XCTAssertEqual(summary.exerciseCount, 1)
-        XCTAssertEqual(summary.setCount, 1)
-        XCTAssertEqual(try context.fetch(FetchDescriptor<ExerciseEntry>()).map(\.id), [savedEntry.id])
-        XCTAssertEqual(savedEntry.order, 0)
-    }
-
-    func testSpecifiedEndDateFailureAndEmptyWorkoutDoNotCompleteSession() throws {
-        let container = try makeContainer()
-        let context = container.mainContext
-        let startedAt = Date(timeIntervalSince1970: 1_000)
-        let session = WorkoutSession(startedAt: startedAt)
-        context.insert(session)
-        try context.save()
-        let service = WorkoutSessionService(
-            context: context,
-            now: { Date(timeIntervalSince1970: 2_000) }
-        )
-
-        XCTAssertThrowsError(
-            try service.finish(session, endedAt: Date(timeIntervalSince1970: 999))
-        ) { error in
-            XCTAssertEqual(error as? WorkoutSessionError, .invalidEndDate)
-        }
-        XCTAssertThrowsError(
-            try service.finish(session, endedAt: Date(timeIntervalSince1970: 2_001))
-        ) { error in
-            XCTAssertEqual(error as? WorkoutSessionError, .invalidEndDate)
-        }
-        XCTAssertThrowsError(
-            try service.finish(session, endedAt: Date(timeIntervalSince1970: 1_500))
-        ) { error in
-            XCTAssertEqual(error as? WorkoutSessionError, .noSavedSets)
-        }
-        XCTAssertNil(session.endedAt)
-    }
-
-    func testCompletedWorkoutNeverQualifiesForTappedReminderSheet() throws {
+    func testAllowingPermissionSchedulesCurrentWorkoutOnce() async throws {
         let (preferences, suiteName) = try makePreferences()
         defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
-        let now = Date(timeIntervalSince1970: 30_000)
-        let session = WorkoutSession(
-            startedAt: Date(timeIntervalSince1970: 1_000),
-            endedAt: Date(timeIntervalSince1970: 2_000)
-        )
+        let center = FakeNotificationCenter()
+        center.status = .notDetermined
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+        let session = WorkoutSession(startedAt: startedAt)
         let coordinator = WorkoutEndReminderCoordinator(
-            notificationCenter: FakeNotificationCenter(),
+            notificationCenter: center,
             preferences: preferences,
-            now: { now }
+            now: { startedAt }
         )
 
-        XCTAssertFalse(coordinator.shouldPresentReminder(for: session))
+        await coordinator.workoutStarted(session)
+        await coordinator.allowNotifications(for: session)
+
+        XCTAssertEqual(center.requestAuthorizationCount, 1)
+        XCTAssertEqual(center.added.count, 1)
+    }
+
+    func testNotificationTapIsPersistedAndConsumedOnlyOnce() throws {
+        let (preferences, suiteName) = try makePreferences()
+        defer { preferences.defaults.removePersistentDomain(forName: suiteName) }
+        let workoutID = UUID()
+        preferences.savePendingTappedWorkoutID(workoutID)
+        let coordinator = WorkoutEndReminderCoordinator(
+            notificationCenter: FakeNotificationCenter(),
+            preferences: preferences
+        )
+
+        XCTAssertEqual(coordinator.consumeNotificationTap(), workoutID)
+        XCTAssertNil(coordinator.consumeNotificationTap())
     }
 }
