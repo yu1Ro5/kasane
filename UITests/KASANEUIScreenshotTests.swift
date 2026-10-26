@@ -105,9 +105,31 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["概要"].exists)
         XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
 
+        let monthSelector = app.descendants(matching: .any)["overview-month-selector"]
+        XCTAssertTrue(monthSelector.exists)
+        monthSelector.tap()
+        let currentMonth = app.buttons["overview-month-option-2026-9"]
+        let previousMonth = app.buttons["overview-month-option-2026-8"]
+        XCTAssertTrue(currentMonth.waitForExistence(timeout: 5))
+        XCTAssertTrue(previousMonth.exists)
+        XCTAssertEqual(currentMonth.value as? String, "選択中")
+        XCTAssertEqual(currentMonth.frame.minX, previousMonth.frame.minX, accuracy: 1)
+        XCTAssertEqual(currentMonth.frame.width, previousMonth.frame.width, accuracy: 1)
+
+        let monthSelectorAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        monthSelectorAttachment.name = "overview-month-selector"
+        monthSelectorAttachment.lifetime = .keepAlways
+        add(monthSelectorAttachment)
+        currentMonth.tap()
+        XCTAssertTrue(currentMonth.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(previousMonth.exists)
+
         // 種目カードより先にある既存セクションを、画面高に依存せず検証する。
         XCTAssertTrue(scrollToHittable(app.staticTexts["最近のワークアウト"], in: app))
         XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
+        let allWorkouts = app.buttons["overview-all-workouts"]
+        XCTAssertTrue(allWorkouts.exists)
+        XCTAssertEqual(allWorkouts.label, "すべてのワークアウトを表示")
         let recentWorkoutsAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         recentWorkoutsAttachment.name = "overview-recent-workouts"
         recentWorkoutsAttachment.lifetime = .keepAlways
@@ -116,6 +138,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let allExercises = app.buttons["overview-all-exercise-records"]
         XCTAssertTrue(scrollToHittable(allExercises, in: app))
         XCTAssertTrue(allExercises.exists)
+        XCTAssertEqual(allExercises.label, "すべての種目を表示")
 
         let benchCard = app.descendants(matching: .any).matching(
             NSPredicate(
@@ -126,6 +149,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(scrollToHittable(benchCard, in: app))
         XCTAssertTrue(benchCard.label.contains("自己ベスト"))
+
+        let exerciseRecordsAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        exerciseRecordsAttachment.name = "overview-exercise-records"
+        exerciseRecordsAttachment.lifetime = .keepAlways
+        add(exerciseRecordsAttachment)
 
         XCTAssertTrue(allExercises.waitForExistence(timeout: 5))
         allExercises.tap()
@@ -389,8 +417,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
     func testWorkoutHistoryScreenshots() throws {
         let app = launchApp(additionalArguments: ["--fixture", "workout-history"])
 
-        let historyLink = app.buttons["すべて見る"]
+        let historyLink = app.buttons["overview-all-workouts"]
         XCTAssertTrue(scrollToHittable(historyLink, in: app))
+        XCTAssertEqual(historyLink.label, "すべてのワークアウトを表示")
         historyLink.tap()
         let firstRow = app.buttons["workout-history-row-\(historySessionID)"]
         XCTAssertTrue(firstRow.waitForExistence(timeout: 10))
@@ -472,8 +501,9 @@ final class KASANEUIScreenshotTests: XCTestCase {
             ),
         ] {
             let variant = launchApp(additionalArguments: ["--fixture", "workout-history"] + arguments)
-            let showAll = variant.buttons["すべて見る"]
+            let showAll = variant.buttons["overview-all-workouts"]
             XCTAssertTrue(scrollToHittable(showAll, in: variant))
+            XCTAssertEqual(showAll.label, "すべてのワークアウトを表示")
             showAll.tap()
             let row = variant.buttons["workout-history-row-\(historySessionID)"]
             XCTAssertTrue(row.waitForExistence(timeout: 10))
