@@ -155,7 +155,6 @@ struct OverviewView: View {
             .frame(maxHeight: 420)
             .padding(.vertical, 8)
             .presentationCompactAdaptation(.popover)
-            .accessibilityIdentifier("overview-month-selector-popover")
         }
         .accessibilityLabel("表示する月")
         .accessibilityValue(selectedMonth.formatted(.dateTime.year().month()))

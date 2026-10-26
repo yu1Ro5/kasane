@@ -108,8 +108,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let monthSelector = app.descendants(matching: .any)["overview-month-selector"]
         XCTAssertTrue(monthSelector.exists)
         monthSelector.tap()
-        let monthPopover = app.descendants(matching: .any)["overview-month-selector-popover"]
-        XCTAssertTrue(monthPopover.waitForExistence(timeout: 5))
         let currentMonth = app.buttons["overview-month-option-2026-9"]
         let previousMonth = app.buttons["overview-month-option-2026-8"]
         XCTAssertTrue(currentMonth.waitForExistence(timeout: 5))
@@ -123,7 +121,8 @@ final class KASANEUIScreenshotTests: XCTestCase {
         monthSelectorAttachment.lifetime = .keepAlways
         add(monthSelectorAttachment)
         currentMonth.tap()
-        XCTAssertTrue(monthPopover.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(currentMonth.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(previousMonth.exists)
 
         // 種目カードより先にある既存セクションを、画面高に依存せず検証する。
         XCTAssertTrue(scrollToHittable(app.staticTexts["最近のワークアウト"], in: app))

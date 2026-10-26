@@ -376,10 +376,8 @@ final class KASANEUIRegressionTests: XCTestCase {
         XCTAssertEqual(currentMonth.frame.width, previousMonth.frame.width, accuracy: 1)
 
         previousMonth.tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["overview-month-selector-popover"]
-                .waitForNonExistence(timeout: 5)
-        )
+        XCTAssertTrue(previousMonth.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(currentMonth.exists)
         XCTAssertEqual(monthSelector.value as? String, "2026年8月")
         XCTAssertTrue(
             app.descendants(matching: .any)["overview-workout-count"]
@@ -394,6 +392,7 @@ final class KASANEUIRegressionTests: XCTestCase {
 
         monthSelector.tap()
         let selectedPreviousMonth = app.buttons["overview-month-option-2026-8"]
+        XCTAssertTrue(selectedPreviousMonth.waitForExistence(timeout: 5))
         XCTAssertEqual(
             selectedPreviousMonth.value as? String,
             "選択中"
