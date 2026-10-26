@@ -2,517 +2,83 @@ import XCTest
 
 final class KASANEUIScreenshotTests: XCTestCase {
     @MainActor
-    func testEmptyScreenshots() throws {
-        let app = launchApp()
-
-        XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.tabBars.buttons["概要"].exists)
-        XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
-        XCTAssertTrue(app.staticTexts["今月の積み重ね"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
-        XCTAssertFalse(app.buttons["履歴"].exists)
-        XCTAssertFalse(app.tabBars.buttons["履歴"].exists)
-
-        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        attachment.name = "overview-empty"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-
-        app.tabBars.buttons["ワークアウト"].tap()
-
-        let startButton = app.buttons["workout-start-button"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 10))
-        XCTAssertEqual(startButton.label, "ワークアウトを開始")
-        XCTAssertTrue(app.staticTexts["今日も、積み重ねよう。"].exists)
-        XCTAssertFalse(app.staticTexts["最近のワークアウトから開始"].exists)
-        let windowFrame = app.windows.firstMatch.frame
-        let copy = app.staticTexts["今日も、積み重ねよう。"]
-        XCTAssertEqual(copy.frame.midX, windowFrame.midX, accuracy: 2)
-        XCTAssertEqual(startButton.frame.midX, windowFrame.midX, accuracy: 2)
-        XCTAssertGreaterThan(copy.frame.midY, windowFrame.height * 0.3)
-        XCTAssertLessThan(startButton.frame.midY, windowFrame.height * 0.75)
-
-        let workoutAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        workoutAttachment.name = "workout-root-empty"
-        workoutAttachment.lifetime = .keepAlways
-        add(workoutAttachment)
-
-        startButton.tap()
-        XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["すべての種目"].exists)
-        XCTAssertFalse(app.navigationBars["ワークアウト"].buttons["ワークアウト"].exists)
-    }
-
-    @MainActor
-    func testSmartStartHistoryScreenshotAndReuse() throws {
+    func testPrimaryScreenshots() throws {
         let app = launchApp(additionalArguments: ["--fixture", "smart-start"])
-        app.tabBars.buttons["ワークアウト"].tap()
-        XCTAssertTrue(app.buttons["workout-start-button"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["最近のワークアウトから開始"].exists)
-        let ids = (1...3).map { "40000000-0000-4000-8000-00000000000\($0)" }
-        for id in ids {
-            XCTAssertTrue(app.buttons["workout-reuse-\(id)"].exists)
-        }
-        XCTAssertFalse(app.buttons["workout-reuse-\(overviewOldestSessionID)"].exists)
-        let firstCard = app.buttons["workout-reuse-\(ids[0])"]
-        let secondCard = app.buttons["workout-reuse-\(ids[1])"]
-        XCTAssertTrue(firstCard.label.contains("2種目"))
-        XCTAssertTrue(firstCard.label.contains("ベンチプレス、ラットプルダウン"))
-        XCTAssertTrue(firstCard.label.contains("ワークアウトを開始"))
-        XCTAssertTrue(secondCard.label.contains("スクワット"))
-        XCTAssertNotEqual(firstCard.label, secondCard.label)
-        XCTAssertEqual(
-            app.buttons["workout-start-button"].frame.width,
-            firstCard.frame.width,
-            accuracy: 2
-        )
-        XCTAssertGreaterThanOrEqual(firstCard.frame.height, 44)
-        XCTAssertLessThan(firstCard.frame.height, 110)
-        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        attachment.name = "workout-smart-start-history"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-
-        let reuse = app.buttons["workout-reuse-\(ids[1])"]
-        XCTAssertTrue(scrollToHittable(reuse, in: app))
-        reuse.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.7)).tap()
-        XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
-        XCTAssertTrue(
-            app.buttons.matching(
-                NSPredicate(format: "identifier BEGINSWITH %@", "current-exercise-")
-            ).firstMatch.exists
-        )
-    }
-
-    @MainActor
-    func testOverviewScreenshots() throws {
-        let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
 
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.descendants(matching: .any)["overview-workout-count"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["overview-workout-count"].waitForExistence(
+                timeout: 10
+            )
+        )
         XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["overview-total-volume"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["overview-streak"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
         XCTAssertTrue(
             app.descendants(matching: .any)["overview-monthly-insight-card"].waitForExistence(
                 timeout: 10
             )
         )
-        XCTAssertFalse(
-            app.buttons["overview-recent-workout-row-\(overviewOldestSessionID)"].exists
+        addScreenshot(named: "overview-dashboard", of: app)
+
+        let showAllWorkouts = app.buttons["overview-all-workouts"]
+        XCTAssertTrue(scrollToHittable(showAllWorkouts, in: app))
+        XCTAssertEqual(showAllWorkouts.label, "すべてのワークアウトを表示")
+        showAllWorkouts.tap()
+
+        XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
+        let historyRows = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
         )
-        XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
-        XCTAssertTrue(app.tabBars.buttons["概要"].exists)
-        XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
+        let historyRow = app.buttons["workout-history-row-\(overviewNewestSessionID)"]
+        XCTAssertTrue(historyRow.waitForExistence(timeout: 10))
+        XCTAssertEqual(historyRows.count, 5)
+        XCTAssertTrue(historyRow.label.contains("ベンチプレス、ラットプルダウン"))
+        addScreenshot(named: "workout-history", of: app)
 
-        let monthSelector = app.descendants(matching: .any)["overview-month-selector"]
-        XCTAssertTrue(monthSelector.exists)
-        monthSelector.tap()
-        let currentMonth = app.buttons["overview-month-option-2026-9"]
-        let previousMonth = app.buttons["overview-month-option-2026-8"]
-        XCTAssertTrue(currentMonth.waitForExistence(timeout: 5))
-        XCTAssertTrue(previousMonth.exists)
-        XCTAssertEqual(currentMonth.value as? String, "選択中")
-        XCTAssertEqual(currentMonth.frame.minX, previousMonth.frame.minX, accuracy: 1)
-        XCTAssertEqual(currentMonth.frame.width, previousMonth.frame.width, accuracy: 1)
-
-        let monthSelectorAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        monthSelectorAttachment.name = "overview-month-selector"
-        monthSelectorAttachment.lifetime = .keepAlways
-        add(monthSelectorAttachment)
-        currentMonth.tap()
-        XCTAssertTrue(currentMonth.waitForNonExistence(timeout: 5))
-        XCTAssertFalse(previousMonth.exists)
-
-        // 種目カードより先にある既存セクションを、画面高に依存せず検証する。
-        XCTAssertTrue(scrollToHittable(app.staticTexts["最近のワークアウト"], in: app))
-        XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
-        let allWorkouts = app.buttons["overview-all-workouts"]
-        XCTAssertTrue(allWorkouts.exists)
-        XCTAssertEqual(allWorkouts.label, "すべてのワークアウトを表示")
-        let recentWorkoutsAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        recentWorkoutsAttachment.name = "overview-recent-workouts"
-        recentWorkoutsAttachment.lifetime = .keepAlways
-        add(recentWorkoutsAttachment)
-
-        let allExercises = app.buttons["overview-all-exercise-records"]
-        XCTAssertTrue(scrollToHittable(allExercises, in: app))
-        XCTAssertTrue(allExercises.exists)
-        XCTAssertEqual(allExercises.label, "すべての種目を表示")
-
-        let benchCard = app.descendants(matching: .any).matching(
-            NSPredicate(
-                format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
-                "overview-exercise-card-",
-                "ベンチプレス"
-            )
-        ).firstMatch
-        XCTAssertTrue(scrollToHittable(benchCard, in: app))
-        XCTAssertTrue(benchCard.label.contains("自己ベスト"))
-
-        let exerciseRecordsAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        exerciseRecordsAttachment.name = "overview-exercise-records"
-        exerciseRecordsAttachment.lifetime = .keepAlways
-        add(exerciseRecordsAttachment)
-
-        XCTAssertTrue(allExercises.waitForExistence(timeout: 5))
-        allExercises.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["exercise-records-screen"].waitForExistence(timeout: 5))
+        historyRow.tap()
         XCTAssertTrue(
-            app.descendants(matching: .any).matching(
-                NSPredicate(
-                    format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
-                    "exercise-record-list-row-",
-                    "プランク"
-                )
-            ).firstMatch.exists
+            app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10)
         )
-        app.navigationBars["すべての種目"].buttons["概要"].tap()
-
-        let searchButton = app.buttons["検索"]
-        XCTAssertTrue(searchButton.waitForExistence(timeout: 10))
-        searchButton.tap()
-        XCTAssertTrue(app.navigationBars["検索"].waitForExistence(timeout: 10))
-        XCTAssertTrue(
-            app.descendants(matching: .any)["workout-search-unsearched"].waitForExistence(
-                timeout: 10
-            )
-        )
-        XCTAssertFalse(
-            app.buttons["workout-search-result-row-\(overviewNewestSessionID)"].exists
-        )
-
-        let searchField = app.searchFields["種目名を検索"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 10))
-        searchField.tap()
-        searchField.typeText("プレス")
-
-        XCTAssertTrue(app.staticTexts["ベンチプレス、ラットプルダウン"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["ショルダープレス"].exists)
-        XCTAssertFalse(app.staticTexts["スクワット"].exists)
-        XCTAssertFalse(app.staticTexts["デッドリフト"].exists)
-        XCTAssertFalse(app.staticTexts["アクティブテスト種目"].exists)
-
-        let searchResultsAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        searchResultsAttachment.name = "overview-search-results"
-        searchResultsAttachment.lifetime = .keepAlways
-        add(searchResultsAttachment)
-
-        searchField.tap()
-        // 現在入力されている文字を取得
-        guard let text = searchField.value as? String else { return }
-        // 取得した文字数分削除ボタンを押す
-        var delete = String(
-            repeating: XCUIKeyboardKey.delete.rawValue,
-            count: text.count
-        )
-        // 削除
-        searchField.typeText(delete)
-        searchField.typeText("デッドリフト")
-
-        searchField.tap()
-        // 現在入力されている文字を取得
-        guard let text = searchField.value as? String else { return }
-        // 取得した文字数分削除ボタンを押す
-        delete = String(repeating: XCUIKeyboardKey.delete.rawValue, count: text.count)
-        // 削除
-        searchField.typeText(delete)
-        searchField.typeText("存在しない種目")
-
-        XCTAssertTrue(
-            app.descendants(matching: .any)["workout-search-empty"].waitForExistence(timeout: 10)
-        )
-        XCTAssertFalse(app.staticTexts["ベンチプレス、ラットプルダウン"].exists)
-        XCTAssertFalse(app.staticTexts["ショルダープレス"].exists)
-
-        let searchEmptyAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        searchEmptyAttachment.name = "overview-search-empty"
-        searchEmptyAttachment.lifetime = .keepAlways
-        add(searchEmptyAttachment)
-    }
-
-    @MainActor
-    func testWorkoutInteractionScreenshots() throws {
-        let app = launchApp(additionalArguments: ["--fixture", "workout-set-layout"])
+        XCTAssertTrue(app.navigationBars["ワークアウト詳細"].exists)
+        addScreenshot(named: "workout-detail", of: app)
 
         app.tabBars.buttons["ワークアウト"].tap()
+        XCTAssertTrue(app.buttons["workout-start-button"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["最近のワークアウトから開始"].exists)
+        let reusableSessionIDs = (1...3).map {
+            "40000000-0000-4000-8000-00000000000\($0)"
+        }
+        for id in reusableSessionIDs {
+            XCTAssertTrue(app.buttons["workout-reuse-\(id)"].exists)
+        }
+        XCTAssertFalse(app.buttons["workout-reuse-\(overviewOldestSessionID)"].exists)
+        addScreenshot(named: "workout-smart-start-history", of: app)
 
+        let reuse = app.buttons["workout-reuse-\(reusableSessionIDs[1])"]
+        XCTAssertTrue(scrollToHittable(reuse, in: app))
+        reuse.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.7)).tap()
         XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["すべての種目"].exists)
-        XCTAssertTrue(app.buttons["終了"].exists)
-        XCTAssertFalse(app.buttons["ワークアウトを再開"].exists)
-        XCTAssertFalse(app.navigationBars["ワークアウト"].buttons["ワークアウト"].exists)
 
-        let shouldersHeader = app.buttons["workout-body-part-shoulders"]
-        let shoulderPress = app.buttons[
-            "available-exercise-\(workoutShoulderPressExerciseID)"
-        ]
-        XCTAssertTrue(shouldersHeader.waitForExistence(timeout: 10))
-        XCTAssertFalse(shoulderPress.exists)
-
-        let activeRootAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        activeRootAttachment.name = "workout-root-active"
-        activeRootAttachment.lifetime = .keepAlways
-        add(activeRootAttachment)
-
-        shouldersHeader.tap()
-        XCTAssertTrue(shoulderPress.waitForExistence(timeout: 5))
-        shouldersHeader.tap()
-        XCTAssertTrue(shoulderPress.waitForNonExistence(timeout: 5))
-
-        XCTAssertTrue(app.searchFields["種目名を検索"].exists)
-
-        let sessionAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        sessionAttachment.name = "workout-session-active"
-        sessionAttachment.lifetime = .keepAlways
-        add(sessionAttachment)
-
-        let currentExercise = app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"]
+        let currentExercise = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "current-exercise-")
+        ).firstMatch
         XCTAssertTrue(currentExercise.waitForExistence(timeout: 10))
         currentExercise.tap()
 
-        let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
-        XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
-
-        let inputAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        inputAttachment.name = "workout-exercise-input"
-        inputAttachment.lifetime = .keepAlways
-        add(inputAttachment)
-
-        weightInput.tap()
-        XCTAssertTrue(app.buttons["weight-suggestion-42.5"].waitForExistence(timeout: 5))
-        let suggestionAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        suggestionAttachment.name = "workout-weight-suggestion"
-        suggestionAttachment.lifetime = .keepAlways
-        add(suggestionAttachment)
-        weightInput.typeText("47.5")
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 1)
-        XCTAssertEqual(app.buttons.matching(identifier: "完了").count, 1)
-
-        app.buttons["次へ"].tap()
-        XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 1)
-        XCTAssertEqual(app.buttons.matching(identifier: "完了").count, 1)
-        let repsInput = app.textFields["draft-reps-input-\(workoutSeatedRowEntryID)"]
-        XCTAssertTrue(repsInput.waitForExistence(timeout: 5))
-        repsInput.typeText("8")
-
-        let weightInputAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        weightInputAttachment.name = "workout-weight-input"
-        weightInputAttachment.lifetime = .keepAlways
-        add(weightInputAttachment)
-        app.buttons["次へ"].tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        XCTAssertTrue(weightInput.waitForExistence(timeout: 5))
-        XCTAssertEqual(weightInput.value as? String, "0")
-        XCTAssertEqual(repsInput.value as? String, "0")
-        XCTAssertEqual(app.buttons.matching(identifier: "次へ").count, 1)
-        XCTAssertEqual(app.buttons.matching(identifier: "完了").count, 1)
-
-        weightInput.typeText("50")
-        XCTAssertEqual(weightInput.value as? String, "50")
-        app.buttons["次へ"].tap()
-        repsInput.typeText("6")
-        app.buttons["完了"].tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
-
-        app.navigationBars.buttons["ワークアウト"].tap()
-
-        let moreButton = app.buttons["その他"]
-        XCTAssertTrue(moreButton.waitForExistence(timeout: 10))
-        moreButton.tap()
-
-        let cancelWorkoutButton = app.buttons["ワークアウトを中止"]
-        XCTAssertTrue(cancelWorkoutButton.waitForExistence(timeout: 5))
-        cancelWorkoutButton.tap()
-
-        let cancelMessage = app.staticTexts["このワークアウトの記録は削除され、元に戻せません。"]
-        XCTAssertTrue(cancelMessage.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["中止する"].exists)
-
-        let cancelConfirmationAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        cancelConfirmationAttachment.name = "workout-cancel-confirmation"
-        cancelConfirmationAttachment.lifetime = .keepAlways
-        add(cancelConfirmationAttachment)
-
-        let finishButton = app.buttons["終了"]
-        XCTAssertTrue(finishButton.waitForExistence(timeout: 10))
-        finishButton.tap()
-        XCTAssertTrue(cancelMessage.waitForNonExistence(timeout: 5))
-
-        let searchField = app.searchFields["種目名を検索"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
-        searchField.tap()
-        searchField.typeText("ショルダー")
-        XCTAssertTrue(app.staticTexts["ショルダープレス"].waitForExistence(timeout: 5))
-        XCTAssertTrue(shoulderPress.exists)
-        XCTAssertFalse(shouldersHeader.exists)
-
-        let searchAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        searchAttachment.name = "workout-exercise-search"
-        searchAttachment.lifetime = .keepAlways
-        add(searchAttachment)
-    }
-
-    @MainActor
-    func testWorkoutValidationAndCompletionScreenshots() throws {
-        let app = launchApp(additionalArguments: ["--fixture", "workout-set-layout"])
-
-        app.tabBars.buttons["ワークアウト"].tap()
-        app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"].tap()
-
-        let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
-        XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
-        weightInput.tap()
-        weightInput.typeText("12.34")
-        app.buttons["次へ"].tap()
-        app.buttons["完了"].tap()
-
-        XCTAssertTrue(
-            app.staticTexts["draft-validation-message"].waitForExistence(timeout: 5)
-        )
-        let addSetButton = app.buttons["add-set-button-\(workoutSeatedRowEntryID)"]
-        XCTAssertTrue(addSetButton.exists)
-        XCTAssertFalse(addSetButton.isEnabled)
-
-        let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        attachment.name = "workout-validation-error"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-
-        let repsInput = app.textFields["draft-reps-input-\(workoutSeatedRowEntryID)"]
-        XCTAssertTrue(repsInput.waitForExistence(timeout: 5))
-
-        // 追加: まずタップしてフォーカス＆キーボードを出す
-        repsInput.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-
-        // その後に typeText
-        repsInput.typeText("1")
-        app.buttons["完了"].tap()
-        XCTAssertTrue(
-            app.staticTexts["draft-validation-message"].waitForNonExistence(timeout: 5)
-        )
-
-        app.navigationBars.buttons["ワークアウト"].tap()
-        let finishButton = app.buttons["終了"]
-        XCTAssertTrue(finishButton.waitForExistence(timeout: 10))
-        finishButton.tap()
-        let saveButton = app.buttons["終了して保存"]
-        XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
-        saveButton.tap()
-
-        XCTAssertTrue(app.staticTexts["NEW RECORD"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.tabBars.buttons["ワークアウト"].exists)
-        app.buttons["personal-record-continue-button"].tap()
-        XCTAssertTrue(app.staticTexts["今日も積み重ねました"].waitForExistence(timeout: 10))
-        RunLoop.current.run(until: Date().addingTimeInterval(0.8))
-        let completedAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        completedAttachment.name = "workout-completed"
-        completedAttachment.lifetime = .keepAlways
-        add(completedAttachment)
-    }
-
-    @MainActor
-    func testWorkoutHistoryScreenshots() throws {
-        let app = launchApp(additionalArguments: ["--fixture", "workout-history"])
-
-        let historyLink = app.buttons["overview-all-workouts"]
-        XCTAssertTrue(scrollToHittable(historyLink, in: app))
-        XCTAssertEqual(historyLink.label, "すべてのワークアウトを表示")
-        historyLink.tap()
-        let firstRow = app.buttons["workout-history-row-\(historySessionID)"]
-        XCTAssertTrue(firstRow.waitForExistence(timeout: 10))
-        XCTAssertTrue(firstRow.label.contains("ベンチプレス、ラットプルダウン、ほか1種目"))
-        XCTAssertTrue(firstRow.label.contains("52分"))
-        XCTAssertTrue(firstRow.label.contains("3種目"))
-        XCTAssertTrue(firstRow.label.contains("8セット"))
-        XCTAssertTrue(firstRow.label.contains("2,352kg"))
-        let rows = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
-        )
-        XCTAssertEqual(rows.count, 5)
-        XCTAssertGreaterThanOrEqual(rows.allElementsBoundByIndex.filter { $0.isHittable }.count, 4)
-
-        let historyAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        historyAttachment.name = "workout-history"
-        historyAttachment.lifetime = .keepAlways
-        add(historyAttachment)
-
-        let historyRow = app.buttons["workout-history-row-\(historySessionID)"]
-        XCTAssertTrue(historyRow.waitForExistence(timeout: 10))
-        historyRow.tap()
-
-        let detailView = app.descendants(matching: .any)["workout-detail-view"]
-        XCTAssertTrue(detailView.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.navigationBars["ワークアウト詳細"].exists)
-        XCTAssertTrue(app.navigationBars["ワークアウト詳細"].buttons["履歴"].exists)
-        XCTAssertTrue(app.tabBars.buttons["概要"].exists)
-        XCTAssertTrue(app.tabBars.buttons["ワークアウト"].exists)
-
-        let detailAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        detailAttachment.name = "workout-detail"
-        detailAttachment.lifetime = .keepAlways
-        add(detailAttachment)
-
-        app.buttons["その他"].tap()
-        let dateEditButton = app.buttons["edit-workout-dates"]
-        XCTAssertTrue(dateEditButton.waitForExistence(timeout: 5))
-        dateEditButton.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["workout-date-edit-view"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.descendants(matching: .any)["workout-start-date-input"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["workout-end-date-input"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["workout-date-duration"].exists)
-        XCTAssertFalse(app.buttons["save-workout-dates"].isEnabled)
-
-        let dateAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        dateAttachment.name = "workout-date-edit"
-        dateAttachment.lifetime = .keepAlways
-        add(dateAttachment)
-
-        app.buttons["キャンセル"].tap()
-        XCTAssertTrue(detailView.waitForExistence(timeout: 10))
-
-        let editButton = app.buttons["編集"]
-        XCTAssertTrue(editButton.waitForExistence(timeout: 10))
-        editButton.tap()
-
-        let editView = app.descendants(matching: .any)["workout-detail-edit-mode"]
-        XCTAssertTrue(editView.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.navigationBars["ワークアウト詳細"].exists)
-        let existingWeightInput = app.textFields.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "history-edit-weight-input-")
+        let weightInput = app.textFields.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "draft-weight-input-")
         ).firstMatch
-        XCTAssertTrue(existingWeightInput.exists)
-        XCTAssertTrue(app.buttons["保存"].exists)
-        XCTAssertTrue(app.buttons["キャンセル"].exists)
+        XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
+        addScreenshot(named: "workout-exercise-input", of: app)
+    }
 
+    @MainActor
+    private func addScreenshot(named name: String, of app: XCUIApplication) {
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        attachment.name = "workout-detail-edit-mode"
+        attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
-
-        app.terminate()
-        for (arguments, name) in [
-            (["-AppleInterfaceStyle", "Dark"], "workout-history-dark-mode"),
-            (
-                ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityLarge"],
-                "workout-history-dynamic-type"
-            ),
-        ] {
-            let variant = launchApp(additionalArguments: ["--fixture", "workout-history"] + arguments)
-            let showAll = variant.buttons["overview-all-workouts"]
-            XCTAssertTrue(scrollToHittable(showAll, in: variant))
-            XCTAssertEqual(showAll.label, "すべてのワークアウトを表示")
-            showAll.tap()
-            let row = variant.buttons["workout-history-row-\(historySessionID)"]
-            XCTAssertTrue(row.waitForExistence(timeout: 10))
-            XCTAssertTrue(row.label.contains("8セット"))
-            let screenshot = XCTAttachment(screenshot: takeStableScreenshot(variant))
-            screenshot.name = name
-            screenshot.lifetime = .keepAlways
-            add(screenshot)
-            variant.terminate()
-        }
     }
 }

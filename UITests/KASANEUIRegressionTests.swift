@@ -117,6 +117,99 @@ final class KASANEUIRegressionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["履歴がありません"].waitForExistence(timeout: 5))
     }
 
+    /// 不正なSet入力を保存できず、Workoutの中止前に確認が表示されることを確認する。
+    @MainActor
+    func testWorkoutValidationAndCancellationConfirmation() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "workout-set-layout"])
+        app.tabBars.buttons["ワークアウト"].tap()
+        let currentExercise = app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"]
+        XCTAssertTrue(currentExercise.waitForExistence(timeout: 10))
+        currentExercise.tap()
+
+        let weightInput = app.textFields["draft-weight-input-\(workoutSeatedRowEntryID)"]
+        XCTAssertTrue(weightInput.waitForExistence(timeout: 10))
+        weightInput.tap()
+        weightInput.typeText("12.34")
+        app.buttons["次へ"].tap()
+        app.buttons["完了"].tap()
+
+        let validationMessage = app.staticTexts["draft-validation-message"]
+        XCTAssertTrue(validationMessage.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["add-set-button-\(workoutSeatedRowEntryID)"].isEnabled)
+
+        let repsInput = app.textFields["draft-reps-input-\(workoutSeatedRowEntryID)"]
+        XCTAssertTrue(repsInput.waitForExistence(timeout: 5))
+        repsInput.tap()
+        repsInput.typeText("1")
+        app.buttons["完了"].tap()
+        XCTAssertTrue(validationMessage.waitForNonExistence(timeout: 5))
+
+        app.navigationBars.buttons["ワークアウト"].tap()
+        let moreButton = app.buttons["その他"]
+        XCTAssertTrue(moreButton.waitForExistence(timeout: 10))
+        moreButton.tap()
+        let cancelWorkoutButton = app.buttons["ワークアウトを中止"]
+        XCTAssertTrue(cancelWorkoutButton.waitForExistence(timeout: 5))
+        cancelWorkoutButton.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["このワークアウトの記録は削除され、元に戻せません。"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["中止する"].exists)
+    }
+
+    /// 履歴詳細から日付編集とSet編集を開けることを確認する。
+    @MainActor
+    func testWorkoutHistoryEditingEntryPoints() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "workout-history"])
+        let showAll = app.buttons["overview-all-workouts"]
+        XCTAssertTrue(scrollToHittable(showAll, in: app))
+        showAll.tap()
+
+        let historyRow = app.buttons["workout-history-row-\(historySessionID)"]
+        XCTAssertTrue(historyRow.waitForExistence(timeout: 10))
+        historyRow.tap()
+
+        let detailView = app.descendants(matching: .any)["workout-detail-view"]
+        XCTAssertTrue(detailView.waitForExistence(timeout: 10))
+        let moreButton = app.buttons["その他"]
+        XCTAssertTrue(moreButton.waitForExistence(timeout: 5))
+        moreButton.tap()
+        let dateEditButton = app.buttons["edit-workout-dates"]
+        XCTAssertTrue(dateEditButton.waitForExistence(timeout: 5))
+        dateEditButton.tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-date-edit-view"].waitForExistence(
+                timeout: 10
+            )
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["workout-start-date-input"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["workout-end-date-input"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["workout-date-duration"].exists)
+        XCTAssertFalse(app.buttons["save-workout-dates"].isEnabled)
+
+        app.buttons["キャンセル"].tap()
+        XCTAssertTrue(detailView.waitForExistence(timeout: 10))
+        let editButton = app.buttons["編集"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 10))
+        editButton.tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["workout-detail-edit-mode"].waitForExistence(
+                timeout: 10
+            )
+        )
+        XCTAssertTrue(
+            app.textFields.matching(
+                NSPredicate(format: "identifier BEGINSWITH %@", "history-edit-weight-input-")
+            ).firstMatch.exists
+        )
+        XCTAssertTrue(app.buttons["保存"].exists)
+        XCTAssertTrue(app.buttons["キャンセル"].exists)
+    }
+
     /// 回数候補が回数欄だけに表示され、現在のDraftまたは保存済みSetだけを置換することを確認する。
     @MainActor
     func testWorkoutRepSuggestionsApplyToFocusedInput() throws {

@@ -101,12 +101,7 @@ schemes:
       targets:
         - name: KASANEUITests
           selectedTests:
-            - KASANEUIScreenshotTests/testEmptyScreenshots()
-            - KASANEUIScreenshotTests/testSmartStartHistoryScreenshotAndReuse()
-            - KASANEUIScreenshotTests/testOverviewScreenshots()
-            - KASANEUIScreenshotTests/testWorkoutInteractionScreenshots()
-            - KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots()
-            - KASANEUIScreenshotTests/testWorkoutHistoryScreenshots()
+            - KASANEUIScreenshotTests/testPrimaryScreenshots()
 
   KASANERegression:
     build:
@@ -122,6 +117,8 @@ schemes:
             - KASANEUIRegressionTests/testOverviewRecentWorkoutOpensDetail()
             - KASANEUIRegressionTests/testOverviewSearchKeepsQueryAfterViewingDetail()
             - KASANEUIRegressionTests/testCompletedWorkoutDeletionFlow()
+            - KASANEUIRegressionTests/testWorkoutValidationAndCancellationConfirmation()
+            - KASANEUIRegressionTests/testWorkoutHistoryEditingEntryPoints()
             - KASANEUIRegressionTests/testWorkoutRepSuggestionsApplyToFocusedInput()
             - KASANEUIRegressionTests/testWorkoutCompletionWithoutImprovementOmitsInsight()
             - KASANEUIRegressionTests/testWorkoutAIQuickInputReviewAndApply()

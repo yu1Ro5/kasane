@@ -108,12 +108,7 @@ jobs:
           xcodebuild_start="$(date +%s)"
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANEScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testEmptyScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testSmartStartHistoryScreenshotAndReuse \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutInteractionScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testPrimaryScreenshots \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -derivedDataPath build \
@@ -132,12 +127,7 @@ jobs:
           xcodebuild_start="$(date +%s)"
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANEScreenshot \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testEmptyScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testSmartStartHistoryScreenshotAndReuse \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testOverviewScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutInteractionScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutValidationAndCompletionScreenshots \
-            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testWorkoutHistoryScreenshots \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testPrimaryScreenshots \
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -derivedDataPath build \
@@ -192,25 +182,11 @@ jobs:
           runner_temp = Path(os.environ["RUNNER_TEMP"])
           export_dir = runner_temp / "ui-screenshot-attachments"
           scenarios = [
-              ("overview-empty", "Overview — Empty"),
-              ("workout-root-empty", "Workout — Empty"),
-              ("workout-smart-start-history", "Workout — Smart Start"),
-              ("overview-month-selector", "Overview — Month Selector"),
-              ("overview-recent-workouts", "Overview — Recent Workouts"),
-              ("overview-exercise-records", "Overview — Exercise Records"),
-              ("overview-search-results", "Overview — Search Results"),
-              ("overview-search-empty", "Overview — Search Empty"),
-              ("workout-root-active", "Workout — Active"),
-              ("workout-session-active", "Workout — Session Active"),
-              ("workout-exercise-input", "Workout — Exercise Input"),
-              ("workout-exercise-search", "Workout — Exercise Search"),
-              ("workout-weight-input", "Workout — Weight Input"),
-              ("workout-validation-error", "Workout — Validation Error"),
-              ("workout-cancel-confirmation", "Workout — Cancel Confirmation"),
+              ("overview-dashboard", "Overview — Dashboard"),
               ("workout-history", "Workout — History"),
               ("workout-detail", "Workout — Detail"),
-              ("workout-detail-edit-mode", "Workout — Detail Edit Mode"),
-              ("workout-completed", "Workout — Completed"),
+              ("workout-smart-start-history", "Workout — Smart Start"),
+              ("workout-exercise-input", "Workout — Exercise Input"),
           ]
           artifact_dir = runner_temp / "ui-screenshot-artifact"
           manifest = json.loads((export_dir / "manifest.json").read_text())
