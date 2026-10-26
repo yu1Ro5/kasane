@@ -2,6 +2,10 @@ import SwiftUI
 
 /// アプリ情報と公開中のサポート情報への導線を表示する画面。
 struct AboutView: View {
+    @Environment(WorkoutEndReminderCoordinator.self) private var reminderCoordinator
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         List {
             Section {
@@ -30,6 +34,25 @@ struct AboutView: View {
                 .accessibilityIdentifier("data-management-link")
             }
 
+            Section("通知") {
+                LabeledContent("終了忘れ通知") {
+                    Text(reminderCoordinator.notificationStatusText)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityIdentifier("workout-end-reminder-status")
+
+                if reminderCoordinator.authorizationStatus == .denied {
+                    Button("iPhoneの設定を開く") {
+                        guard let url = URL(string: UIApplication.openSettingsURLString) else {
+                            return
+                        }
+                        openURL(url)
+                    }
+                    .accessibilityHint("KASANEの通知設定を変更できます")
+                    .accessibilityIdentifier("workout-end-reminder-open-settings")
+                }
+            }
+
             Section {
                 Text("© 2026 yu1Ro5")
                     .foregroundStyle(.secondary)
@@ -37,6 +60,15 @@ struct AboutView: View {
             }
         }
         .navigationTitle("KASANEについて")
+        .task {
+            await reminderCoordinator.refreshAuthorizationStatus()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task {
+                await reminderCoordinator.refreshAuthorizationStatus()
+            }
+        }
     }
 }
 
@@ -62,4 +94,9 @@ private struct AboutLink: View {
     NavigationStack {
         AboutView()
     }
+    .environment(
+        WorkoutEndReminderCoordinator(
+            notificationCenter: DisabledWorkoutEndReminderNotificationCenter()
+        )
+    )
 }

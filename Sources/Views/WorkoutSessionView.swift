@@ -4,6 +4,7 @@ import SwiftUI
 struct WorkoutSessionView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(WorkoutEndReminderCoordinator.self) private var reminderCoordinator
     @Bindable var session: WorkoutSession
     @Bindable var draftStore: WorkoutDraftStore
     let onReturnHome: () -> Void
@@ -396,6 +397,7 @@ struct WorkoutSessionView: View {
                 session,
                 drafts: sessionDrafts
             )
+            reminderCoordinator.cancelReminder(workoutID: session.id)
             let achievements = PersonalRecordDetector.achievements(
                 for: session,
                 among: observedSessions
@@ -417,8 +419,10 @@ struct WorkoutSessionView: View {
 
     private func discardWorkout() {
         do {
+            let workoutID = session.id
             try WorkoutSessionService(context: modelContext).discard(session)
-            draftStore.removeAllDrafts(in: session.id)
+            reminderCoordinator.cancelReminder(workoutID: workoutID)
+            draftStore.removeAllDrafts(in: workoutID)
             onReturnHome()
         } catch {
             errorTitle = "ワークアウトを中止できませんでした"
