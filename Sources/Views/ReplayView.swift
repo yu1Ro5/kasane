@@ -134,7 +134,7 @@ struct ReplayView: View {
             ReplayMostTrainedPage(stats: viewModel.stats)
                 .tag(ReplayPage.mostTrained)
 
-            ReplayPlaceholderPage(page: .growthAndPersonalRecords)
+            ReplayGrowthPage(stats: viewModel.stats)
                 .tag(ReplayPage.growthAndPersonalRecords)
 
             ReplayPlaceholderPage(page: .closing)

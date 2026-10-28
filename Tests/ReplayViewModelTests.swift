@@ -100,6 +100,34 @@ final class ReplayViewModelTests: XCTestCase {
         XCTAssertEqual(pastMostTrained.exerciseName, "ベンチプレス")
     }
 
+    func testChangingYearUpdatesGrowthAndPersonalRecordValues() throws {
+        let exercise = Exercise(name: "チェストプレス", primaryBodyPart: .chest)
+        let pastBaseline = try completedWorkout(year: 2025, month: 1)
+        let pastPeak = try completedWorkout(year: 2025, month: 6)
+        let currentBaseline = try completedWorkout(year: 2026, month: 1)
+        let currentPeak = try completedWorkout(year: 2026, month: 6)
+        addEntry(to: pastBaseline, exercise: exercise, weight: 50, reps: 1)
+        addEntry(to: pastPeak, exercise: exercise, weight: 60, reps: 1)
+        addEntry(to: currentBaseline, exercise: exercise, weight: 70, reps: 1)
+        addEntry(to: currentPeak, exercise: exercise, weight: 90, reps: 1)
+        let viewModel = ReplayViewModel(
+            workouts: [currentPeak, pastPeak, currentBaseline, pastBaseline],
+            referenceDate: try date(year: 2026, month: 10, day: 27),
+            calendar: utcCalendar
+        )
+
+        let current = ReplayGrowthPresentation(stats: viewModel.stats)
+        viewModel.selectYear(2025)
+        let past = ReplayGrowthPresentation(stats: viewModel.stats)
+
+        XCTAssertEqual(current.growth?.growthRateText, "+28.6%")
+        XCTAssertEqual(current.growth?.estimatedOneRepMaxRangeText, "70.0kg → 90.0kg")
+        XCTAssertEqual(current.personalRecordCountText, "2回")
+        XCTAssertEqual(past.growth?.growthRateText, "+20.0%")
+        XCTAssertEqual(past.growth?.estimatedOneRepMaxRangeText, "50.0kg → 60.0kg")
+        XCTAssertEqual(past.personalRecordCountText, "1回")
+    }
+
     func testUpdatingHistoryRecalculatesSelectedYearAndFallsBackWhenYearDisappears() throws {
         let current = try completedWorkout(year: 2026)
         let past = try completedWorkout(year: 2025)
