@@ -73,12 +73,75 @@ final class ReplayPagePresentationTests: XCTestCase {
         )
     }
 
+    func testGrowthFormatsRateAndEstimatedOneRepMaxToOneDecimalWithPlusSign() throws {
+        let presentation = ReplayGrowthPresentation(
+            stats: makeStats(
+                biggestGrowth: makeGrowth(
+                    baseline: 53.33,
+                    peak: 63.34,
+                    growthRate: 18.75
+                )
+            )
+        )
+        let growth = try XCTUnwrap(presentation.growth)
+
+        XCTAssertEqual(growth.exerciseName, "チェストプレス")
+        XCTAssertEqual(growth.growthRateText, "+18.8%")
+        XCTAssertEqual(growth.estimatedOneRepMaxRangeText, "53.3kg → 63.3kg")
+    }
+
+    func testGrowthKeepsUnavailableStateWhenAggregationHasNoResult() {
+        let presentation = ReplayGrowthPresentation(stats: makeStats())
+
+        XCTAssertNil(presentation.growth)
+        XCTAssertEqual(ReplayGrowthPresentation.unavailableMessage, "比較できる記録がまだありません")
+    }
+
+    func testGrowthFormatsZeroPersonalRecordCount() {
+        let presentation = ReplayGrowthPresentation(stats: makeStats(personalRecordCount: 0))
+
+        XCTAssertEqual(presentation.personalRecordCountText, "0回")
+    }
+
+    func testGrowthDisplaysPersonalRecordCountWithoutBiggestGrowth() {
+        let presentation = ReplayGrowthPresentation(stats: makeStats(personalRecordCount: 12))
+
+        XCTAssertNil(presentation.growth)
+        XCTAssertEqual(presentation.personalRecordCountText, "12回")
+    }
+
+    func testGrowthNeverDisplaysNonFiniteValues() {
+        let invalidValues: [(Double, Double, Double)] = [
+            (.nan, 63.3, 18.8),
+            (53.3, .infinity, 18.8),
+            (53.3, 63.3, -.infinity),
+        ]
+
+        for (baseline, peak, growthRate) in invalidValues {
+            let presentation = ReplayGrowthPresentation(
+                stats: makeStats(
+                    biggestGrowth: makeGrowth(
+                        baseline: baseline,
+                        peak: peak,
+                        growthRate: growthRate
+                    ),
+                    personalRecordCount: 3
+                )
+            )
+
+            XCTAssertNil(presentation.growth)
+            XCTAssertEqual(presentation.personalRecordCountText, "3回")
+        }
+    }
+
     private func makeStats(
         totalVolume: Double = 0,
         totalDuration: TimeInterval = 0,
         totalSetCount: Int = 0,
         hasLongWorkout: Bool = false,
-        mostTrained: YearlyReplayStats.MostTrained? = nil
+        mostTrained: YearlyReplayStats.MostTrained? = nil,
+        biggestGrowth: YearlyReplayStats.BiggestGrowth? = nil,
+        personalRecordCount: Int = 0
     ) -> YearlyReplayStats {
         YearlyReplayStats(
             year: 2026,
@@ -88,8 +151,22 @@ final class ReplayPagePresentationTests: XCTestCase {
             totalSetCount: totalSetCount,
             hasWorkoutLongerThanSixHours: hasLongWorkout,
             mostTrained: mostTrained,
-            biggestGrowth: nil,
-            personalRecordCount: 0
+            biggestGrowth: biggestGrowth,
+            personalRecordCount: personalRecordCount
+        )
+    }
+
+    private func makeGrowth(
+        baseline: Double,
+        peak: Double,
+        growthRate: Double
+    ) -> YearlyReplayStats.BiggestGrowth {
+        YearlyReplayStats.BiggestGrowth(
+            exerciseID: UUID(),
+            exerciseName: "チェストプレス",
+            baselineEstimatedOneRepMax: baseline,
+            peakEstimatedOneRepMax: peak,
+            growthRate: growthRate
         )
     }
 }
