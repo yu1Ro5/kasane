@@ -128,10 +128,17 @@ struct ReplayView: View {
             ReplayIntroPage(stats: viewModel.stats, countFontSize: workoutCountFontSize)
                 .tag(ReplayPage.intro)
 
-            ForEach(ReplayPage.allCases.dropFirst()) { page in
-                ReplayPlaceholderPage(page: page)
-                    .tag(page)
-            }
+            ReplayActivityPage(stats: viewModel.stats)
+                .tag(ReplayPage.activity)
+
+            ReplayMostTrainedPage(stats: viewModel.stats)
+                .tag(ReplayPage.mostTrained)
+
+            ReplayPlaceholderPage(page: .growthAndPersonalRecords)
+                .tag(ReplayPage.growthAndPersonalRecords)
+
+            ReplayPlaceholderPage(page: .closing)
+                .tag(ReplayPage.closing)
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
         .accessibilityIdentifier("replay-pages")
@@ -274,7 +281,7 @@ private struct ReplayPlaceholderPage: View {
     }
 }
 
-private struct ReplayPageLayout<Content: View>: View {
+struct ReplayPageLayout<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {

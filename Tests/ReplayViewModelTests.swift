@@ -75,6 +75,31 @@ final class ReplayViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.stats.workoutCount, 2)
     }
 
+    func testChangingYearUpdatesActivityAndMostTrainedValues() throws {
+        let currentExercise = Exercise(name: "スクワット", primaryBodyPart: .legs)
+        let pastExercise = Exercise(name: "ベンチプレス", primaryBodyPart: .chest)
+        let currentWorkout = try completedWorkout(year: 2026)
+        let pastWorkout = try completedWorkout(year: 2025)
+        addEntry(to: currentWorkout, exercise: currentExercise, weight: 80, reps: 5)
+        addEntry(to: pastWorkout, exercise: pastExercise, weight: 100, reps: 10)
+        let viewModel = ReplayViewModel(
+            workouts: [currentWorkout, pastWorkout],
+            referenceDate: try date(year: 2026, month: 10, day: 27),
+            calendar: utcCalendar
+        )
+
+        let currentActivity = ReplayActivityPresentation(stats: viewModel.stats)
+        let currentMostTrained = ReplayMostTrainedPresentation(stats: viewModel.stats)
+        viewModel.selectYear(2025)
+        let pastActivity = ReplayActivityPresentation(stats: viewModel.stats)
+        let pastMostTrained = ReplayMostTrainedPresentation(stats: viewModel.stats)
+
+        XCTAssertEqual(currentActivity.totalVolumeText, "400kg")
+        XCTAssertEqual(currentMostTrained.exerciseName, "スクワット")
+        XCTAssertEqual(pastActivity.totalVolumeText, "1,000kg")
+        XCTAssertEqual(pastMostTrained.exerciseName, "ベンチプレス")
+    }
+
     func testUpdatingHistoryRecalculatesSelectedYearAndFallsBackWhenYearDisappears() throws {
         let current = try completedWorkout(year: 2026)
         let past = try completedWorkout(year: 2025)
@@ -116,6 +141,28 @@ final class ReplayViewModelTests: XCTestCase {
             utcCalendar.date(from: DateComponents(year: year, month: month, day: day))
         )
         return WorkoutSession(startedAt: startedAt, endedAt: startedAt.addingTimeInterval(60))
+    }
+
+    private func addEntry(
+        to workout: WorkoutSession,
+        exercise: Exercise,
+        weight: Double,
+        reps: Int
+    ) {
+        let entry = ExerciseEntry(
+            workoutSession: workout,
+            exercise: exercise,
+            order: workout.exerciseEntries.count
+        )
+        entry.setEntries.append(
+            SetEntry(
+                exerciseEntry: entry,
+                order: 0,
+                weightKg: weight,
+                reps: reps
+            )
+        )
+        workout.exerciseEntries.append(entry)
     }
 
     private func date(year: Int, month: Int = 1, day: Int = 1) throws -> Date {
