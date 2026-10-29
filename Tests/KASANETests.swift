@@ -1588,6 +1588,75 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(fetched.map(\.id), [completed.id])
     }
 
+    /// テスト概要: Overviewが取得した全履歴と関連データからReplay統計を再構築する。
+    /// 期待値: 重量・回数・ウォームアップを読み取り、
+    /// 編集と削除後の再取得結果へ反映する。
+    func testOverviewReplayDataReflectsNestedSetEditAndWorkoutDeletion() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let exercise = Exercise(name: "ベンチプレス", primaryBodyPart: .chest)
+        let baseline = try makeDashboardSession(
+            year: 2025,
+            month: 1,
+            day: 1,
+            duration: 600,
+            calendar: utcCalendar,
+            weight: 100,
+            reps: 1,
+            exercise: exercise
+        )
+        let peak = try makeDashboardSession(
+            year: 2025,
+            month: 2,
+            day: 1,
+            duration: 600,
+            calendar: utcCalendar,
+            weight: 120,
+            reps: 1,
+            exercise: exercise
+        )
+        let peakEntry = try XCTUnwrap(peak.exerciseEntries.first)
+        let editedSet = try XCTUnwrap(peakEntry.setEntries.first)
+        peakEntry.setEntries.append(
+            SetEntry(
+                exerciseEntry: peakEntry,
+                order: 1,
+                weightKg: 200,
+                reps: 1,
+                isWarmup: true
+            )
+        )
+        context.insert(exercise)
+        context.insert(baseline)
+        context.insert(peak)
+        try context.save()
+
+        func fetchStats() throws -> YearlyReplayStats {
+            let fetchContext = ModelContext(container)
+            _ = try fetchContext.fetch(OverviewWorkoutLoader.exerciseOverviewEntryDescriptor)
+            let workouts = try fetchContext.fetch(OverviewWorkoutLoader.dashboardDescriptor)
+            return ReplayStatsBuilder.build(year: 2025, workouts: workouts, calendar: utcCalendar)
+        }
+
+        var stats = try fetchStats()
+        XCTAssertEqual(stats.workoutCount, 2)
+        XCTAssertEqual(stats.totalVolume, 420)
+        XCTAssertEqual(stats.biggestGrowth?.growthRate, 20)
+
+        editedSet.weightKg = 130
+        try context.save()
+        stats = try fetchStats()
+        XCTAssertEqual(stats.totalVolume, 430)
+        XCTAssertEqual(stats.biggestGrowth?.growthRate, 30)
+
+        context.delete(peak)
+        try context.save()
+        stats = try fetchStats()
+        XCTAssertEqual(stats.workoutCount, 1)
+        XCTAssertEqual(stats.totalVolume, 100)
+        XCTAssertNil(stats.biggestGrowth)
+    }
+
     /// テスト概要: 完了Workoutの履歴行表示を生成する。
     /// 期待値: 種目はorder順のスナップショットから先頭2件と残数に要約され、所要時間と種目数が表示用文字列になる。
     func testWorkoutHistoryRowContentUsesSnapshotOrderAndSummarizesExercises() throws {

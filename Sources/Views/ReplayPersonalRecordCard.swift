@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ReplayPersonalRecordCard: View {
+    let year: Int
     let countText: String
 
     var body: some View {
@@ -13,7 +14,7 @@ struct ReplayPersonalRecordCard: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 7) {
-                Text("今年の自己ベスト更新")
+                Text("\(year)年の自己ベスト更新")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
 
@@ -30,7 +31,7 @@ struct ReplayPersonalRecordCard: View {
         .padding(22)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("今年の自己ベスト更新")
+        .accessibilityLabel("\(year)年の自己ベスト更新")
         .accessibilityValue("最大使用重量の自己ベスト、\(countText)")
     }
 }

@@ -20,12 +20,12 @@ struct ReplayGrowthPage: View {
                 }
 
                 if let growth = presentation.growth {
-                    ReplayBiggestGrowthCard(growth: growth)
+                    ReplayBiggestGrowthCard(year: stats.year, growth: growth)
                 } else {
                     ReplayGrowthUnavailableCard()
                 }
 
-                ReplayPersonalRecordCard(countText: presentation.personalRecordCountText)
+                ReplayPersonalRecordCard(year: stats.year, countText: presentation.personalRecordCountText)
             }
         }
         .accessibilityIdentifier("replay-growth-page")

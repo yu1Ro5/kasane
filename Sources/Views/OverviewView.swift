@@ -10,6 +10,7 @@ struct OverviewView: View {
     private let insightGenerator: any MonthlyInsightGenerating
     @State private var selectedMonth: Date
     @State private var isMonthSelectorPresented = false
+    @State private var isReplayPresented = false
     @State private var insightViewModel = MonthlyInsightViewModel()
     @Query private var completedSessions: [WorkoutSession]
     @Query private var exerciseOverviewEntries: [ExerciseEntry]
@@ -40,6 +41,11 @@ struct OverviewView: View {
             calendar: calendar
         )
         let exerciseCardContents = ExerciseOverviewCardBuilder.build(entries: exerciseOverviewEntries)
+        let replayBannerPresentation = OverviewReplayBannerPresentation(
+            workouts: completedSessions,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
                 brandHeader
@@ -49,6 +55,11 @@ struct OverviewView: View {
                     monthSelector
                 }
                 OverviewHeroCard(stats: stats, usesCompactLayout: dynamicTypeSize.isAccessibilitySize)
+                if replayBannerPresentation.isVisible {
+                    OverviewReplayBanner(presentation: replayBannerPresentation) {
+                        isReplayPresented = true
+                    }
+                }
                 if let insight = insightViewModel.insight {
                     MonthlyInsightCard(insight: insight)
                 }
@@ -81,6 +92,13 @@ struct OverviewView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(isPresented: $isReplayPresented) {
+            ReplayView(
+                workouts: completedSessions,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+        }
         .task(id: insightFacts) {
             await insightViewModel.generate(facts: insightFacts, using: insightGenerator)
         }
