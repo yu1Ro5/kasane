@@ -160,6 +160,33 @@ final class ReplayViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedPage, .intro)
     }
 
+    func testAllFivePagesAdvanceInOrderAndRestartKeepsSelectedYear() throws {
+        let viewModel = ReplayViewModel(
+            workouts: [
+                try completedWorkout(year: 2026),
+                try completedWorkout(year: 2025),
+            ],
+            referenceDate: try date(year: 2026, month: 10, day: 27),
+            calendar: utcCalendar
+        )
+        viewModel.selectYear(2025)
+
+        XCTAssertEqual(
+            ReplayPage.allCases,
+            [.intro, .activity, .mostTrained, .growthAndPersonalRecords, .closing]
+        )
+        for expectedPage in ReplayPage.allCases.dropFirst() {
+            viewModel.showNextPage()
+            XCTAssertEqual(viewModel.selectedPage, expectedPage)
+        }
+
+        viewModel.restart()
+
+        XCTAssertEqual(viewModel.selectedPage, .intro)
+        XCTAssertEqual(viewModel.selectedYear, 2025)
+        XCTAssertEqual(viewModel.stats.year, 2025)
+    }
+
     private func completedWorkout(
         year: Int,
         month: Int = 1,

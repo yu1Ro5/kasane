@@ -9,13 +9,17 @@ struct ReplayView: View {
 
     private let workouts: [WorkoutSession]
 
-    init(workouts: [WorkoutSession], referenceDate: Date = .now) {
+    init(
+        workouts: [WorkoutSession],
+        referenceDate: Date = .now,
+        calendar: Calendar = .current
+    ) {
         self.workouts = workouts
         _viewModel = State(
             initialValue: ReplayViewModel(
                 workouts: workouts,
                 referenceDate: referenceDate,
-                calendar: .current
+                calendar: calendar
             )
         )
     }
@@ -32,7 +36,11 @@ struct ReplayView: View {
                 } else {
                     pageProgress
                     pages
-                    pageControls
+                    if viewModel.selectedPage == .closing {
+                        previousButton
+                    } else {
+                        pageControls
+                    }
                 }
             }
             .padding(.horizontal, 20)
@@ -54,12 +62,12 @@ struct ReplayView: View {
                 Button {
                     dismiss()
                 } label: {
-                    Image(systemName: "xmark")
+                    Label("Replayを閉じる", systemImage: "xmark")
+                        .labelStyle(.iconOnly)
                         .font(.body.weight(.semibold))
                         .frame(width: 44, height: 44)
                         .background(.thinMaterial, in: Circle())
                 }
-                .accessibilityLabel("Replayを閉じる")
                 .accessibilityIdentifier("replay-close-button")
             }
         }
@@ -137,7 +145,14 @@ struct ReplayView: View {
             ReplayGrowthPage(stats: viewModel.stats)
                 .tag(ReplayPage.growthAndPersonalRecords)
 
-            ReplayPlaceholderPage(page: .closing)
+            ReplayClosingPage(
+                presentation: ReplayClosingPresentation(
+                    stats: viewModel.stats,
+                    currentYear: viewModel.currentYear
+                ),
+                replayAction: restartReplay,
+                closeAction: { dismiss() }
+            )
                 .tag(ReplayPage.closing)
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
@@ -170,14 +185,9 @@ struct ReplayView: View {
 
     private var nextButton: some View {
         Button(action: moveToNextPage) {
-            if viewModel.selectedPage == .closing {
-                Label("もう一度見る", systemImage: "arrow.counterclockwise")
-                    .frame(maxWidth: .infinity)
-            } else {
-                Label("次へ", systemImage: "chevron.right")
-                    .labelStyle(.titleAndIcon)
-                    .frame(maxWidth: .infinity)
-            }
+            Label("次へ", systemImage: "chevron.right")
+                .labelStyle(.titleAndIcon)
+                .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
@@ -217,6 +227,12 @@ struct ReplayView: View {
     private func moveToNextPage() {
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
             viewModel.showNextPage()
+        }
+    }
+
+    private func restartReplay() {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+            viewModel.restart()
         }
     }
 }
@@ -259,25 +275,6 @@ private struct ReplayIntroPage: View {
             .padding(.vertical, 36)
         }
         .accessibilityIdentifier("replay-intro-page")
-    }
-}
-
-private struct ReplayPlaceholderPage: View {
-    let page: ReplayPage
-
-    var body: some View {
-        ReplayPageLayout {
-            VStack(spacing: 14) {
-                Text(page.title)
-                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                    .multilineTextAlignment(.center)
-                Text("このページの内容は後続のアップデートで追加されます。")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-        }
-        .accessibilityIdentifier("replay-placeholder-\(page.rawValue)")
     }
 }
 

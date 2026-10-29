@@ -3,6 +3,7 @@ import SwiftUI
 struct ReplayBiggestGrowthCard: View {
     @ScaledMetric(relativeTo: .largeTitle) private var growthRateFontSize = 64
 
+    let year: Int
     let growth: ReplayGrowthContent
 
     var body: some View {
@@ -27,7 +28,7 @@ struct ReplayBiggestGrowthCard: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 18) {
-                Label("今年最も成長した種目", systemImage: "chart.line.uptrend.xyaxis")
+                Label("\(year)年に最も成長した種目", systemImage: "chart.line.uptrend.xyaxis")
                     .font(.headline)
                     .foregroundStyle(.secondary)
 
@@ -56,7 +57,7 @@ struct ReplayBiggestGrowthCard: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("今年最も成長した種目")
+        .accessibilityLabel("\(year)年に最も成長した種目")
         .accessibilityValue(accessibilityValue)
     }
 

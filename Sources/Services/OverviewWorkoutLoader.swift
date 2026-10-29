@@ -18,7 +18,8 @@ enum OverviewWorkoutLoader {
         return descriptor
     }
 
-    /// 選択月の集計、週次継続、記録比較に使う完了履歴を一度だけ取得する。
+    /// 選択月の集計、週次継続、記録比較、Replayに使う完了履歴を一度だけ取得する。
+    /// Replayが使うExercise・Setの関連は、OverviewのExerciseEntry Queryが先読みする。
     static var dashboardDescriptor: FetchDescriptor<WorkoutSession> {
         var descriptor = FetchDescriptor<WorkoutSession>(
             predicate: #Predicate { $0.endedAt != nil },
