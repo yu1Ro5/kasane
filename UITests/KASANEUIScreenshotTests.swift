@@ -74,6 +74,150 @@ final class KASANEUIScreenshotTests: XCTestCase {
         addScreenshot(named: "workout-exercise-input", of: app)
     }
 
+    /// Opt in only from the manual workflow (TEST_RUNNER_ is forwarded by xcodebuild).
+    @MainActor
+    func testAppStoreScreenshots() throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["APP_STORE_SCREENSHOTS"] == "1",
+            "App Store screenshots are enabled only by the dedicated manual workflow."
+        )
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let appearance = [
+            "-AppleInterfaceStyle", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL",
+        ]
+        // launchApp supplies the shared Japanese/UI-testing arguments. Relaunch with a fixed
+        // time zone so Calendar.current and date labels do not depend on the runner's locale.
+        let launchFixture: ([String]) -> XCUIApplication = { arguments in
+            let app = self.launchApp(additionalArguments: arguments + appearance)
+            app.terminate()
+            app.launchEnvironment["TZ"] = "Asia/Tokyo"
+            app.launch()
+            self.waitForAppToBeStable(app)
+            return app
+        }
+        var app = launchFixture(["--fixture", "smart-start"])
+        defer { app.terminate() }
+
+        let count = app.descendants(matching: .any)["overview-workout-count"]
+        XCTAssertTrue(count.waitForExistence(timeout: 10))
+        XCTAssertEqual(count.value as? String, "3回")
+        XCTAssertEqual(
+            app.descendants(matching: .any)["overview-month-selector"].value as? String,
+            "2026年9月"
+        )
+        let banner = app.buttons["overview-replay-banner"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 10))
+        XCTAssertTrue(banner.isHittable)
+        XCTAssertTrue(app.descendants(matching: .any)["overview-total-volume"].exists)
+        addScreenshot(named: "app-store-01-overview", of: app)
+
+        app.tabBars.buttons["ワークアウト"].tap()
+        let reuse = app.buttons["workout-reuse-\(overviewNewestSessionID)"]
+        XCTAssertTrue(scrollToHittable(reuse, in: app))
+        reuse.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.7)).tap()
+        let bench = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "current-exercise-", "ベンチプレス")
+        ).firstMatch
+        XCTAssertTrue(bench.waitForExistence(timeout: 10))
+        let exerciseID = String(bench.identifier.dropFirst("current-exercise-".count))
+        bench.tap()
+        XCTAssertTrue(app.navigationBars["ベンチプレス"].waitForExistence(timeout: 10))
+        let weight = app.textFields.matching(NSPredicate(format: "identifier BEGINSWITH %@", "draft-weight-input-"))
+            .firstMatch
+        let reps = app.textFields.matching(NSPredicate(format: "identifier BEGINSWITH %@", "draft-reps-input-"))
+            .firstMatch
+        XCTAssertTrue(weight.waitForExistence(timeout: 10))
+        XCTAssertTrue(reps.exists)
+        let previous = app.descendants(matching: .any)["previous-workout-record-\(exerciseID)"]
+        XCTAssertTrue(previous.waitForExistence(timeout: 10))
+        XCTAssertTrue(previous.isHittable)
+        XCTAssertTrue(weight.isHittable && reps.isHittable)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        addScreenshot(named: "app-store-02-workout-input", of: app)
+
+        app.terminate()
+        app = launchFixture(["--fixture", "smart-start"])
+        let replay = app.buttons["overview-replay-banner"]
+        XCTAssertTrue(replay.waitForExistence(timeout: 10))
+        replay.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["replay-intro-page"].waitForExistence(timeout: 10))
+        let replayYear = app.descendants(matching: .any)["replay-year-selector"]
+        XCTAssertTrue(replayYear.waitForExistence(timeout: 10))
+        // Validate the selected year through its semantic value, independent of Text's
+        // locale-specific number grouping (for example, "2,026").
+        let replayYearValue = try XCTUnwrap(replayYear.value as? String)
+        XCTAssertEqual(String(replayYearValue.filter(\.isNumber)), "2026")
+        // The accessibility snapshot includes both the combined metric (.other) and
+        // its child label (.staticText). Select the metric that owns the count value.
+        let replayCount = app.descendants(matching: .any)["replay-intro-page"]
+            .descendants(matching: .other)
+            .matching(NSPredicate(format: "label == %@", "完了したワークアウト"))
+            .element
+        XCTAssertTrue(replayCount.waitForExistence(timeout: 10))
+        XCTAssertEqual(replayCount.value as? String, "5回")
+        addScreenshot(named: "app-store-03-replay", of: app)
+
+        app.terminate()
+        app = launchFixture(["--fixture", "workout-set-layout", "--workout-ai-fixture"])
+        app.tabBars.buttons["ワークアウト"].tap()
+        let quickInput = app.buttons["workout-ai-quick-input-button"]
+        XCTAssertTrue(quickInput.waitForExistence(timeout: 10))
+        quickInput.tap()
+        let input = app.descendants(matching: .any)["workout-ai-input-text"]
+        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        input.tap()
+        input.typeText("チェストプレス30kgを10回3セット。ラットプル18kgを12回3セット。")
+        app.buttons["workout-ai-analyze-button"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["workout-ai-review"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["チェストプレス"].exists)
+        let lat = app.staticTexts["ラットプルダウン"]
+        XCTAssertTrue(lat.exists)
+        XCTAssertEqual(app.textFields.matching(NSPredicate(format: "label CONTAINS 'の回数'")).count, 6)
+        XCTAssertTrue(app.buttons["workout-ai-apply-button"].isEnabled)
+        // Scroll the review itself in small increments; an application-wide swipe can
+        // miss the scroll view or pass the position where both headings are visible.
+        let reviewScroll = app.scrollViews.firstMatch
+        XCTAssertTrue(reviewScroll.waitForExistence(timeout: 10))
+        let headingIsVisible: (XCUIElement) -> Bool = { element in
+            let viewport = reviewScroll.frame.intersection(app.windows.firstMatch.frame)
+            let frame = element.frame
+            return !viewport.isEmpty && frame.isFiniteNonZero && viewport.contains(frame)
+        }
+        for _ in 0..<12 {
+            if headingIsVisible(lat) { break }
+            let needsEarlierContent = lat.frame.minY < reviewScroll.frame.minY
+            let start = reviewScroll.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.65))
+            let end = reviewScroll.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.95, dy: needsEarlierContent ? 0.77 : 0.53)
+            )
+            start.press(forDuration: 0.05, thenDragTo: end)
+        }
+        // Text labels are validated by their visible frames, rather than tap eligibility.
+        XCTAssertTrue(headingIsVisible(lat), "The second exercise heading must be fully visible")
+        XCTAssertTrue(
+            headingIsVisible(app.staticTexts["チェストプレス"]),
+            "Both exercise headings must be visible in the same screenshot"
+        )
+        addScreenshot(named: "app-store-04-ai-quick-input", of: app)
+
+        app.terminate()
+        app = launchFixture(["--fixture", "personal-record", "--workout-insight-fixture"])
+        app.tabBars.buttons["ワークアウト"].tap()
+        XCTAssertTrue(app.buttons["終了"].waitForExistence(timeout: 10))
+        app.buttons["終了"].tap()
+        XCTAssertTrue(app.buttons["終了して保存"].waitForExistence(timeout: 5))
+        app.buttons["終了して保存"].tap()
+        XCTAssertTrue(app.staticTexts["NEW RECORD"].waitForExistence(timeout: 10))
+        for label in ["レッグプレス", "Previous", "63.00 kg", "New Record", "前回より +9.00 kg"] {
+            XCTAssertTrue(app.staticTexts[label].isHittable)
+        }
+        XCTAssertTrue(app.staticTexts["72.00 kg"].firstMatch.isHittable)
+        XCTAssertTrue(app.buttons["personal-record-continue-button"].exists)
+        addScreenshot(named: "app-store-05-personal-record", of: app)
+    }
+
     @MainActor
     private func addScreenshot(named name: String, of app: XCUIApplication) {
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))

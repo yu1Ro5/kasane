@@ -1,0 +1,222 @@
+name: App Store Screenshots
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      TZ: Asia/Tokyo
+      TEST_RUNNER_APP_STORE_SCREENSHOTS: '1'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Select Xcode 27
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode_path="$(find /Applications -maxdepth 1 -type d -name 'Xcode_27*.app' | sort | tail -1)"
+          test -n "$xcode_path"
+          sudo xcode-select --switch "$xcode_path"
+          xcodebuild -version
+
+      - name: Install tools and generate project
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          python3 -m venv "$RUNNER_TEMP/app-store-venv"
+          "$RUNNER_TEMP/app-store-venv/bin/python" -m pip install 'Pillow==11.3.0'
+          xcodegen generate
+
+      - name: Create isolated 6.9-inch simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun simctl list --json > "$RUNNER_TEMP/app-store-simulators.json"
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          data = json.loads((Path(os.environ['RUNNER_TEMP']) / 'app-store-simulators.json').read_text())
+          runtimes = sorted((r for r in data['runtimes'] if r.get('isAvailable') and r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS-27-')), key=lambda r: tuple(map(int, r['version'].split('.'))), reverse=True)
+          if not runtimes:
+              raise SystemExit('No available iOS 27 runtime')
+          for name in ('iPhone 18 Pro Max', 'iPhone 17 Pro Max'):
+              device_type = next((d for d in data['devicetypes'] if d['name'] == name), None)
+              if device_type:
+                  break
+          else:
+              raise SystemExit('No supported 6.9-inch device type')
+          runtime = runtimes[0]
+          udid = subprocess.check_output(['xcrun', 'simctl', 'create', 'KASANE App Store ' + os.environ['GITHUB_RUN_ID'], device_type['identifier'], runtime['identifier']], text=True).strip()
+          (Path(os.environ['RUNNER_TEMP']) / 'app-store-simulator-id').write_text(udid)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'id={udid}\nname={name}\nruntime={runtime["version"]}\n')
+          PY
+          simulator="$(cat "$RUNNER_TEMP/app-store-simulator-id")"
+          xcrun simctl boot "$simulator"
+          xcrun simctl bootstatus "$simulator" -b
+          xcrun simctl spawn "$simulator" defaults write NSGlobalDomain AppleLanguages -array ja
+          xcrun simctl spawn "$simulator" defaults write NSGlobalDomain AppleLocale -string ja_JP
+          xcrun simctl spawn "$simulator" defaults write NSGlobalDomain AppleICUForce24HourTime -bool false
+          xcrun simctl spawn "$simulator" defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
+          xcrun simctl shutdown "$simulator"
+          xcrun simctl boot "$simulator"
+          xcrun simctl bootstatus "$simulator" -b
+          xcrun simctl ui "$simulator" appearance light
+          xcrun simctl status_bar "$simulator" override --time '9:41' \
+            --dataNetwork wifi --wifiMode active --wifiBars 3 \
+            --batteryState charged --batteryLevel 100
+
+      - name: Build only App Store screenshot test
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project KASANE.xcodeproj -scheme KASANE \
+            -sdk iphonesimulator -configuration Debug \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
+            -derivedDataPath "$RUNNER_TEMP/app-store-build" \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testAppStoreScreenshots \
+            -enableCodeCoverage NO CODE_SIGNING_ALLOWED=NO build-for-testing
+
+      - name: Capture five screenshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project KASANE.xcodeproj -scheme KASANE \
+            -sdk iphonesimulator -configuration Debug \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
+            -derivedDataPath "$RUNNER_TEMP/app-store-build" \
+            -resultBundlePath "$RUNNER_TEMP/app-store.xcresult" \
+            -only-testing:KASANEUITests/KASANEUIScreenshotTests/testAppStoreScreenshots \
+            -parallel-testing-enabled NO -test-iterations 1 \
+            -enableCodeCoverage NO -collect-test-diagnostics never \
+            CODE_SIGNING_ALLOWED=NO test-without-building
+
+      - name: Export, compose and validate PNGs
+        shell: bash
+        env:
+          SIMULATOR_NAME: ${{ steps.simulator.outputs.name }}
+          IOS_VERSION: ${{ steps.simulator.outputs.runtime }}
+        run: |
+          set -euo pipefail
+          xcrun xcresulttool export attachments --path "$RUNNER_TEMP/app-store.xcresult" \
+            --output-path "$RUNNER_TEMP/app-store-attachments"
+          "$RUNNER_TEMP/app-store-venv/bin/python" - <<'PY'
+          import json, os
+          from pathlib import Path
+          from PIL import Image, ImageDraw, ImageFont
+
+          root = Path(os.environ['RUNNER_TEMP'])
+          exports = root / 'app-store-attachments'
+          output = root / 'app-store-screenshots'
+          output.mkdir(exist_ok=False)
+          manifest = json.loads((exports / 'manifest.json').read_text())
+          attachments = [a for test in manifest for a in test.get('attachments', [])]
+          scenarios = [
+              ('01-overview', '続けた分だけ、見えてくる。'),
+              ('02-workout-input', '重量も回数も、かんたん記録。'),
+              ('03-replay', '一年の努力を、振り返ろう。'),
+              ('04-ai-quick-input', '文章から、まとめて入力。'),
+              ('05-personal-record', '自己ベストが、次の力になる。'),
+          ]
+          # Hiragino Sans W6 is a Japanese bold face supplied by macOS.
+          fonts = [Path('/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc'),
+                   Path('/System/Library/Fonts/Hiragino Sans W6.ttc')]
+          font_path = next((p for p in fonts if p.is_file()), None)
+          if font_path is None:
+              raise SystemExit('macOS Japanese bold font (Hiragino Sans W6) is required')
+          font = ImageFont.truetype(str(font_path), 76)
+          brand_font = ImageFont.truetype(str(font_path), 40)
+          size = (1320, 2868)
+          blue = (0, 122, 255)
+          # One common bounding box; contain the complete screen, never crop or stretch it.
+          screen_box = (100, 470, 1120, 2330)
+          source_sizes = set()
+          for stem, copy in scenarios:
+              prefix = 'app-store-' + stem
+              matches = [a for a in attachments if isinstance(a.get('suggestedHumanReadableName'), str)
+                         and (a['suggestedHumanReadableName'] == prefix + '.png'
+                              or a['suggestedHumanReadableName'].startswith(prefix + '_'))
+                         and a['suggestedHumanReadableName'].endswith('.png')]
+              if len(matches) != 1:
+                  raise SystemExit(f'{prefix}: expected one PNG attachment, got {len(matches)}')
+              filename = matches[0].get('exportedFileName')
+              if not isinstance(filename, str) or Path(filename).name != filename:
+                  raise SystemExit('Invalid attachment filename')
+              source = (exports / filename).resolve()
+              if source.parent != exports.resolve():
+                  raise SystemExit('Attachment outside export directory')
+              with Image.open(source) as image:
+                  if image.format != 'PNG' or image.width >= image.height:
+                      raise SystemExit('Expected portrait PNG')
+                  if image.size not in {(1320, 2868), (1290, 2796), (1260, 2736)}:
+                      raise SystemExit(f'Unexpected 6.9-inch source size: {image.size}')
+                  source_sizes.add(image.size)
+                  screen = image.convert('RGB')
+              canvas = Image.new('RGB', size)
+              draw = ImageDraw.Draw(canvas)
+              for y in range(size[1]):
+                  fraction = y / (size[1] - 1)
+                  color = tuple(round(255 + (end - 255) * fraction) for end in (234, 244, 255))
+                  draw.line((0, y, size[0], y), fill=color)
+              draw.text((100, 95), 'KASANE', font=brand_font, fill=blue)
+              # Fixed font and two-line layout for all five headlines.
+              split = copy.index('、') + 1
+              lines = [copy[:split], copy[split:]]
+              for index, line in enumerate(lines):
+                  if draw.textbbox((0, 0), line, font=font)[2] > 1120:
+                      raise SystemExit('Headline exceeds common margins')
+                  draw.text((100, 190 + index * 105), line, font=font, fill=(20, 40, 65))
+              draw.rounded_rectangle((100, 415, 220, 425), radius=5, fill=blue)
+              x, y, width, height = screen_box
+              screen.thumbnail((width, height), Image.Resampling.LANCZOS)
+              position = (x + (width - screen.width) // 2, y + (height - screen.height) // 2)
+              draw.rectangle((position[0] - 3, position[1] - 3, position[0] + screen.width + 2,
+                              position[1] + screen.height + 2), fill=(210, 225, 242))
+              canvas.paste(screen, position)
+              canvas.save(output / (stem + '.png'), format='PNG')
+          if len(source_sizes) != 1:
+              raise SystemExit('Inconsistent source sizes')
+          expected = {stem + '.png' for stem, _ in scenarios}
+          if {p.name for p in output.iterdir()} != expected:
+              raise SystemExit('Output must contain exactly the five named PNGs')
+          for path in sorted(output.iterdir()):
+              with Image.open(path) as image:
+                  image.verify()
+              with Image.open(path) as image:
+                  if image.format != 'PNG' or image.size != size or image.mode != 'RGB':
+                      raise SystemExit(f'Invalid final PNG: {path.name}')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('## App Store Screenshots\n\n')
+              summary.write(f"- Simulator: {os.environ['SIMULATOR_NAME']} / iOS {os.environ['IOS_VERSION']}\n")
+              summary.write('- Xcode 27 / ja_JP / light / portrait / Asia/Tokyo\n')
+              summary.write('- Status bar: 9:41 / Wi-Fi / battery 100%\n')
+              summary.write(f"- Commit: `{os.environ['GITHUB_SHA']}`\n")
+              summary.write(f'- Japanese font: {font_path.name}\n')
+              summary.write(f'- Source resolution: {next(iter(source_sizes))}\n\n')
+              summary.write('| File | Resolution |\n| --- | --- |\n')
+              for name in sorted(expected):
+                  summary.write(f'| {name} | 1320 × 2868 |\n')
+          PY
+
+      - name: Upload App Store screenshots
+        uses: actions/upload-artifact@v6
+        with:
+          name: app-store-screenshots
+          path: ${{ runner.temp }}/app-store-screenshots/*.png
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove isolated simulator
+        if: always() && steps.simulator.outputs.id != ''
+        shell: bash
+        run: |
+          xcrun simctl shutdown '${{ steps.simulator.outputs.id }}' || true
+          xcrun simctl delete '${{ steps.simulator.outputs.id }}'
