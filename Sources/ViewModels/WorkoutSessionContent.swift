@@ -12,9 +12,9 @@ struct WorkoutSessionContent {
         self.exerciseEntries = Self.unique(exerciseEntries).sorted { $0.order < $1.order }
     }
 
-    /// 省略時も追加順を保ち、保存済みの種目は削除しない。
+    /// 新しく追加された種目が先頭に並ぶ既存のorderに従い、直近3件を表示する。
     func visibleExerciseEntries(isExpanded: Bool) -> [ExerciseEntry] {
-        isExpanded ? exerciseEntries : Array(exerciseEntries.suffix(3))
+        isExpanded ? exerciseEntries : Array(exerciseEntries.prefix(3))
     }
 
     /// セッションで未記録の選択可能な種目を、名称順で返す。

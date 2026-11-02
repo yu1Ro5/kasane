@@ -429,20 +429,20 @@ final class KASANEUIRegressionTests: XCTestCase {
         }
         XCTAssertTrue(toggle.isHittable)
         XCTAssertEqual(toggle.label, "すべて表示（4種目）")
-        let oldestExercise = app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"]
-        XCTAssertFalse(oldestExercise.exists)
+        let hiddenExercise = app.buttons["current-exercise-\(workoutNoPreviousExerciseID)"]
+        XCTAssertFalse(hiddenExercise.exists)
         toggle.tap()
         XCTAssertEqual(toggle.label, "折りたたむ")
-        XCTAssertTrue(oldestExercise.waitForExistence(timeout: 5))
-        oldestExercise.tap()
-        XCTAssertTrue(app.textFields["draft-weight-input-\(workoutSeatedRowExerciseID)"].waitForExistence(timeout: 5))
+        XCTAssertTrue(hiddenExercise.waitForExistence(timeout: 5))
+        hiddenExercise.tap()
+        XCTAssertTrue(app.textFields["draft-weight-input-\(workoutNoPreviousExerciseID)"].waitForExistence(timeout: 5))
         app.navigationBars.buttons["ワークアウト"].tap()
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         XCTAssertEqual(toggle.label, "折りたたむ")
-        XCTAssertTrue(oldestExercise.exists)
+        XCTAssertTrue(hiddenExercise.exists)
         toggle.tap()
         XCTAssertEqual(toggle.label, "すべて表示（4種目）")
-        XCTAssertFalse(oldestExercise.exists)
+        XCTAssertFalse(hiddenExercise.exists)
     }
 
     /// Foundation Modelsを呼ばず、分類済み解析エラーのAlert文言を検証する。

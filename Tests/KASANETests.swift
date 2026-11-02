@@ -3129,7 +3129,7 @@ final class KASANETests: XCTestCase {
         XCTAssertTrue(entry.setEntries.isEmpty)
     }
 
-    func testWorkoutContentShowsLatestThreeEntriesInAdditionOrder() {
+    func testWorkoutContentShowsFirstThreeEntriesInDisplayOrder() {
         let session = WorkoutSession()
         let entries = (0..<5).map { order in
             ExerciseEntry(
@@ -3144,11 +3144,52 @@ final class KASANETests: XCTestCase {
             let content = WorkoutSessionContent(exerciseEntries: Array(input.reversed()))
             XCTAssertEqual(
                 content.visibleExerciseEntries(isExpanded: false).map(\.id),
-                input.suffix(3).map(\.id), "count=\(count)"
+                input.prefix(3).map(\.id), "count=\(count)"
             )
             XCTAssertEqual(content.visibleExerciseEntries(isExpanded: true).map(\.id), input.map(\.id))
             XCTAssertEqual(content.exerciseEntries.count, count)
         }
+    }
+
+    func testWorkoutContentKeepsNewlyRecordedExercisesVisible() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let session = WorkoutSession()
+        let exercises = (1...5).map { Exercise(name: "種目\($0)", primaryBodyPart: .chest) }
+        context.insert(session)
+        exercises.forEach(context.insert)
+        try context.save()
+        let service = WorkoutExerciseService(context: context)
+        var recorded: [ExerciseEntry] = []
+
+        for exercise in exercises {
+            recorded.append(
+                try service.recordFirstSet(draft: SetEntryDraft(weight: "20", reps: "10"), for: exercise, in: session)
+            )
+            let content = WorkoutSessionContent(exerciseEntries: session.exerciseEntries)
+            XCTAssertEqual(
+                content.visibleExerciseEntries(isExpanded: false).map(\.id),
+                recorded.reversed().prefix(3).map(\.id)
+            )
+            XCTAssertEqual(content.visibleExerciseEntries(isExpanded: true).map(\.id), recorded.reversed().map(\.id))
+        }
+
+        // 5種目目を削除すると、4・3・2種目目が表示される。
+        try service.delete(recorded[4], from: session)
+        let expectedIDs = [recorded[3].id, recorded[2].id, recorded[1].id]
+        XCTAssertEqual(
+            WorkoutSessionContent(exerciseEntries: session.exerciseEntries).visibleExerciseEntries(isExpanded: false)
+                .map(\.id),
+            expectedIDs
+        )
+        // 最初の種目へのセット追加では、種目の表示順は変わらない。
+        _ = try service.commitCurrentSetIfNeeded(
+            draft: SetEntryDraft(weight: "25", reps: "8"), for: exercises[0], in: session)
+        XCTAssertEqual(
+            WorkoutSessionContent(exerciseEntries: session.exerciseEntries).visibleExerciseEntries(isExpanded: false)
+                .map(\.id),
+            expectedIDs
+        )
     }
 
     func testWorkoutContentUpdatesVisibleEntriesAfterSetsAndDeletion() {
@@ -3165,12 +3206,12 @@ final class KASANETests: XCTestCase {
         entries[0].setEntries = [set]
         set.weightKg = 25
         let reused = WorkoutSessionContent(exerciseEntries: entries + [entries[0]])
-        XCTAssertEqual(reused.visibleExerciseEntries(isExpanded: false).map(\.id), entries.suffix(3).map(\.id))
+        XCTAssertEqual(reused.visibleExerciseEntries(isExpanded: false).map(\.id), entries.prefix(3).map(\.id))
         XCTAssertEqual(reused.visibleExerciseEntries(isExpanded: true).map(\.id), entries.map(\.id))
 
         let remaining = Array(entries.dropLast())
         let afterDeletion = WorkoutSessionContent(exerciseEntries: remaining)
-        XCTAssertEqual(afterDeletion.visibleExerciseEntries(isExpanded: false).map(\.id), remaining.suffix(3).map(\.id))
+        XCTAssertEqual(afterDeletion.visibleExerciseEntries(isExpanded: false).map(\.id), remaining.prefix(3).map(\.id))
         XCTAssertEqual(afterDeletion.visibleExerciseEntries(isExpanded: true).count, 4)
         XCTAssertEqual(
             WorkoutSessionContent(exerciseEntries: Array(remaining.dropLast())).visibleExerciseEntries(
