@@ -4,6 +4,7 @@ import SwiftUI
 struct WorkoutSessionView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(WorkoutEndReminderCoordinator.self) private var reminderCoordinator
     @Bindable var session: WorkoutSession
     @Bindable var draftStore: WorkoutDraftStore
@@ -17,6 +18,9 @@ struct WorkoutSessionView: View {
     @State private var selectedExerciseID: UUID?
     @State private var isShowingQuickInput = false
     @State private var searchText = ""
+    @State private var isSearching = false
+    @FocusState private var isSearchFocused: Bool
+    @State private var expandedWorkoutID: UUID?
     @State private var expandedBodyParts: Set<BodyPart> = []
     @State private var isConfirmingDiscard = false
     @State private var isConfirmingFinish = false
@@ -56,35 +60,6 @@ struct WorkoutSessionView: View {
     var body: some View {
         List {
             if searchText.isEmpty {
-                Section {
-                    Button {
-                        isShowingQuickInput = true
-                    } label: {
-                        HStack(spacing: 14) {
-                            Image(systemName: "sparkles")
-                                .font(.title2)
-                                .foregroundStyle(.tint)
-                                .frame(width: 44, height: 44)
-                                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("AIでまとめて入力")
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                Text(quickInputAvailability.unavailableMessage ?? "文章から複数セットを追加")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.forward")
-                                .foregroundStyle(.tertiary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(quickInputAvailability != .available)
-                    .accessibilityIdentifier("workout-ai-quick-input-button")
-                }
-
                 Section("今回のワークアウト") {
                     if sortedEntries.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
@@ -96,7 +71,7 @@ struct WorkoutSessionView: View {
                         }
                         .foregroundStyle(.secondary)
                     } else {
-                        ForEach(sortedEntries) { entry in
+                        ForEach(content.visibleExerciseEntries(isExpanded: expandedWorkoutID == session.id)) { entry in
                             if let exercise = entry.exercise {
                                 Button {
                                     selectedExerciseID = exercise.id
@@ -119,10 +94,50 @@ struct WorkoutSessionView: View {
                             }
                         }
                     }
+                    if sortedEntries.count > 3 {
+                        Button(expandedWorkoutID == session.id ? "折りたたむ" : "すべて表示（\(sortedEntries.count)種目）") {
+                            expandedWorkoutID = expandedWorkoutID == session.id ? nil : session.id
+                        }
+                        .accessibilityIdentifier("workout-current-exercises-toggle")
+                        .accessibilityValue(expandedWorkoutID == session.id ? "展開中" : "折りたたみ中")
+                    }
                 }
             }
 
-            Section("すべての種目") {
+            Section {
+                if isSearching {
+                    let searchLayout =
+                        dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading)) : AnyLayout(HStackLayout())
+                    searchLayout {
+                        TextField("種目名を検索", text: $searchText)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($isSearchFocused)
+                            .task { isSearchFocused = true }
+                            .frame(minHeight: 44)
+                            .submitLabel(.search)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("workout-exercise-search-field")
+                        if !searchText.isEmpty {
+                            Button("クリア", systemImage: "xmark.circle.fill") {
+                                searchText = ""
+                            }
+                            .labelStyle(.iconOnly)
+                            .foregroundStyle(.secondary)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .accessibilityIdentifier("workout-exercise-search-clear")
+                        }
+                        Button("キャンセル") {
+                            searchText = ""
+                            isSearching = false
+                            isSearchFocused = false
+                        }
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("workout-exercise-search-cancel")
+                    }
+                    .buttonStyle(.borderless)
+                    .listRowSeparator(.hidden)
+                }
                 if availableExercises.isEmpty {
                     if searchText.isEmpty {
                         Text("記録できる種目はありません")
@@ -148,15 +163,43 @@ struct WorkoutSessionView: View {
                         availableExerciseButton(exercise)
                     }
                 }
+            } header: {
+                HStack {
+                    Text("すべての種目")
+                    Spacer()
+                    Button("種目を検索", systemImage: "magnifyingglass") {
+                        isSearching = true
+                        isSearchFocused = true
+                    }
+                    .labelStyle(.iconOnly)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityIdentifier("workout-exercise-search-button")
+                }
+            }
+
+            if searchText.isEmpty {
+                Section {
+                    Button("AIでまとめて入力", systemImage: "sparkles") {
+                        isShowingQuickInput = true
+                    }
+                    .disabled(quickInputAvailability != .available)
+                    .accessibilityIdentifier("workout-ai-quick-input-button")
+                    .accessibilityHint(quickInputAvailability.unavailableMessage ?? "文章から複数セットを追加")
+                } footer: {
+                    if let message = quickInputAvailability.unavailableMessage {
+                        Text(message)
+                    }
+                }
             }
         }
         .navigationTitle("ワークアウト")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(
-            text: $searchText,
-            placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "種目名を検索"
-        )
+        .onChange(of: session.id) {
+            expandedWorkoutID = nil
+            searchText = ""
+            isSearching = false
+            isSearchFocused = false
+        }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("終了", systemImage: "checkmark") { requestFinish() }

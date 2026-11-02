@@ -51,13 +51,15 @@ final class KASANEUIVisualEdgeCaseTests: XCTestCase {
             app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10)
         )
         XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
-        XCTAssertTrue(app.staticTexts["種目の記録"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         attachment.name = "overview-dark-mode"
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        // 撮影位置を維持したまま、遅延生成される下部のセクションも検証する。
+        XCTAssertTrue(scrollToHittable(app.staticTexts["種目の記録"], in: app))
     }
 
     @MainActor
@@ -71,12 +73,14 @@ final class KASANEUIVisualEdgeCaseTests: XCTestCase {
             app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10)
         )
         XCTAssertTrue(app.descendants(matching: .any)["overview-duration"].exists)
-        XCTAssertTrue(app.staticTexts["種目の記録"].waitForExistence(timeout: 10))
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
         attachment.name = "overview-dynamic-type"
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        // 撮影位置を維持したまま、遅延生成される下部のセクションも検証する。
+        XCTAssertTrue(scrollToHittable(app.staticTexts["種目の記録"], in: app))
     }
 
     @MainActor

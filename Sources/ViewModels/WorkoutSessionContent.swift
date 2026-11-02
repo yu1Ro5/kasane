@@ -12,6 +12,11 @@ struct WorkoutSessionContent {
         self.exerciseEntries = Self.unique(exerciseEntries).sorted { $0.order < $1.order }
     }
 
+    /// 新しく追加された種目が先頭に並ぶ既存のorderに従い、直近3件を表示する。
+    func visibleExerciseEntries(isExpanded: Bool) -> [ExerciseEntry] {
+        isExpanded ? exerciseEntries : Array(exerciseEntries.prefix(3))
+    }
+
     /// セッションで未記録の選択可能な種目を、名称順で返す。
     func availableExercises(from exercises: [Exercise], matching searchText: String = "") -> [Exercise] {
         let recordedExerciseIDs = Set(exerciseEntries.compactMap { $0.exercise?.id })

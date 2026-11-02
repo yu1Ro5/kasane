@@ -96,23 +96,43 @@ final class KASANEUIRegressionTests: XCTestCase {
         showAll.tap()
         let firstRow = app.buttons["workout-history-row-\(historySessionID)"]
         XCTAssertTrue(firstRow.waitForExistence(timeout: 10))
+        let historyRows = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
+        )
+        let originalCount = historyRows.count
+        // スワイプ操作のボタンとは区別して、確認側の「削除」を待つ。
+        let confirmationDelete = app.buttons.matching(
+            NSPredicate(format: "label == %@ AND NOT (identifier BEGINSWITH %@)", "削除", "delete-workout-")
+        ).firstMatch
         firstRow.swipeLeft()
         app.buttons["delete-workout-\(historySessionID)"].tap()
-        XCTAssertTrue(app.buttons["キャンセル"].waitForExistence(timeout: 5))
-        app.buttons["キャンセル"].tap()
+        guard confirmationDelete.waitForExistence(timeout: 5) else {
+            XCTFail("削除確認が表示されませんでした")
+            return
+        }
+        let cancel = app.buttons["キャンセル"]
+        if cancel.waitForExistence(timeout: 2) {
+            cancel.tap()
+        } else {
+            // Popover表示では、確認領域から離れた画面左下をタップして閉じる。
+            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.9)).tap()
+        }
+        XCTAssertTrue(confirmationDelete.waitForNonExistence(timeout: 5))
         XCTAssertTrue(firstRow.exists)
+        XCTAssertEqual(historyRows.count, originalCount)
 
-        for _ in 0..<5 {
+        for _ in 0..<originalCount {
             let row = app.buttons.matching(
                 NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
             ).firstMatch
             XCTAssertTrue(row.waitForExistence(timeout: 5))
             let identifier = row.identifier.replacingOccurrences(of: "workout-history-row-", with: "")
+            let deletedRow = app.buttons["workout-history-row-\(identifier)"]
             row.swipeLeft()
             app.buttons["delete-workout-\(identifier)"].tap()
-            XCTAssertTrue(app.buttons["キャンセル"].waitForExistence(timeout: 5))
-            app.buttons["削除"].tap()
-            XCTAssertTrue(row.waitForNonExistence(timeout: 5))
+            XCTAssertTrue(confirmationDelete.waitForExistence(timeout: 5))
+            confirmationDelete.tap()
+            XCTAssertTrue(deletedRow.waitForNonExistence(timeout: 5))
         }
         XCTAssertTrue(app.staticTexts["履歴がありません"].waitForExistence(timeout: 5))
     }
@@ -276,7 +296,7 @@ final class KASANEUIRegressionTests: XCTestCase {
         ])
         app.tabBars.buttons["ワークアウト"].tap()
         let quickInputButton = app.buttons["workout-ai-quick-input-button"]
-        XCTAssertTrue(quickInputButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(scrollToHittable(quickInputButton, in: app))
         quickInputButton.tap()
 
         let input = app.descendants(matching: .any)["workout-ai-input-text"]
@@ -421,6 +441,28 @@ final class KASANEUIRegressionTests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["ワークアウト"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.staticTexts.matching(identifier: "デッドリフト").count, 1)
+
+        let toggle = app.buttons["workout-current-exercises-toggle"]
+        for _ in 0..<4 {
+            if toggle.isHittable { break }
+            app.swipeDown()
+        }
+        XCTAssertTrue(toggle.isHittable)
+        XCTAssertEqual(toggle.label, "すべて表示（4種目）")
+        let hiddenExercise = app.buttons["current-exercise-\(workoutNoPreviousExerciseID)"]
+        XCTAssertFalse(hiddenExercise.exists)
+        toggle.tap()
+        XCTAssertEqual(toggle.label, "折りたたむ")
+        XCTAssertTrue(hiddenExercise.waitForExistence(timeout: 5))
+        hiddenExercise.tap()
+        XCTAssertTrue(app.textFields["draft-weight-input-\(workoutNoPreviousEntryID)"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["ワークアウト"].tap()
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.label, "折りたたむ")
+        XCTAssertTrue(hiddenExercise.exists)
+        toggle.tap()
+        XCTAssertEqual(toggle.label, "すべて表示（4種目）")
+        XCTAssertFalse(hiddenExercise.exists)
     }
 
     /// Foundation Modelsを呼ばず、分類済み解析エラーのAlert文言を検証する。
@@ -431,7 +473,9 @@ final class KASANEUIRegressionTests: XCTestCase {
             "--workout-ai-error-fixture",
         ])
         app.tabBars.buttons["ワークアウト"].tap()
-        app.buttons["workout-ai-quick-input-button"].tap()
+        let quickInput = app.buttons["workout-ai-quick-input-button"]
+        XCTAssertTrue(scrollToHittable(quickInput, in: app))
+        quickInput.tap()
 
         let input = app.descendants(matching: .any)["workout-ai-input-text"]
         XCTAssertTrue(input.waitForExistence(timeout: 10))
@@ -476,7 +520,11 @@ final class KASANEUIRegressionTests: XCTestCase {
             app.descendants(matching: .any)["overview-workout-count"]
                 .waitForExistence(timeout: 5)
         )
-        XCTAssertTrue(app.descendants(matching: .any)["overview-workout-count"].label.contains("2回"))
+        let workoutCount = app.descendants(matching: .any)["overview-workout-count"]
+        let countUpdated = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "2回"), object: workoutCount
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [countUpdated], timeout: 5), .completed)
         XCTAssertTrue(
             app.descendants(matching: .any)["overview-monthly-insight-card"].waitForExistence(
                 timeout: 10
@@ -579,7 +627,9 @@ final class KASANEUIRegressionTests: XCTestCase {
             "--fixture", "workout-set-layout", "--workout-ai-fixture",
         ])
         app.tabBars.buttons["ワークアウト"].tap()
-        app.buttons["workout-ai-quick-input-button"].tap()
+        let quickInput = app.buttons["workout-ai-quick-input-button"]
+        XCTAssertTrue(scrollToHittable(quickInput, in: app))
+        quickInput.tap()
         let input = app.descendants(matching: .any)["workout-ai-input-text"]
         XCTAssertTrue(input.waitForExistence(timeout: 10))
         input.tap()
