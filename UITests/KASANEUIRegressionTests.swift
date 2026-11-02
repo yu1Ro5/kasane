@@ -121,17 +121,18 @@ final class KASANEUIRegressionTests: XCTestCase {
         XCTAssertTrue(firstRow.exists)
         XCTAssertEqual(historyRows.count, originalCount)
 
-        for _ in 0..<5 {
+        for _ in 0..<originalCount {
             let row = app.buttons.matching(
                 NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
             ).firstMatch
             XCTAssertTrue(row.waitForExistence(timeout: 5))
             let identifier = row.identifier.replacingOccurrences(of: "workout-history-row-", with: "")
+            let deletedRow = app.buttons["workout-history-row-\(identifier)"]
             row.swipeLeft()
             app.buttons["delete-workout-\(identifier)"].tap()
             XCTAssertTrue(confirmationDelete.waitForExistence(timeout: 5))
             confirmationDelete.tap()
-            XCTAssertTrue(row.waitForNonExistence(timeout: 5))
+            XCTAssertTrue(deletedRow.waitForNonExistence(timeout: 5))
         }
         XCTAssertTrue(app.staticTexts["履歴がありません"].waitForExistence(timeout: 5))
     }
