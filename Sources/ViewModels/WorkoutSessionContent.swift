@@ -12,6 +12,11 @@ struct WorkoutSessionContent {
         self.exerciseEntries = Self.unique(exerciseEntries).sorted { $0.order < $1.order }
     }
 
+    /// 省略時も追加順を保ち、保存済みの種目は削除しない。
+    func visibleExerciseEntries(isExpanded: Bool) -> [ExerciseEntry] {
+        isExpanded ? exerciseEntries : Array(exerciseEntries.suffix(3))
+    }
+
     /// セッションで未記録の選択可能な種目を、名称順で返す。
     func availableExercises(from exercises: [Exercise], matching searchText: String = "") -> [Exercise] {
         let recordedExerciseIDs = Set(exerciseEntries.compactMap { $0.exercise?.id })

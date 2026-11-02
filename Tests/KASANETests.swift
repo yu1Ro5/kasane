@@ -3129,6 +3129,56 @@ final class KASANETests: XCTestCase {
         XCTAssertTrue(entry.setEntries.isEmpty)
     }
 
+    func testWorkoutContentShowsLatestThreeEntriesInAdditionOrder() {
+        let session = WorkoutSession()
+        let entries = (0..<5).map { order in
+            ExerciseEntry(
+                workoutSession: session,
+                exercise: Exercise(name: "種目\(order)", primaryBodyPart: .chest),
+                order: order
+            )
+        }
+
+        for count in [0, 1, 3, 4, 5] {
+            let input = Array(entries.prefix(count))
+            let content = WorkoutSessionContent(exerciseEntries: Array(input.reversed()))
+            XCTAssertEqual(
+                content.visibleExerciseEntries(isExpanded: false).map(\.id),
+                input.suffix(3).map(\.id), "count=\(count)"
+            )
+            XCTAssertEqual(content.visibleExerciseEntries(isExpanded: true).map(\.id), input.map(\.id))
+            XCTAssertEqual(content.exerciseEntries.count, count)
+        }
+    }
+
+    func testWorkoutContentUpdatesVisibleEntriesAfterSetsAndDeletion() {
+        let session = WorkoutSession()
+        let entries = (0..<5).map { order in
+            ExerciseEntry(
+                workoutSession: session,
+                exercise: Exercise(name: "種目\(order)", primaryBodyPart: .chest),
+                order: order
+            )
+        }
+        // セットを追加・編集しても、種目の追加順は変わらない。
+        let set = SetEntry(exerciseEntry: entries[0], order: 0, weightKg: 20, reps: 10)
+        entries[0].setEntries = [set]
+        set.weightKg = 25
+        let reused = WorkoutSessionContent(exerciseEntries: entries + [entries[0]])
+        XCTAssertEqual(reused.visibleExerciseEntries(isExpanded: false).map(\.id), entries.suffix(3).map(\.id))
+        XCTAssertEqual(reused.visibleExerciseEntries(isExpanded: true).map(\.id), entries.map(\.id))
+
+        let remaining = Array(entries.dropLast())
+        let afterDeletion = WorkoutSessionContent(exerciseEntries: remaining)
+        XCTAssertEqual(afterDeletion.visibleExerciseEntries(isExpanded: false).map(\.id), remaining.suffix(3).map(\.id))
+        XCTAssertEqual(afterDeletion.visibleExerciseEntries(isExpanded: true).count, 4)
+        XCTAssertEqual(
+            WorkoutSessionContent(exerciseEntries: Array(remaining.dropLast())).visibleExerciseEntries(
+                isExpanded: false
+            ).count, 3)
+        XCTAssertEqual(set.weightKg, 25)
+    }
+
     /// テスト概要: 全種目から現在のWorkoutで記録済みの種目を除外し、名称検索する。
     /// 期待値: 記録済みとアーカイブ済みは表示されず、検索語に部分一致する未記録種目だけが返る。
     func testWorkoutContentFiltersAvailableExercisesWithoutDuplicates() {

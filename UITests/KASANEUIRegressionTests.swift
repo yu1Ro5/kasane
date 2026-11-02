@@ -276,7 +276,7 @@ final class KASANEUIRegressionTests: XCTestCase {
         ])
         app.tabBars.buttons["ワークアウト"].tap()
         let quickInputButton = app.buttons["workout-ai-quick-input-button"]
-        XCTAssertTrue(quickInputButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(scrollToHittable(quickInputButton, in: app))
         quickInputButton.tap()
 
         let input = app.descendants(matching: .any)["workout-ai-input-text"]
@@ -421,6 +421,28 @@ final class KASANEUIRegressionTests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["ワークアウト"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.staticTexts.matching(identifier: "デッドリフト").count, 1)
+
+        let toggle = app.buttons["workout-current-exercises-toggle"]
+        for _ in 0..<4 {
+            if toggle.isHittable { break }
+            app.swipeDown()
+        }
+        XCTAssertTrue(toggle.isHittable)
+        XCTAssertEqual(toggle.label, "すべて表示（4種目）")
+        let oldestExercise = app.buttons["current-exercise-\(workoutSeatedRowExerciseID)"]
+        XCTAssertFalse(oldestExercise.exists)
+        toggle.tap()
+        XCTAssertEqual(toggle.label, "折りたたむ")
+        XCTAssertTrue(oldestExercise.waitForExistence(timeout: 5))
+        oldestExercise.tap()
+        XCTAssertTrue(app.textFields["draft-weight-input-\(workoutSeatedRowExerciseID)"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["ワークアウト"].tap()
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.label, "折りたたむ")
+        XCTAssertTrue(oldestExercise.exists)
+        toggle.tap()
+        XCTAssertEqual(toggle.label, "すべて表示（4種目）")
+        XCTAssertFalse(oldestExercise.exists)
     }
 
     /// Foundation Modelsを呼ばず、分類済み解析エラーのAlert文言を検証する。
@@ -431,7 +453,9 @@ final class KASANEUIRegressionTests: XCTestCase {
             "--workout-ai-error-fixture",
         ])
         app.tabBars.buttons["ワークアウト"].tap()
-        app.buttons["workout-ai-quick-input-button"].tap()
+        let quickInput = app.buttons["workout-ai-quick-input-button"]
+        XCTAssertTrue(scrollToHittable(quickInput, in: app))
+        quickInput.tap()
 
         let input = app.descendants(matching: .any)["workout-ai-input-text"]
         XCTAssertTrue(input.waitForExistence(timeout: 10))
@@ -579,7 +603,9 @@ final class KASANEUIRegressionTests: XCTestCase {
             "--fixture", "workout-set-layout", "--workout-ai-fixture",
         ])
         app.tabBars.buttons["ワークアウト"].tap()
-        app.buttons["workout-ai-quick-input-button"].tap()
+        let quickInput = app.buttons["workout-ai-quick-input-button"]
+        XCTAssertTrue(scrollToHittable(quickInput, in: app))
+        quickInput.tap()
         let input = app.descendants(matching: .any)["workout-ai-input-text"]
         XCTAssertTrue(input.waitForExistence(timeout: 10))
         input.tap()

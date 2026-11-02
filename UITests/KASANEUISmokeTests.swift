@@ -67,7 +67,10 @@ final class KASANEUISmokeTests: XCTestCase {
     func testWorkoutDraftPersistsAcrossNavigation() throws {
         let app = launchApp(additionalArguments: ["--fixture", "workout-set-layout"])
         app.tabBars.buttons["ワークアウト"].tap()
-        let searchField = app.searchFields["種目名を検索"]
+        let searchButton = app.buttons["workout-exercise-search-button"]
+        XCTAssertTrue(scrollToHittable(searchButton, in: app))
+        searchButton.tap()
+        let searchField = app.textFields["workout-exercise-search-field"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 5))
         searchField.tap()
         searchField.typeText("ショルダー")
