@@ -111,6 +111,7 @@ struct WorkoutSessionView: View {
                         ? AnyLayout(VStackLayout(alignment: .leading)) : AnyLayout(HStackLayout())
                     searchLayout {
                         TextField("種目名を検索", text: $searchText)
+                            .textFieldStyle(.roundedBorder)
                             .focused($isSearchFocused)
                             .task { isSearchFocused = true }
                             .frame(minHeight: 44)
@@ -135,6 +136,7 @@ struct WorkoutSessionView: View {
                         .accessibilityIdentifier("workout-exercise-search-cancel")
                     }
                     .buttonStyle(.borderless)
+                    .listRowSeparator(.hidden)
                 }
                 if availableExercises.isEmpty {
                     if searchText.isEmpty {
