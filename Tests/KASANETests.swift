@@ -3182,13 +3182,13 @@ final class KASANETests: XCTestCase {
                 .map(\.id),
             expectedIDs
         )
-        // 最初の種目へのセット追加では、種目の表示順は変わらない。
+        // 最初の種目へのセット追加で、その種目が先頭へ移動する。
         _ = try service.commitCurrentSetIfNeeded(
             draft: SetEntryDraft(weight: "25", reps: "8"), for: exercises[0], in: session)
         XCTAssertEqual(
             WorkoutSessionContent(exerciseEntries: session.exerciseEntries).visibleExerciseEntries(isExpanded: false)
                 .map(\.id),
-            expectedIDs
+            [recorded[0].id, recorded[3].id, recorded[2].id]
         )
     }
 
