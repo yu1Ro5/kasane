@@ -96,11 +96,30 @@ final class KASANEUIRegressionTests: XCTestCase {
         showAll.tap()
         let firstRow = app.buttons["workout-history-row-\(historySessionID)"]
         XCTAssertTrue(firstRow.waitForExistence(timeout: 10))
+        let historyRows = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-")
+        )
+        let originalCount = historyRows.count
+        // スワイプ操作のボタンとは区別して、確認側の「削除」を待つ。
+        let confirmationDelete = app.buttons.matching(
+            NSPredicate(format: "label == %@ AND NOT (identifier BEGINSWITH %@)", "削除", "delete-workout-")
+        ).firstMatch
         firstRow.swipeLeft()
         app.buttons["delete-workout-\(historySessionID)"].tap()
-        XCTAssertTrue(app.buttons["キャンセル"].waitForExistence(timeout: 5))
-        app.buttons["キャンセル"].tap()
+        guard confirmationDelete.waitForExistence(timeout: 5) else {
+            XCTFail("削除確認が表示されませんでした")
+            return
+        }
+        let cancel = app.buttons["キャンセル"]
+        if cancel.waitForExistence(timeout: 2) {
+            cancel.tap()
+        } else {
+            // Popover表示では、確認領域から離れた画面左下をタップして閉じる。
+            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.9)).tap()
+        }
+        XCTAssertTrue(confirmationDelete.waitForNonExistence(timeout: 5))
         XCTAssertTrue(firstRow.exists)
+        XCTAssertEqual(historyRows.count, originalCount)
 
         for _ in 0..<5 {
             let row = app.buttons.matching(
@@ -110,8 +129,8 @@ final class KASANEUIRegressionTests: XCTestCase {
             let identifier = row.identifier.replacingOccurrences(of: "workout-history-row-", with: "")
             row.swipeLeft()
             app.buttons["delete-workout-\(identifier)"].tap()
-            XCTAssertTrue(app.buttons["キャンセル"].waitForExistence(timeout: 5))
-            app.buttons["削除"].tap()
+            XCTAssertTrue(confirmationDelete.waitForExistence(timeout: 5))
+            confirmationDelete.tap()
             XCTAssertTrue(row.waitForNonExistence(timeout: 5))
         }
         XCTAssertTrue(app.staticTexts["履歴がありません"].waitForExistence(timeout: 5))
@@ -435,7 +454,7 @@ final class KASANEUIRegressionTests: XCTestCase {
         XCTAssertEqual(toggle.label, "折りたたむ")
         XCTAssertTrue(hiddenExercise.waitForExistence(timeout: 5))
         hiddenExercise.tap()
-        XCTAssertTrue(app.textFields["draft-weight-input-\(workoutNoPreviousExerciseID)"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["draft-weight-input-\(workoutNoPreviousEntryID)"].waitForExistence(timeout: 5))
         app.navigationBars.buttons["ワークアウト"].tap()
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         XCTAssertEqual(toggle.label, "折りたたむ")
@@ -500,7 +519,11 @@ final class KASANEUIRegressionTests: XCTestCase {
             app.descendants(matching: .any)["overview-workout-count"]
                 .waitForExistence(timeout: 5)
         )
-        XCTAssertTrue(app.descendants(matching: .any)["overview-workout-count"].label.contains("2回"))
+        let workoutCount = app.descendants(matching: .any)["overview-workout-count"]
+        let countUpdated = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "2回"), object: workoutCount
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [countUpdated], timeout: 5), .completed)
         XCTAssertTrue(
             app.descendants(matching: .any)["overview-monthly-insight-card"].waitForExistence(
                 timeout: 10
