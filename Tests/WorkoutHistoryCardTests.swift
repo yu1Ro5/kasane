@@ -26,6 +26,7 @@ final class WorkoutHistoryCardTests: XCTestCase {
         XCTAssertEqual(content.setCountText, "5セット")
         XCTAssertEqual(content.totalVolume, 540)
         XCTAssertEqual(content.totalVolumeText, 540.formatted(.number) + "kg")
+        XCTAssertEqual(content.compactDurationText, "52分")
 
         let empty = try XCTUnwrap(WorkoutHistoryRowContent(session: session, exerciseEntries: []))
         XCTAssertEqual(empty.setCountText, "0セット")
@@ -97,6 +98,18 @@ final class WorkoutHistoryCardTests: XCTestCase {
         XCTAssertEqual(calendar.component(.day, from: content.startedAt), 3)
         XCTAssertEqual(calendar.component(.day, from: content.completedAt), 4)
         XCTAssertEqual(content.durationText, "1時間0分")
+        XCTAssertEqual(content.compactDurationText, "60分")
+    }
+
+    /// 履歴一覧では1行に収めるため、時間は分単位に短縮する。
+    func testWorkoutHistoryCompactDurationForLongWorkout() throws {
+        let session = WorkoutSession(
+            startedAt: Date(timeIntervalSince1970: 1_000),
+            endedAt: Date(timeIntervalSince1970: 5_200)
+        )
+        let content = try XCTUnwrap(WorkoutHistoryRowContent(session: session))
+        XCTAssertEqual(content.durationText, "1時間10分")
+        XCTAssertEqual(content.compactDurationText, "70分")
     }
 
 }
