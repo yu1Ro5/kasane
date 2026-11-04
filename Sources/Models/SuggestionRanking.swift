@@ -42,7 +42,7 @@ enum SuggestionRanking {
             if left.count != right.count { return left.count > right.count }
             return lhs < rhs
         }
-        let historicalPrevious = recent.lazy.compactMap { $0.values.last(where: isValid) }.first
+        let historicalPrevious = recent.compactMap { $0.values.last(where: isValid) }.first
         let previous = currentPrevious.flatMap { isValid($0) ? $0 : nil } ?? historicalPrevious
         var result: [Value] = []
         if let previous { result.append(previous) }
