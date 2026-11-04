@@ -31,7 +31,7 @@ final class KASANEUIVisualEdgeCaseTests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["overview-calendar"].exists)
-        XCTAssertTrue(app.staticTexts["種目の記録"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["最近の種目"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any)["overview-monthly-insight-card"].exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
@@ -58,15 +58,20 @@ final class KASANEUIVisualEdgeCaseTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
 
-        // 撮影位置を維持したまま、遅延生成される下部のセクションも検証する。
-        XCTAssertTrue(scrollToHittable(app.staticTexts["種目の記録"], in: app))
+        let historyLink = app.buttons["overview-all-workouts"]
+        XCTAssertTrue(scrollToHittable(historyLink, in: app))
+        let calendarAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        calendarAttachment.name = "overview-calendar-dark-mode"
+        calendarAttachment.lifetime = .keepAlways
+        add(calendarAttachment)
+        XCTAssertTrue(scrollToHittable(app.staticTexts["最近の種目"], in: app))
     }
 
     @MainActor
     func testOverviewDynamicTypeScreenshot() throws {
         let app = launchApp(additionalArguments: [
             "--fixture", "overview-recent-workouts",
-            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityLarge",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL",
         ])
 
         XCTAssertTrue(
@@ -79,8 +84,13 @@ final class KASANEUIVisualEdgeCaseTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
 
-        // 撮影位置を維持したまま、遅延生成される下部のセクションも検証する。
-        XCTAssertTrue(scrollToHittable(app.staticTexts["種目の記録"], in: app))
+        let historyLink = app.buttons["overview-all-workouts"]
+        XCTAssertTrue(scrollToHittable(historyLink, in: app))
+        let calendarAttachment = XCTAttachment(screenshot: takeStableScreenshot(app))
+        calendarAttachment.name = "overview-calendar-dynamic-type"
+        calendarAttachment.lifetime = .keepAlways
+        add(calendarAttachment)
+        XCTAssertTrue(scrollToHittable(app.staticTexts["最近の種目"], in: app))
     }
 
     @MainActor

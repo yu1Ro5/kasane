@@ -27,7 +27,7 @@ struct ExerciseOverviewCardContent: Identifiable, Equatable {
         var components = [
             exerciseName,
             "現在のベスト \(spokenBestWeight)",
-            "最終実施日 \(latestCompletedAt.formatted(.dateTime.month().day()))",
+            "前回 \(latestCompletedAt.formatted(.dateTime.month().day()))",
         ]
         if isLatestPersonalRecord { components.append("自己ベスト") }
         guard showsWeightSparkline else { return components.joined(separator: "、") }

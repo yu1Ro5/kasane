@@ -3,7 +3,15 @@ import SwiftData
 
 /// Overviewに必要なWorkoutを、表示・集計対象へ限定して取得する。
 enum OverviewWorkoutLoader {
-    /// Overviewに表示する最近のWorkout件数。
+    /// カレンダーと同じ開始日の境界で完了履歴を絞り、既存の並び順を保つ。
+    static func sessions(_ sessions: [WorkoutSession], on date: Date?, calendar: Calendar) -> [WorkoutSession] {
+        sessions.filter { session in
+            session.endedAt != nil
+                && (date.map { calendar.isDate(session.startedAt, inSameDayAs: $0) } ?? true)
+        }
+    }
+
+    /// 最近のWorkout取得件数。
     static let recentWorkoutLimit = 3
 
     /// 種目カード用に全ExerciseEntryと直接参照する関連を一度に取得する。
