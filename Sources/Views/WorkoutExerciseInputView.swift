@@ -165,23 +165,17 @@ struct WorkoutExerciseInputView: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     if focusedInput != nil {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(inputSuggestions, id: \.self) { value in
-                                    Button(value) { applySuggestion(value) }
-                                        .font(.caption)
-                                        .accessibilityLabel(focusedInput?.isReps == true ? "\(value)回" : "\(value) kg")
-                                        .accessibilityIdentifier(
-                                            "\(focusedInput?.isReps == true ? "rep" : "weight")-suggestion-\(value)"
-                                        )
-                                }
-                            }
+                        ForEach(inputSuggestions, id: \.self) { value in
+                            Button(value) { applySuggestion(value) }
+                                .font(.caption)
+                                .accessibilityLabel(focusedInput?.isReps == true ? "\(value)回" : "\(value) kg")
+                                .accessibilityIdentifier(
+                                    "\(focusedInput?.isReps == true ? "rep" : "weight")-suggestion-\(value)"
+                                )
                         }
-                        .accessibilityIdentifier("workout-suggestions")
+                        Spacer()
                         Button("次へ") { advanceFocus(using: proxy) }
-                            .fixedSize()
                         Button("完了") { focusedInput = nil }
-                            .fixedSize()
                     }
                 }
             }
