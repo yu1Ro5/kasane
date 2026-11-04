@@ -245,6 +245,12 @@ final class KASANEUIRegressionTests: XCTestCase {
         XCTAssertFalse(app.buttons["rep-suggestion-10"].exists)
         XCTAssertEqual(draftWeight.value as? String, "0")
         XCTAssertTrue(app.buttons["weight-suggestion-42.5"].waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "weight-suggestion-")).count,
+            4
+        )
+        XCTAssertLessThan(app.buttons["weight-suggestion-42.5"].frame.minX,
+                          app.buttons["weight-suggestion-40"].frame.minX)
         app.buttons["weight-suggestion-42.5"].tap()
         XCTAssertEqual(draftWeight.value as? String, "42.5")
         XCTAssertTrue(app.buttons["次へ"].exists)
@@ -255,8 +261,17 @@ final class KASANEUIRegressionTests: XCTestCase {
         for reps in [10, 8, 12, 15] {
             XCTAssertTrue(app.buttons["rep-suggestion-\(reps)"].waitForExistence(timeout: 5))
         }
+        XCTAssertEqual(
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "rep-suggestion-")).count,
+            4
+        )
+        XCTAssertLessThan(app.buttons["rep-suggestion-8"].frame.minX,
+                          app.buttons["rep-suggestion-10"].frame.minX)
+        let suggestions = app.scrollViews["workout-suggestions"]
+        if !app.buttons["rep-suggestion-12"].isHittable { suggestions.swipeLeft() }
         app.buttons["rep-suggestion-12"].tap()
         XCTAssertEqual(draftReps.value as? String, "12")
+        if !app.buttons["rep-suggestion-10"].isHittable { suggestions.swipeRight() }
         app.buttons["rep-suggestion-10"].tap()
         XCTAssertEqual(draftReps.value as? String, "10")
 
@@ -265,6 +280,7 @@ final class KASANEUIRegressionTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(savedReps.exists)
         savedReps.tap()
+        if !app.buttons["rep-suggestion-12"].isHittable { suggestions.swipeLeft() }
         app.buttons["rep-suggestion-12"].tap()
         XCTAssertEqual(savedReps.value as? String, "12")
         XCTAssertEqual(draftReps.value as? String, "10")

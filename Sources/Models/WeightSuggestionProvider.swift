@@ -1,25 +1,42 @@
 import Foundation
 
-/// 重量候補を1件返す。候補の算出では入力や保存済み記録を変更しない。
+typealias WeightSuggestionWorkout = SuggestionWorkout<Double>
+
 enum WeightSuggestionProvider {
-    static func suggestion(
+    static let defaultSuggestions: [Double] = [
+        5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 120, 140, 160, 180, 200,
+    ]
+
+    static func suggestions(
+        for exerciseID: UUID,
+        currentSessionID: UUID,
+        workouts: [WeightSuggestionWorkout],
         at setIndex: Int,
         currentSets: [SetEntryDraft],
-        previousWeights: [Double],
         decimalSeparator: String = Locale.current.decimalSeparator ?? "."
-    ) -> String? {
-        guard setIndex >= 0, setIndex <= currentSets.count else { return nil }
-        let weight: Double
-        if setIndex > 0 {
-            // 回数の入力状態に依存せず、既存の重量入力ルールで検証する。
-            let previous = SetEntryDraft(weight: currentSets[setIndex - 1].weight, reps: "1")
-            guard let values = previous.values(decimalSeparator: decimalSeparator) else { return nil }
-            weight = values.weight
-        } else {
-            guard let previous = previousWeights.last(where: { $0.isFinite && $0 >= 0 }) else { return nil }
-            weight = previous
+    ) -> [String] {
+        guard setIndex >= 0 && setIndex <= currentSets.count else { return [] }
+        let previous = currentSets.prefix(setIndex).reversed().compactMap { draft -> Double? in
+            SetEntryDraft(weight: draft.weight, reps: "1").values(decimalSeparator: decimalSeparator)?.weight
+        }.first
+        let weights = SuggestionRanking.suggestions(
+            for: exerciseID,
+            currentSessionID: currentSessionID,
+            workouts: workouts,
+            currentPrevious: previous,
+            defaults: defaultSuggestions,
+            isValid: { $0.isFinite && $0 >= 0 },
+            sortedDefaults: { previous in
+                defaultSuggestions.sorted {
+                    let left = abs($0 - previous)
+                    let right = abs($1 - previous)
+                    return left == right ? $0 < $1 : left < right
+                }
+            }
+        )
+        return weights.map {
+            WorkoutSetDisplayFormatter.editableWeightValue($0)
+                .replacingOccurrences(of: ".", with: decimalSeparator)
         }
-        return WorkoutSetDisplayFormatter.editableWeightValue(weight)
-            .replacingOccurrences(of: ".", with: decimalSeparator)
     }
 }

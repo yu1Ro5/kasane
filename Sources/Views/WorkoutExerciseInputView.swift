@@ -39,35 +39,26 @@ struct WorkoutExerciseInputView: View {
         )
     }
 
-    private var repSuggestions: [Int] {
-        var workouts: [RepSuggestionWorkout] = []
-        for workout in observedSessions where workout.endedAt != nil && workout.id != session.id {
-            guard
-                let exerciseEntry = workout.exerciseEntries.first(where: {
-                    $0.exercise?.id == exercise.id
-                })
-            else { continue }
-            workouts.append(
-                RepSuggestionWorkout(
-                    sessionID: workout.id,
-                    startedAt: workout.startedAt,
-                    endedAt: workout.endedAt,
-                    exerciseID: exercise.id,
-                    reps: exerciseEntry.setEntries.map(\.reps)
-                )
-            )
-            if workouts.count == 20 { break }
+    private var recentExerciseHistory: [(session: WorkoutSession, sets: [SetEntry])] {
+        let entries = observedExerciseEntries.filter { $0.exercise?.id == exercise.id }
+        return observedSessions.filter { workout in
+            workout.endedAt != nil && workout.id != session.id
+                && entries.contains(where: { $0.workoutSession?.id == workout.id })
+        }.sorted {
+            if $0.startedAt != $1.startedAt { return $0.startedAt > $1.startedAt }
+            return $0.id.uuidString < $1.id.uuidString
+        }.prefix(10).compactMap { workout in
+            guard let exerciseEntry = entries.first(where: { $0.workoutSession?.id == workout.id }) else {
+                return nil
+            }
+            let sets = observedSetEntries.filter { $0.exerciseEntry?.id == exerciseEntry.id }
+                .sorted { $0.order < $1.order }
+            return (workout, sets)
         }
-        return RepSuggestionProvider.suggestions(
-            for: exercise.id,
-            currentSessionID: session.id,
-            workouts: workouts
-        )
     }
 
     private var inputSuggestions: [String] {
         guard let focusedInput, focusedInput.exerciseID == inputIdentity else { return [] }
-        if focusedInput.isReps { return repSuggestions.map(String.init) }
         let index: Int
         if let identity = focusedInput.savedSetIdentity {
             guard let savedIndex = setEntries.firstIndex(where: { $0.id == identity.setID }) else { return [] }
@@ -75,15 +66,31 @@ struct WorkoutExerciseInputView: View {
         } else {
             index = setEntries.count
         }
-        let weights = setEntries.map { editDrafts[$0.id] ?? .savedValues(from: $0) }
-        guard
-            let suggestion = WeightSuggestionProvider.suggestion(
-                at: index,
-                currentSets: weights,
-                previousWeights: previousRecord?.setEntries.map(\.weightKg) ?? []
+        let currentSets = setEntries.map { editDrafts[$0.id] ?? .savedValues(from: $0) }
+        if focusedInput.isReps {
+            let workouts = recentExerciseHistory.map { item in
+                RepSuggestionWorkout(
+                    sessionID: item.session.id, startedAt: item.session.startedAt,
+                    endedAt: item.session.endedAt, exerciseID: exercise.id,
+                    values: item.sets.map(\.reps)
+                )
+            }
+            return RepSuggestionProvider.suggestions(
+                for: exercise.id, currentSessionID: session.id, workouts: workouts,
+                at: index, currentSets: currentSets
+            ).map(String.init)
+        }
+        let workouts = recentExerciseHistory.map { item in
+            WeightSuggestionWorkout(
+                sessionID: item.session.id, startedAt: item.session.startedAt,
+                endedAt: item.session.endedAt, exerciseID: exercise.id,
+                values: item.sets.map(\.weightKg)
             )
-        else { return [] }
-        return [suggestion]
+        }
+        return WeightSuggestionProvider.suggestions(
+            for: exercise.id, currentSessionID: session.id, workouts: workouts,
+            at: index, currentSets: currentSets
+        )
     }
 
     var body: some View {
@@ -158,17 +165,23 @@ struct WorkoutExerciseInputView: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     if focusedInput != nil {
-                        ForEach(inputSuggestions, id: \.self) { value in
-                            Button(value) { applySuggestion(value) }
-                                .font(.caption)
-                                .accessibilityLabel(focusedInput?.isReps == true ? "\(value)回" : "\(value) kg")
-                                .accessibilityIdentifier(
-                                    "\(focusedInput?.isReps == true ? "rep" : "weight")-suggestion-\(value)"
-                                )
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(inputSuggestions, id: \.self) { value in
+                                    Button(value) { applySuggestion(value) }
+                                        .font(.caption)
+                                        .accessibilityLabel(focusedInput?.isReps == true ? "\(value)回" : "\(value) kg")
+                                        .accessibilityIdentifier(
+                                            "\(focusedInput?.isReps == true ? "rep" : "weight")-suggestion-\(value)"
+                                        )
+                                }
+                            }
                         }
-                        Spacer()
+                        .accessibilityIdentifier("workout-suggestions")
                         Button("次へ") { advanceFocus(using: proxy) }
+                            .fixedSize()
                         Button("完了") { focusedInput = nil }
+                            .fixedSize()
                     }
                 }
             }
