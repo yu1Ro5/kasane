@@ -335,6 +335,7 @@ private struct BackupPreviewView: View {
                 }
             }
             .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("キャンセル", action: onCancel)
