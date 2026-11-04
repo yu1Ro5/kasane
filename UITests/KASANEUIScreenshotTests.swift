@@ -34,7 +34,11 @@ final class KASANEUIScreenshotTests: XCTestCase {
         let historyRow = app.buttons["workout-history-row-\(overviewNewestSessionID)"]
         XCTAssertTrue(historyRow.waitForExistence(timeout: 10))
         XCTAssertEqual(historyRows.count, 5)
-        XCTAssertTrue(historyRow.label.contains("ベンチプレス、ラットプルダウン"))
+        // smart-startの最新Workoutは胸（ベンチプレス）と背中（ラットプルダウン）。
+        // 履歴一覧は種目名でなく記録時の部位を表示する。
+        XCTAssertTrue(historyRow.label.contains("胸・背中"))
+        XCTAssertTrue(historyRow.label.contains("2種目"))
+        XCTAssertFalse(historyRow.label.contains("ベンチプレス、ラットプルダウン"))
         addScreenshot(named: "workout-history", of: app)
 
         historyRow.tap()
