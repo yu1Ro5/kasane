@@ -3,14 +3,15 @@ import SwiftUI
 
 struct WorkoutHistoryView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(
-        filter: #Predicate<WorkoutSession> { $0.endedAt != nil },
-        sort: \WorkoutSession.endedAt,
-        order: .reverse
-    ) private var completedSessions: [WorkoutSession]
+    @Query private var completedSessions: [WorkoutSession]
     @Query(sort: \ExerciseEntry.order) private var observedExerciseEntries: [ExerciseEntry]
     @State private var sessionPendingDeletion: WorkoutSession?
     @State private var deletionErrorMessage: String?
+
+    init() {
+        // カレンダーと同じ開始日基準で並べ、同一時刻はID順で安定させる。
+        _completedSessions = Query(OverviewWorkoutLoader.dashboardDescriptor)
+    }
 
     var body: some View {
         let entriesBySession = Dictionary(grouping: observedExerciseEntries) { $0.workoutSession?.id }
@@ -30,7 +31,7 @@ struct WorkoutHistoryView: View {
                         NavigationLink(value: OverviewRoute.workoutDetail(session.id)) {
                             WorkoutHistoryRow(content: content)
                         }
-                        .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14))
+                        .listRowInsets(EdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14))
                         .listRowSeparator(.hidden)
                         .listRowBackground(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -49,7 +50,7 @@ struct WorkoutHistoryView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
-                .listRowSpacing(8)
+                .listRowSpacing(6)
             }
         }
         .navigationTitle("履歴")
@@ -96,57 +97,169 @@ struct WorkoutHistoryView: View {
 
 struct WorkoutHistoryRow: View {
     let content: WorkoutHistoryRowContent
+    /// 種目名検索の結果では、検索した種目が分かるよう従来の要約を残す。
+    var showsExerciseSummary = false
 
+    @Environment(\.calendar) private var calendar
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(content.completedAt, format: .dateTime.month().day())
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                Text(content.completedAt, format: .dateTime.hour().minute())
-                    .font(.subheadline.weight(.regular))
-                    .foregroundStyle(.secondary)
+        Group {
+            if showsExerciseSummary || dynamicTypeSize.isAccessibilitySize {
+                expandedLayout
+            } else {
+                compactLayout
             }
-            Text(content.exerciseSummary.isEmpty ? "ワークアウト" : content.exerciseSummary)
-                .font(.subheadline.weight(.regular))
-                .foregroundStyle(.primary)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                .fixedSize(horizontal: false, vertical: true)
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) {
-                    Text(content.durationText)
-                    Text(content.exerciseCountText)
-                    Text(content.setCountText)
-                    Text(content.totalVolumeText)
-                }
-                .fixedSize(horizontal: true, vertical: false)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(content.durationText)
-                    Text(content.exerciseCountText)
-                    Text(content.setCountText)
-                    Text(content.totalVolumeText)
-                }
-            }
-            .font(.caption.weight(.regular))
-            .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "\(content.completedAt.formatted(.dateTime.year().month().day().hour().minute()))、"
-                + "\(content.exerciseSummary)、所要時間\(content.durationText)、"
-                + "\(content.exerciseCountText)、\(content.setCountText)、総Volume\(content.totalVolumeText)"
+            "\(content.startedAt.formatted(.dateTime.year().month().day()))、"
+                + "\(secondaryText)、所要時間\(content.compactDurationText)、"
+                + "\(content.exerciseCountText)"
         )
+    }
+
+    /// 通常の履歴は1行に固定。日付・時間・種目数を確保し、部位名だけ省略する。
+    private var compactLayout: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(compactDateText)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: true, vertical: false)
+
+            Text(secondaryText)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(content.compactDurationText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: true, vertical: false)
+
+            Text(content.exerciseCountText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .frame(minHeight: 32)
+    }
+
+    /// アクセシビリティと種目名検索では、内容を読めるよう縦に広げる。
+    private var expandedLayout: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(content.startedAt, format: .dateTime.month().day())
+                .font(.headline)
+                .foregroundStyle(.primary)
+
+            Text(secondaryText)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                Text(content.compactDurationText)
+                Text("・")
+                Text(content.exerciseCountText)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var compactDateText: String {
+        "\(calendar.component(.month, from: content.startedAt))/\(calendar.component(.day, from: content.startedAt))"
+    }
+
+    private var secondaryText: String {
+        if showsExerciseSummary {
+            return content.exerciseSummary.isEmpty ? "ワークアウト" : content.exerciseSummary
+        }
+        return content.bodyPartSummary
     }
 }
 
 #Preview {
-    NavigationStack {
-        WorkoutHistoryView()
+    makeWorkoutHistoryPreview()
+}
+
+@MainActor
+@ViewBuilder
+private func makeWorkoutHistoryPreview() -> some View {
+    let container = Result {
+        let container = try ModelContainer(
+            for: WorkoutSession.self,
+            Exercise.self,
+            ExerciseEntry.self,
+            SetEntry.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        try insertWorkoutHistoryPreviewData(into: container.mainContext)
+        return container
     }
-    .modelContainer(
-        for: [WorkoutSession.self, Exercise.self, ExerciseEntry.self, SetEntry.self],
-        inMemory: true
+
+    switch container {
+    case .success(let container):
+        NavigationStack {
+            WorkoutHistoryView()
+        }
+        .modelContainer(container)
+    case .failure(let error):
+        ContentUnavailableView(
+            "プレビューを表示できません",
+            systemImage: "exclamationmark.triangle",
+            description: Text(error.localizedDescription)
+        )
+    }
+}
+
+@MainActor
+private func insertWorkoutHistoryPreviewData(into context: ModelContext) throws {
+    let now = Date.now
+    let benchPress = Exercise(name: "ベンチプレス", primaryBodyPart: .chest)
+    let shoulderPress = Exercise(name: "ショルダープレス", primaryBodyPart: .shoulders)
+    let squat = Exercise(name: "スクワット", primaryBodyPart: .legs)
+    let deadlift = Exercise(name: "デッドリフト", primaryBodyPart: .back)
+    let exercises = [benchPress, shoulderPress, squat, deadlift]
+
+    let sessions = [
+        makeWorkoutHistoryPreviewSession(
+            startedAt: now.addingTimeInterval(-86_400),
+            duration: 3_300,
+            exercises: [benchPress, shoulderPress]
+        ),
+        makeWorkoutHistoryPreviewSession(
+            startedAt: now.addingTimeInterval(-4 * 86_400),
+            duration: 2_700,
+            exercises: [squat]
+        ),
+        makeWorkoutHistoryPreviewSession(
+            startedAt: now.addingTimeInterval(-9 * 86_400),
+            duration: 4_200,
+            exercises: [deadlift, squat]
+        ),
+    ]
+
+    exercises.forEach(context.insert)
+    sessions.forEach(context.insert)
+    try context.save()
+}
+
+private func makeWorkoutHistoryPreviewSession(
+    startedAt: Date,
+    duration: TimeInterval,
+    exercises: [Exercise]
+) -> WorkoutSession {
+    let session = WorkoutSession(
+        startedAt: startedAt,
+        endedAt: startedAt.addingTimeInterval(duration)
     )
+    session.exerciseEntries = exercises.enumerated().map { order, exercise in
+        ExerciseEntry(workoutSession: session, exercise: exercise, order: order)
+    }
+    return session
 }

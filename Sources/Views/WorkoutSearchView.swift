@@ -39,7 +39,7 @@ struct WorkoutSearchView: View {
                         }
                     ) {
                         NavigationLink(value: OverviewRoute.workoutDetail(session.id)) {
-                            WorkoutHistoryRow(content: content)
+                            WorkoutHistoryRow(content: content, showsExerciseSummary: true)
                         }
                         .accessibilityIdentifier(
                             "workout-search-result-row-\(session.id.uuidString)"
