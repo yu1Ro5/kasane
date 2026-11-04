@@ -50,7 +50,7 @@ struct WorkoutHistoryView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
-                .listRowSpacing(8)
+                .listRowSpacing(6)
             }
         }
         .navigationTitle("履歴")
@@ -184,11 +184,82 @@ struct WorkoutHistoryRow: View {
 }
 
 #Preview {
-    NavigationStack {
-        WorkoutHistoryView()
+    makeWorkoutHistoryPreview()
+}
+
+@MainActor
+@ViewBuilder
+private func makeWorkoutHistoryPreview() -> some View {
+    let container = Result {
+        let container = try ModelContainer(
+            for: WorkoutSession.self,
+            Exercise.self,
+            ExerciseEntry.self,
+            SetEntry.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        try insertWorkoutHistoryPreviewData(into: container.mainContext)
+        return container
     }
-    .modelContainer(
-        for: [WorkoutSession.self, Exercise.self, ExerciseEntry.self, SetEntry.self],
-        inMemory: true
+
+    switch container {
+    case .success(let container):
+        NavigationStack {
+            WorkoutHistoryView()
+        }
+        .modelContainer(container)
+    case .failure(let error):
+        ContentUnavailableView(
+            "プレビューを表示できません",
+            systemImage: "exclamationmark.triangle",
+            description: Text(error.localizedDescription)
+        )
+    }
+}
+
+@MainActor
+private func insertWorkoutHistoryPreviewData(into context: ModelContext) throws {
+    let now = Date.now
+    let benchPress = Exercise(name: "ベンチプレス", primaryBodyPart: .chest)
+    let shoulderPress = Exercise(name: "ショルダープレス", primaryBodyPart: .shoulders)
+    let squat = Exercise(name: "スクワット", primaryBodyPart: .legs)
+    let deadlift = Exercise(name: "デッドリフト", primaryBodyPart: .back)
+    let exercises = [benchPress, shoulderPress, squat, deadlift]
+
+    let sessions = [
+        makeWorkoutHistoryPreviewSession(
+            startedAt: now.addingTimeInterval(-86_400),
+            duration: 3_300,
+            exercises: [benchPress, shoulderPress]
+        ),
+        makeWorkoutHistoryPreviewSession(
+            startedAt: now.addingTimeInterval(-4 * 86_400),
+            duration: 2_700,
+            exercises: [squat]
+        ),
+        makeWorkoutHistoryPreviewSession(
+            startedAt: now.addingTimeInterval(-9 * 86_400),
+            duration: 4_200,
+            exercises: [deadlift, squat]
+        ),
+    ]
+
+    exercises.forEach(context.insert)
+    sessions.forEach(context.insert)
+    try context.save()
+}
+
+private func makeWorkoutHistoryPreviewSession(
+    startedAt: Date,
+    duration: TimeInterval,
+    exercises: [Exercise]
+) -> WorkoutSession {
+    let session = WorkoutSession(
+        startedAt: startedAt,
+        endedAt: startedAt.addingTimeInterval(duration)
     )
+    session.exerciseEntries = exercises.enumerated().map { order, exercise in
+        ExerciseEntry(workoutSession: session, exercise: exercise, order: order)
+    }
+    return session
 }
