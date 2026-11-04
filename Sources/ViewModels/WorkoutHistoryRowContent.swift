@@ -1,9 +1,11 @@
 import Foundation
 
 struct WorkoutHistoryRowContent {
+    let startedAt: Date
     let completedAt: Date
     let duration: TimeInterval
     let exerciseNames: [String]
+    let bodyPartNames: [String]
     let setCount: Int
     let totalVolume: Double
 
@@ -11,16 +13,29 @@ struct WorkoutHistoryRowContent {
         guard let endedAt = session.endedAt else { return nil }
 
         let entries = exerciseEntries ?? session.exerciseEntries
+        let orderedEntries = entries.sorted {
+            if $0.order != $1.order { return $0.order < $1.order }
+            return $0.id.uuidString < $1.id.uuidString
+        }
         let sets = entries.flatMap(\.setEntries)
         setCount = sets.count
+        startedAt = session.startedAt
         completedAt = endedAt
         duration = max(endedAt.timeIntervalSince(session.startedAt), 0)
-        exerciseNames = entries
-            .sorted { $0.order < $1.order }
-            .map(\.exerciseNameSnapshot)
+        exerciseNames = orderedEntries.map(\.exerciseNameSnapshot)
+        var seenBodyParts = Set<BodyPart>()
+        bodyPartNames = orderedEntries.compactMap { entry in
+            let bodyPart = entry.bodyPartSnapshot
+            return seenBodyParts.insert(bodyPart).inserted ? bodyPart.displayName : nil
+        }
         totalVolume = sets.reduce(0) {
             $0 + max($1.weightKg, 0) * Double(max($1.reps, 0))
         }
+    }
+
+    /// 実施順に並べた主対象部位。重複はなく、省略せずすべて表示する。
+    var bodyPartSummary: String {
+        bodyPartNames.isEmpty ? "部位の記録なし" : bodyPartNames.joined(separator: "・")
     }
 
     var exerciseSummary: String {
