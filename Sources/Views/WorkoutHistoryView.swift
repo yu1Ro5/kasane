@@ -31,7 +31,7 @@ struct WorkoutHistoryView: View {
                         NavigationLink(value: OverviewRoute.workoutDetail(session.id)) {
                             WorkoutHistoryRow(content: content)
                         }
-                        .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14))
+                        .listRowInsets(EdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14))
                         .listRowSeparator(.hidden)
                         .listRowBackground(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -97,59 +97,82 @@ struct WorkoutHistoryView: View {
 
 struct WorkoutHistoryRow: View {
     let content: WorkoutHistoryRowContent
-    /// 種目名検索の結果では、検索した種目が一覧から分かるよう従来の要約を残す。
+    /// 種目名検索の結果では、検索した種目が分かるよう従来の要約を残す。
     var showsExerciseSummary = false
 
+    @Environment(\.calendar) private var calendar
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            Image(systemName: "calendar")
-                .font(.title3)
-                .foregroundStyle(.tint)
-                .frame(width: 48, height: 48)
-                .background(
-                    Color.accentColor.opacity(0.12),
-                    in: RoundedRectangle(cornerRadius: 13, style: .continuous)
-                )
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(content.startedAt, format: .dateTime.month().day())
-                    .font(.title3.bold())
-                    .foregroundStyle(.primary)
-
-                Text(secondaryText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label(content.durationText, systemImage: "clock")
-                        Text(content.exerciseCountText)
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                } else {
-                    HStack(spacing: 8) {
-                        Label(content.durationText, systemImage: "clock")
-                        Text("・")
-                        Text(content.exerciseCountText)
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
+        Group {
+            if showsExerciseSummary || dynamicTypeSize.isAccessibilitySize {
+                expandedLayout
+            } else {
+                compactLayout
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 6)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "\(content.startedAt.formatted(.dateTime.year().month().day()))、"
-                + "\(secondaryText)、所要時間\(content.durationText)、"
+                + "\(secondaryText)、所要時間\(content.compactDurationText)、"
                 + "\(content.exerciseCountText)"
         )
+    }
+
+    /// 通常の履歴は1行に固定。日付・時間・種目数を確保し、部位名だけ省略する。
+    private var compactLayout: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(compactDateText)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: true, vertical: false)
+
+            Text(secondaryText)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(content.compactDurationText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: true, vertical: false)
+
+            Text(content.exerciseCountText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .frame(minHeight: 32)
+    }
+
+    /// アクセシビリティと種目名検索では、内容を読めるよう縦に広げる。
+    private var expandedLayout: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(content.startedAt, format: .dateTime.month().day())
+                .font(.headline)
+                .foregroundStyle(.primary)
+
+            Text(secondaryText)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                Text(content.compactDurationText)
+                Text("・")
+                Text(content.exerciseCountText)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var compactDateText: String {
+        "\(calendar.component(.month, from: content.startedAt))/\(calendar.component(.day, from: content.startedAt))"
     }
 
     private var secondaryText: String {
