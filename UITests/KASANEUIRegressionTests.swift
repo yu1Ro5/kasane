@@ -18,11 +18,11 @@ final class KASANEUIRegressionTests: XCTestCase {
         XCTAssertTrue(app.buttons["backup-import"].exists)
     }
 
-    /// 最近のワークアウトから詳細を開き、概要へ戻れることを確認する。
+    /// カレンダーの日付から詳細を開き、概要へ戻れることを確認する。
     @MainActor
-    func testOverviewRecentWorkoutOpensDetail() throws {
+    func testOverviewCalendarDayOpensDetail() throws {
         let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
-        let recentRow = app.buttons["overview-recent-workout-row-\(overviewNewestSessionID)"]
+        let recentRow = app.buttons["overview-calendar-day-5"]
         XCTAssertTrue(scrollToHittable(recentRow, in: app))
         recentRow.tap()
         XCTAssertTrue(
@@ -31,6 +31,47 @@ final class KASANEUIRegressionTests: XCTestCase {
 
         app.navigationBars["ワークアウト詳細"].buttons["概要"].tap()
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
+    }
+
+    /// 同日複数件だけが表示され、各詳細から戻った後も日付フィルタを保つ。
+    @MainActor
+    func testOverviewCalendarMultipleWorkoutsAndAllHistory() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "overview-calendar"])
+        let day = app.buttons["overview-calendar-day-5"]
+        XCTAssertTrue(scrollToHittable(day, in: app))
+        XCTAssertEqual(day.value as? String, "トレーニング2件")
+        day.tap()
+        XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
+        let ids = [overviewNewestSessionID, "40000000-0000-4000-8000-000000000007"]
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "workout-history-row-"))
+        XCTAssertEqual(rows.count, 2)
+        for id in ids {
+            app.buttons["workout-history-row-\(id)"].tap()
+            XCTAssertTrue(app.descendants(matching: .any)["workout-detail-view"].waitForExistence(timeout: 10))
+            app.navigationBars["ワークアウト詳細"].buttons["履歴"].tap()
+            XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
+            XCTAssertEqual(rows.count, 2)
+        }
+        app.navigationBars["履歴"].buttons["概要"].tap()
+        let all = app.buttons["overview-all-workouts"]
+        XCTAssertTrue(scrollToHittable(all, in: app))
+        all.tap()
+        XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
+        XCTAssertEqual(rows.count, 6)
+    }
+
+    /// 未実施日は操作できず、空の概要からも全件履歴へ移動できる。
+    @MainActor
+    func testOverviewCalendarEmptyHistory() throws {
+        let app = launchApp()
+        let all = app.buttons["overview-all-workouts"]
+        XCTAssertTrue(scrollToHittable(all, in: app))
+        XCTAssertFalse(
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "overview-calendar-day-")).firstMatch
+                .exists)
+        XCTAssertFalse(app.staticTexts["最近のワークアウト"].exists)
+        all.tap()
+        XCTAssertTrue(app.staticTexts["履歴がありません"].waitForExistence(timeout: 10))
     }
 
     /// 検索結果の詳細を表示した後も検索語を保持することを確認する。
@@ -69,7 +110,7 @@ final class KASANEUIRegressionTests: XCTestCase {
 
         let showAllButton = app.buttons["overview-all-workouts"]
         XCTAssertTrue(scrollToHittable(showAllButton, in: app))
-        XCTAssertEqual(showAllButton.label, "すべてのワークアウトを表示")
+        XCTAssertEqual(showAllButton.label, "すべての履歴を見る")
         showAllButton.tap()
         XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))
 
@@ -92,7 +133,7 @@ final class KASANEUIRegressionTests: XCTestCase {
         let app = launchApp(additionalArguments: ["--fixture", "workout-history"])
         let showAll = app.buttons["overview-all-workouts"]
         XCTAssertTrue(scrollToHittable(showAll, in: app))
-        XCTAssertEqual(showAll.label, "すべてのワークアウトを表示")
+        XCTAssertEqual(showAll.label, "すべての履歴を見る")
         showAll.tap()
         let firstRow = app.buttons["workout-history-row-\(historySessionID)"]
         XCTAssertTrue(firstRow.waitForExistence(timeout: 10))
@@ -512,7 +553,7 @@ final class KASANEUIRegressionTests: XCTestCase {
         let app = launchApp(additionalArguments: ["--fixture", "overview-previous-month"])
 
         XCTAssertTrue(app.descendants(matching: .any)["overview-workout-count"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["最近のワークアウト"].exists)
+        XCTAssertFalse(app.staticTexts["最近のワークアウト"].exists)
         XCTAssertTrue(app.staticTexts["デッドリフト"].exists)
         let monthSelector = app.descendants(matching: .any)["overview-month-selector"]
         XCTAssertTrue(monthSelector.exists)

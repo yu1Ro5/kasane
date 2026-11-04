@@ -19,7 +19,20 @@ struct OverviewStats {
     let workoutCount: Int
     let duration: TimeInterval
     let totalVolume: Double
-    let dailyWorkoutCounts: [Date: Int]
+    let dailyWorkoutIDs: [Date: [UUID]]
+    var dailyWorkoutCounts: [Date: Int] { dailyWorkoutIDs.mapValues(\.count) }
+
+    enum CalendarDestination: Equatable {
+        case workoutDetail(UUID)
+        case history(Date)
+    }
+
+    func destination(for date: Date, calendar: Calendar) -> CalendarDestination? {
+        let day = calendar.startOfDay(for: date)
+        let ids = dailyWorkoutIDs[day, default: []]
+        guard let id = ids.first else { return nil }
+        return ids.count == 1 ? .workoutDetail(id) : .history(day)
+    }
     let streak: Int
     let personalRecord: Highlight?
     let improvement: Highlight?
@@ -48,9 +61,9 @@ struct OverviewStats {
                     $0 + max($1.weightKg, 0) * Double(max($1.reps, 0))
                 }
         }
-        dailyWorkoutCounts = Dictionary(grouping: included) {
+        dailyWorkoutIDs = Dictionary(grouping: included) {
             calendar.startOfDay(for: $0.startedAt)
-        }.mapValues(\.count)
+        }.mapValues { $0.map(\.id) }
         streak = Self.weeklyStreak(
             sessions: completed,
             selectedMonth: now,
@@ -180,6 +193,7 @@ struct OverviewStats {
 /// カレンダーと同じローカル日付で表示と読み上げの状態を判定する。
 struct OverviewCalendarDay {
     let date: Date
+    let count: Int
     let hasTraining: Bool
     let isToday: Bool
     let isFuture: Bool
@@ -188,6 +202,7 @@ struct OverviewCalendarDay {
     init(date: Date, count: Int, referenceDate: Date, calendar: Calendar) {
         self.date = date
         self.calendar = calendar
+        self.count = count
         hasTraining = count > 0
         isToday = calendar.isDate(date, inSameDayAs: referenceDate)
         isFuture = calendar.startOfDay(for: date) > calendar.startOfDay(for: referenceDate)
@@ -203,9 +218,13 @@ struct OverviewCalendarDay {
             Date.FormatStyle(date: .complete, time: .omitted, calendar: calendar, timeZone: calendar.timeZone))
     }
 
+    var accessibilityHint: String {
+        count == 1 ? "詳細を開く" : count > 1 ? "履歴を開く" : ""
+    }
+
     var accessibilityValue: String {
-        if isFuture { return "未来の日付" }
-        let training = hasTraining ? "トレーニングあり" : "トレーニングなし"
+        if isFuture && !hasTraining { return "未来の日付" }
+        let training = hasTraining ? "トレーニング\(count)件" : "トレーニングなし"
         return isToday ? "今日、\(training)" : training
     }
 }

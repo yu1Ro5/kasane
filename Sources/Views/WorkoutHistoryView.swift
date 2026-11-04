@@ -2,28 +2,32 @@ import SwiftData
 import SwiftUI
 
 struct WorkoutHistoryView: View {
+    @Environment(\.calendar) private var calendar
+    private let date: Date?
     @Environment(\.modelContext) private var modelContext
     @Query private var completedSessions: [WorkoutSession]
     @Query(sort: \ExerciseEntry.order) private var observedExerciseEntries: [ExerciseEntry]
     @State private var sessionPendingDeletion: WorkoutSession?
     @State private var deletionErrorMessage: String?
 
-    init() {
+    init(date: Date? = nil) {
+        self.date = date
         // カレンダーと同じ開始日基準で並べ、同一時刻はID順で安定させる。
         _completedSessions = Query(OverviewWorkoutLoader.dashboardDescriptor)
     }
 
     var body: some View {
+        let sessions = OverviewWorkoutLoader.sessions(completedSessions, on: date, calendar: calendar)
         let entriesBySession = Dictionary(grouping: observedExerciseEntries) { $0.workoutSession?.id }
         Group {
-            if completedSessions.isEmpty {
+            if sessions.isEmpty {
                 ContentUnavailableView(
                     "履歴がありません",
                     systemImage: "clock.arrow.circlepath",
                     description: Text("完了したワークアウトがここに表示されます。")
                 )
             } else {
-                List(completedSessions) { session in
+                List(sessions) { session in
                     if let content = WorkoutHistoryRowContent(
                         session: session,
                         exerciseEntries: entriesBySession[session.id] ?? []

@@ -24,7 +24,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
 
         let showAllWorkouts = app.buttons["overview-all-workouts"]
         XCTAssertTrue(scrollToHittable(showAllWorkouts, in: app))
-        XCTAssertEqual(showAllWorkouts.label, "すべてのワークアウトを表示")
+        XCTAssertEqual(showAllWorkouts.label, "すべての履歴を見る")
         showAllWorkouts.tap()
 
         XCTAssertTrue(app.navigationBars["履歴"].waitForExistence(timeout: 10))

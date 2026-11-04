@@ -71,7 +71,6 @@ struct OverviewView: View {
                 if stats.personalRecord != nil || stats.improvement != nil {
                     highlights(stats)
                 }
-                recentWorkouts
                 if !exerciseCardContents.isEmpty {
                     exerciseRecords(featuredExerciseRecords(from: exerciseCardContents))
                 }
@@ -106,6 +105,7 @@ struct OverviewView: View {
             switch route {
             case .about: AboutView()
             case .history: WorkoutHistoryView()
+            case .dailyHistory(let date): WorkoutHistoryView(date: date)
             case .search: WorkoutSearchView()
             case .workoutDetail(let id): WorkoutDetailDestinationView(sessionID: id)
             case .exerciseProgress(let id): ExerciseProgressDestinationView(exerciseID: id)
@@ -255,60 +255,6 @@ struct OverviewView: View {
         }
     }
 
-    private var recentWorkouts: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("最近のワークアウト")
-                        .font(.title3.bold())
-                    allWorkoutsLink
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-            } else {
-                HStack {
-                    Text("最近のワークアウト")
-                        .font(.title3.bold())
-                    Spacer()
-                    allWorkoutsLink
-                }
-            }
-            let sessions = Array(completedSessions.prefix(OverviewWorkoutLoader.recentWorkoutLimit))
-            if sessions.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "dumbbell")
-                        .font(.title2)
-                        .foregroundStyle(.tint)
-                    Text("ワークアウトを完了すると、ここに記録が重なっていきます。")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 28)
-                .padding(.horizontal)
-                .dashboardCard()
-            } else {
-                ForEach(sessions) { session in
-                    if let content = WorkoutHistoryRowContent(session: session) {
-                        NavigationLink(value: OverviewRoute.workoutDetail(session.id)) {
-                            OverviewRecentWorkoutCard(content: content)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("overview-recent-workout-row-\(session.id.uuidString)")
-                    }
-                }
-            }
-        }
-    }
-
-    private var allWorkoutsLink: some View {
-        NavigationLink(value: OverviewRoute.history) {
-            showAllLinkLabel
-        }
-        .accessibilityLabel("すべてのワークアウトを表示")
-        .accessibilityIdentifier("overview-all-workouts")
-    }
-
     private func exerciseRecords(_ contents: [ExerciseOverviewCardContent]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if dynamicTypeSize.isAccessibilitySize {
@@ -336,13 +282,8 @@ struct OverviewView: View {
     }
 
     private var exerciseRecordsTitle: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("種目の記録")
-                .font(.title3.bold())
-            Text("最近使った種目")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
+        Text("最近の種目")
+            .font(.title3.bold())
     }
 
     private var allExerciseRecordsLink: some View {
@@ -527,35 +468,84 @@ private struct OverviewCalendarCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(selectedMonth, format: .dateTime.year().month())
-                    .font(.headline)
-                Spacer()
-                Text("今月 \(stats.trainingDayCount)日トレーニング")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.tint)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline) {
+                    monthTitle
+                    Spacer()
+                    trainingDayCount
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 6) {
+                    monthTitle
+                    trainingDayCount
+                }
             }
-            LazyVGrid(columns: columns, spacing: 10) {
+            LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(weekdaySymbols, id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) }
                 ForEach(Array(calendarDays.enumerated()), id: \.offset) { _, day in
                     if let day {
-                        CalendarDay(
-                            day: OverviewCalendarDay(
-                                date: day, count: stats.dailyWorkoutCounts[calendar.startOfDay(for: day), default: 0],
-                                referenceDate: referenceDate, calendar: calendar))
+                        calendarDay(day)
                     } else {
-                        Color.clear.frame(height: 38)
+                        Color.clear.frame(height: 44)
                     }
                 }
             }
+            NavigationLink(value: OverviewRoute.history) {
+                HStack {
+                    Text("すべての履歴を見る")
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .accessibilityHidden(true)
+                }
+                .font(.subheadline)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .accessibilityLabel("すべての履歴を見る")
+            .accessibilityIdentifier("overview-all-workouts")
         }
-        .padding(20)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 16)
         .dashboardCard()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("overview-calendar")
     }
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+    private var monthTitle: some View {
+        Text(selectedMonth, format: .dateTime.year().month())
+            .font(.headline)
+    }
+
+    private var trainingDayCount: some View {
+        Text("今月 \(stats.trainingDayCount)日トレーニング")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.tint)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private func calendarDay(_ date: Date) -> some View {
+        let day = OverviewCalendarDay(
+            date: date, count: stats.dailyWorkoutCounts[calendar.startOfDay(for: date), default: 0],
+            referenceDate: referenceDate, calendar: calendar)
+        if let destination = stats.destination(for: date, calendar: calendar) {
+            let route: OverviewRoute =
+                switch destination {
+                case .workoutDetail(let id): .workoutDetail(id)
+                case .history(let date): .dailyHistory(date)
+                }
+            NavigationLink(value: route) {
+                CalendarDay(day: day)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(day.accessibilityHint)
+            .accessibilityIdentifier("overview-calendar-day-\(calendar.component(.day, from: date))")
+        } else {
+            CalendarDay(day: day)
+        }
+    }
+
+    private let columns = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 0), count: 7)
     private var weekdaySymbols: [String] {
         let symbols = calendar.veryShortStandaloneWeekdaySymbols
         let offset = max(calendar.firstWeekday - 1, 0)
@@ -579,9 +569,12 @@ private struct CalendarDay: View {
         Text(day.text)
             .font(.subheadline.weight(day.isToday ? .bold : .regular))
             .foregroundStyle(foregroundColor)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
             .frame(width: 34, height: 34)
             .background(day.isToday ? Color.accentColor : Color.clear, in: Circle())
-            .frame(maxWidth: .infinity, minHeight: 38)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(day.accessibilityLabel)
             .accessibilityValue(day.accessibilityValue)
@@ -618,72 +611,6 @@ private struct OverviewHighlightCard: View {
         .padding(18)
         .dashboardCard()
         .accessibilityElement(children: .combine)
-    }
-}
-
-private struct OverviewRecentWorkoutCard: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    let content: WorkoutHistoryRowContent
-    var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top, spacing: 12) {
-                        workoutIcon
-                        title
-                        Spacer(minLength: 4)
-                        dateAndChevron
-                    }
-                    VStack(alignment: .leading, spacing: 5) { metadata }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(14)
-            } else {
-                HStack(spacing: 13) {
-                    workoutIcon
-                    VStack(alignment: .leading, spacing: 6) {
-                        title
-                        HStack(spacing: 12) { metadata }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 4)
-                    dateAndChevron
-                }
-                .padding(12)
-            }
-        }
-        .dashboardCard()
-    }
-
-    private var workoutIcon: some View {
-        Image(systemName: "dumbbell.fill")
-            .font(.title3)
-            .foregroundStyle(.tint)
-            .frame(width: 48, height: 48)
-            .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-            .accessibilityHidden(true)
-    }
-
-    private var title: some View {
-        Text(content.exerciseSummary.isEmpty ? "ワークアウト" : content.exerciseSummary)
-            .font(.headline)
-            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-    }
-
-    @ViewBuilder private var metadata: some View {
-        Label(content.durationText, systemImage: "clock")
-        Label(content.exerciseCountText, systemImage: "dumbbell")
-        Label(content.totalVolumeText, systemImage: "cylinder.split.1x2")
-    }
-
-    private var dateAndChevron: some View {
-        VStack(alignment: .trailing, spacing: 7) {
-            Text(content.completedAt, format: .dateTime.month().day())
-                .font(.subheadline).foregroundStyle(.secondary)
-            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
-        }
     }
 }
 
@@ -737,7 +664,7 @@ private struct ExerciseOverviewCard: View {
                 Text(content.exerciseName)
                     .font(.headline)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                Text("最終実施日 \(content.latestCompletedAt.formatted(.dateTime.month().day()))")
+                Text("前回 \(content.latestCompletedAt.formatted(.dateTime.month().day()))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -848,6 +775,7 @@ private extension View {
 }
 
 enum OverviewRoute: Hashable {
+    case dailyHistory(Date)
     case about, history, search, workoutDetail(UUID), exerciseProgress(UUID), exerciseRecords
 }
 

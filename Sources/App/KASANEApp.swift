@@ -67,6 +67,18 @@ private enum AppModelContainer {
             )
             for session in activeSessions { container.mainContext.delete(session) }
             try container.mainContext.save()
+        } else if fixtureName(in: arguments) == "overview-calendar" {
+            try insertOverviewRecentWorkoutsFixture(into: container.mainContext)
+            guard let id = UUID(uuidString: "40000000-0000-4000-8000-000000000007") else {
+                throw FixtureError.invalidIdentifier
+            }
+            let session = WorkoutSession(
+                id: id,
+                startedAt: Date(timeIntervalSince1970: 1_788_577_200),
+                endedAt: Date(timeIntervalSince1970: 1_788_579_000)
+            )
+            container.mainContext.insert(session)
+            try container.mainContext.save()
         } else if fixtureName(in: arguments) == "overview-recent-workouts" {
             try insertOverviewRecentWorkoutsFixture(into: container.mainContext)
         } else if fixtureName(in: arguments) == "overview-previous-month" {
