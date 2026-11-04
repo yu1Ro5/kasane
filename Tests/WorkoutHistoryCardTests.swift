@@ -68,7 +68,7 @@ final class WorkoutHistoryCardTests: XCTestCase {
             }
             return entry
         }
-        session.exerciseEntries = entries.reversed()
+        session.exerciseEntries = Array(entries.reversed())
 
         let content = try XCTUnwrap(WorkoutHistoryRowContent(session: session))
         XCTAssertEqual(content.bodyPartNames, BodyPart.allCases.map(\.displayName))
