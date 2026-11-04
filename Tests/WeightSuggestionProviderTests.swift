@@ -48,7 +48,8 @@ final class WeightSuggestionProviderTests: XCTestCase {
         history.append(workout(day: 0, weights: Array(repeating: 99, count: 30)))
         history.append(workout(day: 11, ended: false, weights: [88]))
         history.append(workout(day: 12, exerciseID: otherExerciseID, weights: [77]))
-        XCTAssertEqual(suggestions(history), ["30", "25", "40", "20"])
+        // 30kgから同距離の20kgと40kgは、小さい20kgを先に補完する。
+        XCTAssertEqual(suggestions(history), ["30", "25", "20", "40"])
     }
 
     func testNumericTieOrderAndDuplicateFormatting() {
