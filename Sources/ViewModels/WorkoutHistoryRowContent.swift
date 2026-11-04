@@ -52,6 +52,11 @@ struct WorkoutHistoryRowContent {
         return hours > 0 ? "\(hours)時間\(minutes)分" : "\(minutes)分"
     }
 
+    /// 履歴一覧の1行表示向けに短縮した所要時間。
+    var compactDurationText: String {
+        "\(Int(duration) / 60)分"
+    }
+
     var exerciseCountText: String {
         "\(exerciseNames.count)種目"
     }
