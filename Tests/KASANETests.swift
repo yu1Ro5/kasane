@@ -490,6 +490,24 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(achievements.map(\.improvement), [9, 5])
     }
 
+    /// テスト概要: 種目一覧の最終実施日が常に yyyy/MM/dd 形式となることを確認する。
+    /// 期待値: 当年/過去年で分岐せず、月・日をゼロ埋めして表示する。
+    func testExerciseRecordDateTextUsesFixedYearMonthDay() throws {
+        let timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Tokyo"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+
+        let thisYear = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 4))
+        )
+        let previousYear = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2025, month: 1, day: 9))
+        )
+
+        XCTAssertEqual(ExerciseRecordDateText.format(thisYear, timeZone: timeZone), "2026/11/04")
+        XCTAssertEqual(ExerciseRecordDateText.format(previousYear, timeZone: timeZone), "2025/01/09")
+    }
+
     /// テスト概要: アプリ内の公開リンク定義を取得する。
     /// 期待値: SupportとPrivacy PolicyがIssueで確定したHTTPS URLに一致する。
     func testAppLinksUsePublishedURLs() {
