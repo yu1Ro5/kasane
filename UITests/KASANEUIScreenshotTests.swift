@@ -38,6 +38,7 @@ final class KASANEUIScreenshotTests: XCTestCase {
         // 履歴一覧は種目名でなく記録時の部位を表示する。
         XCTAssertTrue(historyRow.label.contains("胸・背中"))
         XCTAssertTrue(historyRow.label.contains("2種目"))
+        XCTAssertTrue(historyRow.label.contains("60分"))
         XCTAssertFalse(historyRow.label.contains("ベンチプレス、ラットプルダウン"))
         addScreenshot(named: "workout-history", of: app)
 
