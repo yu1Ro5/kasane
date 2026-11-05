@@ -512,6 +512,10 @@ final class KASANETests: XCTestCase {
     /// 期待値: SupportとPrivacy PolicyがIssueで確定したHTTPS URLに一致する。
     func testAppLinksUsePublishedURLs() {
         XCTAssertEqual(
+            AppLinks.feedback?.absoluteString,
+            "https://forms.gle/W2LmqYCzGUxHD8TU9"
+        )
+        XCTAssertEqual(
             AppLinks.support?.absoluteString,
             "https://yu1ro5.github.io/kasane/support/"
         )
