@@ -1,0 +1,185 @@
+name: Compilation Cache Benchmark
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/compilation-cache-benchmark.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Select Xcode 27
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode_path="$(find /Applications -maxdepth 1 -type d -name 'Xcode_27*.app' | sort | tail -1)"
+          test -n "$xcode_path"
+          sudo xcode-select --switch "$xcode_path"
+          xcodebuild -version
+
+      - name: Install XcodeGen and generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Compare uncached, cold-cache and warm-cache builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import datetime
+          import json
+          import os
+          from pathlib import Path
+          import platform
+          import re
+          import shlex
+          import shutil
+          import subprocess
+          import time
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "compilation-cache-benchmark"
+          root.mkdir(exist_ok=True)
+          reports = root / "reports"
+          reports.mkdir(exist_ok=True)
+          derived = root / "DerivedData"
+          cache = root / "CompilationCache.noindex"
+          # Keep identical absolute paths and arguments in A/B/C, except cache enablement.
+          common = [
+              "xcodebuild", "-project", "KASANE.xcodeproj", "-scheme", "KASANE",
+              "-sdk", "iphonesimulator", "-destination", "generic/platform=iOS Simulator",
+              "-derivedDataPath", str(derived), "-configuration", "Debug",
+              "ARCHS=arm64", "ONLY_ACTIVE_ARCH=YES", "CODE_SIGNING_ALLOWED=NO",
+              "CLANG_ENABLE_CODE_COVERAGE=NO",
+              f"COMPILATION_CACHE_CAS_PATH={cache}",
+              "COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES",
+          ]
+          metadata = {
+              "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+              "xcode": subprocess.check_output(["xcodebuild", "-version"], text=True).strip(),
+              "swift": subprocess.check_output(["xcrun", "swift", "--version"], text=True).strip(),
+              "sdk": subprocess.check_output(["xcrun", "--sdk", "iphonesimulator", "--show-sdk-version"], text=True).strip(),
+              "machine": platform.machine(),
+              "common_arguments": common,
+          }
+          (reports / "environment.json").write_text(json.dumps(metadata, indent=2) + "\n")
+          print(json.dumps(metadata, indent=2), flush=True)
+
+          def cache_bytes():
+              return sum(p.stat().st_size for p in cache.rglob("*") if p.is_file())
+
+          results = []
+          try:
+              for label, enabled in (("A-disabled", "NO"), ("B-cold", "YES"), ("C-warm", "YES")):
+                  print(f"::group::{label}", flush=True)
+                  # Remove build.db, objects, products, module and SDK stat caches each time.
+                  # The compiler CAS lives outside DerivedData, and survives only B -> C.
+                  if derived.exists():
+                      shutil.rmtree(derived)
+                  if label != "C-warm":
+                      if cache.exists():
+                          shutil.rmtree(cache)
+                  cache.mkdir(exist_ok=True)
+                  before_bytes = cache_bytes()
+                  if label == "C-warm" and before_bytes == 0:
+                      raise RuntimeError("B did not populate the compiler cache; warm-cache comparison is invalid")
+                  arguments = common + [f"COMPILATION_CACHE_ENABLE_CACHING={enabled}"]
+                  settings_run = subprocess.run(
+                      arguments + ["-showBuildSettings", "-json"],
+                      text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                  )
+                  (reports / f"{label}-settings.json").write_text(settings_run.stdout)
+                  (reports / f"{label}-settings.stderr.log").write_text(settings_run.stderr)
+                  settings_run.check_returncode()
+                  settings = json.loads(settings_run.stdout)
+                  app = next(item["buildSettings"] for item in settings if item["target"] == "KASANE")
+                  if app.get("COMPILATION_CACHE_ENABLE_CACHING") != enabled:
+                      raise RuntimeError("Requested cache mode was not applied")
+                  if Path(app.get("COMPILATION_CACHE_CAS_PATH", "")).resolve() != cache.resolve():
+                      raise RuntimeError("Xcode did not use the isolated compiler cache directory")
+                  # Settings inspection is outside measured build time. Remove anything it created.
+                  if derived.exists():
+                      shutil.rmtree(derived)
+                  command = arguments + ["-showBuildTimingSummary", "build"]
+                  print(shlex.join(command), flush=True)
+                  row = {"build": label, "cache_enabled": enabled, "cache_bytes_before": before_bytes}
+                  results.append(row)
+                  row["started_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                  start = time.monotonic()
+                  first_output = None
+                  with (reports / f"{label}-build.log").open("w") as log:
+                      process = subprocess.Popen(
+                          command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                          text=True, bufsize=1,
+                      )
+                      for line in process.stdout:
+                          elapsed = time.monotonic() - start
+                          if first_output is None:
+                              first_output = elapsed
+                          log.write(line)
+                          print(f"[{label} +{elapsed:.3f}s] {line}", end="", flush=True)
+                      code = process.wait()
+                  row.update({
+                      "finished_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                      "wall_seconds": round(time.monotonic() - start, 3),
+                      "first_output_seconds": round(first_output, 3) if first_output is not None else None,
+                      "exit_code": code,
+                      "cache_bytes_after": cache_bytes(),
+                  })
+                  lines = (reports / f"{label}-build.log").read_text().splitlines()
+                  # Count native diagnostic remarks, not duplicate human-readable cache lines.
+                  row["replay_hit_remarks"] = sum("note: replay cache hit" in line for line in lines)
+                  row["replay_miss_remarks"] = sum("note: replay cache miss" in line for line in lines)
+                  diagnostics = [line for line in lines if re.search(r"cache|\bCAS\b|replay", line, re.I)]
+                  (reports / f"{label}-cache-diagnostics.log").write_text("\n".join(diagnostics) + "\n")
+                  timing = next((i for i, line in enumerate(lines) if "Build Timing Summary" in line), None)
+                  if timing is not None:
+                      (reports / f"{label}-timing.txt").write_text("\n".join(lines[timing:]) + "\n")
+                  print(json.dumps(row), flush=True)
+                  print("::endgroup::", flush=True)
+                  if code:
+                      raise subprocess.CalledProcessError(code, command)
+          finally:
+              (reports / "results.json").write_text(json.dumps(results, indent=2) + "\n")
+              with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as summary:
+                  summary.write("## Compilation Cache Benchmark\n\n")
+                  summary.write("App-only Debug build; no simulator boot, tests or screenshots.\n\n")
+                  summary.write("| Build | Wall seconds | First output seconds | CAS bytes before | CAS bytes after | Replay hits | Replay misses | Exit |\n")
+                  summary.write("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n")
+                  for row in results:
+                      summary.write(
+                          f"| {row['build']} | {row.get('wall_seconds', 'n/a')} | "
+                          f"{row.get('first_output_seconds', 'n/a')} | {row['cache_bytes_before']} | "
+                          f"{row.get('cache_bytes_after', 'n/a')} | {row.get('replay_hit_remarks', 'n/a')} | "
+                          f"{row.get('replay_miss_remarks', 'n/a')} | {row.get('exit_code', 'n/a')} |\n"
+                      )
+                  summary.write("\nA: caching disabled. B: enabled with empty CAS. C: enabled with B's CAS.\n\n")
+                  summary.write("DerivedData is removed before each build; only compiler CAS is retained from B to C.\n\n")
+                  summary.write("See timing.txt for task totals (parallel task times must not be summed as wall time), ")
+                  summary.write("build.log and cache-diagnostics.log for compiler hit/miss evidence. ")
+                  summary.write("CAS size alone does not prove hits; replay counts are observed diagnostic remarks, not a hit rate. First output includes xcodebuild buffering. ")
+                  summary.write("A/B/C order and OS/tool caches can affect results; one trial does not establish a speedup.\n")
+          PY
+
+      - name: Upload benchmark logs and settings
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: compilation-cache-benchmark-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/compilation-cache-benchmark/reports
+          if-no-files-found: warn
+          retention-days: 7
