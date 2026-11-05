@@ -1,0 +1,55 @@
+name: Direct Overview Screenshot Prototype
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/direct-overview-screenshot.yml
+      - .github/scripts/capture-overview.py
+      - Sources/Services/DirectOverviewScreenshotReadiness.swift
+      - Sources/Views/OverviewView.swift
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  capture-overview:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Select Xcode 27
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode_path="$(find /Applications -maxdepth 1 -type d -name 'Xcode_27*.app' | sort | tail -1)"
+          test -n "$xcode_path"
+          sudo xcode-select --switch "$xcode_path"
+          xcodebuild -version
+
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build, launch and capture overview without XCTest
+        run: python3 -u .github/scripts/capture-overview.py
+
+      - name: Upload screenshot and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: direct-overview-screenshot
+          path: |
+            ${{ runner.temp }}/direct-overview/*.png
+            ${{ runner.temp }}/direct-overview/*.json
+            ${{ runner.temp }}/direct-overview/*.log
+          if-no-files-found: warn
+          retention-days: 7
