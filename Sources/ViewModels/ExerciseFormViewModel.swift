@@ -9,14 +9,16 @@ final class ExerciseFormViewModel {
     var name: String
     var bodyPart: BodyPart
     var errorMessage: String?
+    private let editingID: UUID?
     private let initialName: String
     private let initialBodyPart: BodyPart
 
-    init(name: String = "", bodyPart: BodyPart = .other) {
+    init(name: String = "", bodyPart: BodyPart = .other, editingID: UUID? = nil) {
         self.name = name
         self.bodyPart = bodyPart
         initialName = name
         initialBodyPart = bodyPart
+        self.editingID = editingID
     }
 
     var hasChanges: Bool { name != initialName || bodyPart != initialBodyPart }
@@ -38,12 +40,22 @@ final class ExerciseFormViewModel {
         let context = ModelContext(container)
         context.autosaveEnabled = false
         do {
-            let names = try context.fetch(FetchDescriptor<Exercise>()).map(\.name)
+            let exercises = try context.fetch(FetchDescriptor<Exercise>())
+            let names = exercises.filter { $0.id != editingID }.map(\.name)
             if let message = validationMessage(existingNames: names) {
                 errorMessage = message
                 return false
             }
-            context.insert(Exercise(name: trimmedName, primaryBodyPart: bodyPart))
+            if let editingID {
+                guard let exercise = exercises.first(where: { $0.id == editingID }) else {
+                    errorMessage = "編集する種目が見つかりません。"
+                    return false
+                }
+                exercise.name = trimmedName
+                exercise.bodyPart = bodyPart
+            } else {
+                context.insert(Exercise(name: trimmedName, primaryBodyPart: bodyPart))
+            }
             if let persist { try persist(context) } else { try context.save() }
             errorMessage = nil
             return true

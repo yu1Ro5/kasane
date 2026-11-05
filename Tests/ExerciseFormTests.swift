@@ -40,6 +40,23 @@ final class ExerciseFormTests: XCTestCase {
         XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<Exercise>()), 1)
     }
 
+    func testEditKeepsIDAndArchivedStateAndExcludesOwnNameFromDuplicateCheck() throws {
+        let container = try makeContainer()
+        let exercise = Exercise(name: "旧種目", primaryBodyPart: .chest, isArchived: true)
+        container.mainContext.insert(exercise)
+        try container.mainContext.save()
+        let draft = ExerciseFormViewModel(name: exercise.name, bodyPart: exercise.bodyPart, editingID: exercise.id)
+        XCTAssertNil(draft.validationMessage(existingNames: []))
+        draft.name = " 新種目 "
+        draft.bodyPart = .back
+        XCTAssertTrue(draft.save(in: container))
+        let stored = try XCTUnwrap(ModelContext(container).fetch(FetchDescriptor<Exercise>()).first)
+        XCTAssertEqual(stored.id, exercise.id)
+        XCTAssertEqual(stored.name, "新種目")
+        XCTAssertEqual(stored.bodyPart, .back)
+        XCTAssertTrue(stored.isArchived)
+    }
+
     func testSaveFailureKeepsDraftAndAllowsRetry() throws {
         let container = try makeContainer()
         let draft = ExerciseFormViewModel(name: "入力した種目", bodyPart: .legs)
