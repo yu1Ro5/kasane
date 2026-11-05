@@ -1,6 +1,55 @@
 import XCTest
 
 final class KASANEUIRegressionTests: XCTestCase {
+    /// 記録ゼロの開始画面と種目ゼロのWorkoutにだけ説明を表示する。
+    @MainActor
+    func testWorkoutEmptyStateHintsFollowExistingRecords() throws {
+        let app = launchApp()
+        app.tabBars.buttons["ワークアウト"].tap()
+
+        let startHint = app.staticTexts["workout-empty-start-hint"]
+        XCTAssertTrue(startHint.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["workout-start-button"].exists)
+
+        app.buttons["workout-start-button"].tap()
+        XCTAssertFalse(startHint.exists)
+        let exerciseHint = app.staticTexts["workout-empty-exercise-hint"]
+        XCTAssertTrue(exerciseHint.waitForExistence(timeout: 10))
+
+        app.buttons["workout-body-part-chest"].tap()
+        let benchPressID = "00000000-0000-4000-8000-000000000001"
+        let available = app.buttons["available-exercise-\(benchPressID)"]
+        XCTAssertTrue(available.waitForExistence(timeout: 5))
+        available.tap()
+
+        let weight = app.textFields["draft-weight-input-\(benchPressID)"]
+        XCTAssertTrue(weight.waitForExistence(timeout: 10))
+        weight.tap()
+        weight.typeText("30")
+
+        let reps = app.textFields["draft-reps-input-\(benchPressID)"]
+        reps.tap()
+        reps.typeText("10")
+        let addSet = app.buttons["add-set-button-\(benchPressID)"]
+        XCTAssertTrue(addSet.isEnabled)
+        XCTAssertTrue(scrollToHittable(addSet, in: app))
+        addSet.tap()
+
+        app.navigationBars.buttons["ワークアウト"].tap()
+        XCTAssertFalse(exerciseHint.exists)
+        XCTAssertTrue(app.buttons["current-exercise-\(benchPressID)"].waitForExistence(timeout: 5))
+    }
+
+    /// 完了したWorkoutがあれば、開始前の説明は表示せずSmart Startを維持する。
+    @MainActor
+    func testWorkoutStartHintHiddenWithCompletedHistory() throws {
+        let app = launchApp(additionalArguments: ["--fixture", "overview-recent-workouts"])
+        app.tabBars.buttons["ワークアウト"].tap()
+        XCTAssertTrue(app.buttons["workout-start-button"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["workout-empty-start-hint"].exists)
+        XCTAssertTrue(app.staticTexts["最近のワークアウトから開始"].exists)
+    }
+
     @MainActor
     func testDataManagementNavigationAndActions() throws {
         let app = launchApp()

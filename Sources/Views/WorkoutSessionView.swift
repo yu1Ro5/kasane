@@ -64,6 +64,9 @@ struct WorkoutSessionView: View {
                     if sortedEntries.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("まだ記録した種目はありません")
+                            Text("下の種目一覧から、トレーニングする種目を選んでください。")
+                                .font(.subheadline)
+                                .accessibilityIdentifier("workout-empty-exercise-hint")
                             Text(
                                 "開始: \(session.startedAt.formatted(date: .abbreviated, time: .shortened))"
                             )
