@@ -72,6 +72,12 @@ struct WorkoutRootView: View {
                     .font(.title2.bold())
                     .multilineTextAlignment(.center)
 
+                Text("種目を選んで、重量と回数を記録しましょう。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("workout-empty-start-hint")
+
                 Button("ワークアウトを開始") {
                     startWorkout()
                 }
