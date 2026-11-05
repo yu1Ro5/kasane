@@ -83,7 +83,7 @@ struct OverviewView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 NavigationLink(value: OverviewRoute.about) {
-                    Label("KASANEについて", systemImage: "info.circle")
+                    Label("設定", systemImage: "gearshape")
                 }
                 NavigationLink(value: OverviewRoute.search) {
                     Label("検索", systemImage: "magnifyingglass")
@@ -103,7 +103,7 @@ struct OverviewView: View {
         }
         .navigationDestination(for: OverviewRoute.self) { route in
             switch route {
-            case .about: AboutView()
+            case .about: SettingsView()
             case .history: WorkoutHistoryView()
             case .dailyHistory(let date): WorkoutHistoryView(date: date)
             case .search: WorkoutSearchView()

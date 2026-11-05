@@ -4,7 +4,7 @@ final class KASANEUIRegressionTests: XCTestCase {
     @MainActor
     func testDataManagementNavigationAndActions() throws {
         let app = launchApp()
-        app.buttons["KASANEについて"].tap()
+        app.buttons["設定"].tap()
 
         let dataManagement = app.descendants(matching: .any)["data-management-link"]
         XCTAssertTrue(dataManagement.waitForExistence(timeout: 10))
@@ -290,8 +290,9 @@ final class KASANEUIRegressionTests: XCTestCase {
             app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "weight-suggestion-")).count,
             4
         )
-        XCTAssertLessThan(app.buttons["weight-suggestion-42.5"].frame.minX,
-                          app.buttons["weight-suggestion-40"].frame.minX)
+        XCTAssertLessThan(
+            app.buttons["weight-suggestion-42.5"].frame.minX,
+            app.buttons["weight-suggestion-40"].frame.minX)
         app.buttons["weight-suggestion-42.5"].tap()
         XCTAssertEqual(draftWeight.value as? String, "42.5")
         XCTAssertTrue(app.buttons["次へ"].exists)
@@ -306,8 +307,9 @@ final class KASANEUIRegressionTests: XCTestCase {
             app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "rep-suggestion-")).count,
             4
         )
-        XCTAssertLessThan(app.buttons["rep-suggestion-8"].frame.minX,
-                          app.buttons["rep-suggestion-10"].frame.minX)
+        XCTAssertLessThan(
+            app.buttons["rep-suggestion-8"].frame.minX,
+            app.buttons["rep-suggestion-10"].frame.minX)
         let suggestions = app.scrollViews["workout-suggestions"]
         if !app.buttons["rep-suggestion-12"].isHittable { suggestions.swipeLeft() }
         app.buttons["rep-suggestion-12"].tap()

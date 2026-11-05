@@ -6,9 +6,11 @@ final class KASANEUIVisualEdgeCaseTests: XCTestCase {
         let app = launchApp()
 
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
-        let aboutButton = app.buttons["KASANEについて"]
+        let aboutButton = app.buttons["設定"]
         XCTAssertTrue(aboutButton.waitForExistence(timeout: 10))
         aboutButton.tap()
+        app.swipeUp()
+        app.buttons["KASANEについて"].tap()
 
         XCTAssertTrue(app.navigationBars["KASANEについて"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["KASANE"].exists)

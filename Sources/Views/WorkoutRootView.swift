@@ -27,7 +27,6 @@ struct WorkoutRootView: View {
             Text(viewModel.errorMessage ?? "不明なエラーが発生しました。")
         }
         .task {
-            seedExercises()
             refreshActiveSession()
         }
         .alert("終了忘れ通知", isPresented: permissionExplanationIsPresented) {
@@ -132,7 +131,8 @@ struct WorkoutRootView: View {
         let fullNames = entries.map(\.exerciseNameSnapshot).joined(separator: "、")
         let accessibleNames = fullNames.isEmpty ? "種目の記録なし" : fullNames
         let accessibleDate = session.startedAt.formatted(date: .complete, time: .omitted)
-        let accessibilityText = canReuse
+        let accessibilityText =
+            canReuse
             ? "\(accessibleDate)、\(entries.count)種目、\(accessibleNames)でワークアウトを開始"
             : "\(accessibleDate)、\(entries.count)種目、\(accessibleNames)。引き継げる種目がありません"
 
@@ -140,7 +140,8 @@ struct WorkoutRootView: View {
             startWorkout(reusing: session)
         } label: {
             VStack(alignment: .leading, spacing: 8) {
-                let headerLayout = dynamicTypeSize.isAccessibilitySize
+                let headerLayout =
+                    dynamicTypeSize.isAccessibilitySize
                     ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
                     : AnyLayout(HStackLayout(spacing: 8))
                 headerLayout {
@@ -265,13 +266,6 @@ struct WorkoutRootView: View {
         }
     }
 
-    private func seedExercises() {
-        do {
-            try ExerciseCatalogService(context: modelContext).seed()
-        } catch {
-            viewModel.errorMessage = error.localizedDescription
-        }
-    }
 }
 
 #Preview {
