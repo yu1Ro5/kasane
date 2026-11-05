@@ -49,6 +49,10 @@ struct SettingsView: View {
             }
 
             Section("サポート") {
+                if let url = AppLinks.feedback {
+                    AboutLink(title: "ご意見・不具合を送る", destination: url)
+                        .accessibilityIdentifier("feedback-form-link")
+                }
                 if let url = AppLinks.support { AboutLink(title: "サポート", destination: url) }
                 if let url = AppLinks.privacyPolicy { AboutLink(title: "プライバシーポリシー", destination: url) }
             }
