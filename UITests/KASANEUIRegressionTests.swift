@@ -1,6 +1,18 @@
 import XCTest
 
 final class KASANEUIRegressionTests: XCTestCase {
+    /// フィードバックの外部リンクを設定に追加し、既存のサポート導線も維持する。
+    @MainActor
+    func testFeedbackFormLinkInSettings() throws {
+        let app = launchApp()
+        app.buttons["設定"].tap()
+
+        let feedbackLink = app.descendants(matching: .any)["feedback-form-link"]
+        XCTAssertTrue(feedbackLink.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["サポート"].exists)
+        XCTAssertTrue(app.staticTexts["プライバシーポリシー"].exists)
+    }
+
     /// 記録ゼロの開始画面と種目ゼロのWorkoutにだけ説明を表示する。
     @MainActor
     func testWorkoutEmptyStateHintsFollowExistingRecords() throws {
