@@ -8,7 +8,11 @@ struct KASANEApp: App {
     @State private var workoutEndReminderCoordinator: WorkoutEndReminderCoordinator
 
     init() {
-        container = Result { try AppModelContainer.make() }
+        container = Result {
+            let container = try AppModelContainer.make()
+            try ExerciseCatalogService(context: ModelContext(container)).seed()
+            return container
+        }
         _workoutEndReminderCoordinator = State(
             initialValue: WorkoutEndReminderCoordinator.live()
         )
