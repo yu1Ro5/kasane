@@ -41,7 +41,6 @@ jobs:
         run: |
           set -euo pipefail
           simulator_total_start="$(date +%s)"
-          echo "started_at=$simulator_total_start" >> "$GITHUB_OUTPUT"
           simulator_search_start="$(date +%s)"
           simulator="$(xcrun simctl list devices available --json | python3 -c '
           import json, sys
@@ -77,8 +76,6 @@ jobs:
           echo "id=$simulator" >> "$GITHUB_OUTPUT"
           echo "name=$simulator_name" >> "$GITHUB_OUTPUT"
           simulator_boot_start="$(date +%s)"
-          echo "boot_started_at=$simulator_boot_start" >> "$GITHUB_OUTPUT"
-          echo "Simulator boot requested at $(date -u +%FT%TZ) (epoch=$simulator_boot_start, initial_state=$simulator_state)"
           case "$simulator_state" in
             Shutdown)
               xcrun simctl boot "$simulator"
@@ -90,24 +87,18 @@ jobs:
               exit 1
               ;;
           esac
-          simulator_boot_command_end="$(date +%s)"
+          xcrun simctl bootstatus "$simulator" -b
+          simulator_boot_end="$(date +%s)"
+
+          simulator_total_end="$(date +%s)"
+
           {
             echo "search_seconds=$((simulator_search_end - simulator_search_start))"
-            echo "boot_command_seconds=$((simulator_boot_command_end - simulator_boot_start))"
+            echo "first_boot_seconds=$((simulator_boot_end - simulator_boot_start))"
+            echo "locale_seconds=0"
+            echo "restart_seconds=0"
+            echo "total_seconds=$((simulator_total_end - simulator_total_start))"
           } >> "$GITHUB_OUTPUT"
-
-          # Observe readiness during the build; the foreground check below gates UI tests.
-          # Redirect all descriptors so the observer can outlive this step.
-          rm -f "$RUNNER_TEMP/simulator-ready-at" "$RUNNER_TEMP/simulator-ready-at.tmp"
-          # shellcheck disable=SC2016 # The observer expands its own positional parameters.
-          nohup bash -c '
-            if xcrun simctl bootstatus "$1" -b; then
-              date +%s > "$2/simulator-ready-at.tmp"
-              mv "$2/simulator-ready-at.tmp" "$2/simulator-ready-at"
-            else
-              echo "::warning::Simulator readiness observer failed; foreground bootstatus will verify readiness"
-            fi
-          ' _ "$simulator" "$RUNNER_TEMP" > "$RUNNER_TEMP/simulator-boot.log" 2>&1 < /dev/null &
 
       - name: Build UI screenshot tests for testing
         id: build_for_testing
@@ -115,8 +106,6 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild_start="$(date +%s)"
-          echo "started_at=$xcodebuild_start" >> "$GITHUB_OUTPUT"
-          echo "xcodebuild started at $(date -u +%FT%TZ) (epoch=$xcodebuild_start)"
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANEScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testPrimaryScreenshots \
@@ -128,32 +117,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build-for-testing
           xcodebuild_end="$(date +%s)"
-          echo "finished_at=$xcodebuild_end" >> "$GITHUB_OUTPUT"
-          echo "xcodebuild finished at $(date -u +%FT%TZ) (epoch=$xcodebuild_end)"
           echo "total_seconds=$((xcodebuild_end - xcodebuild_start))" >> "$GITHUB_OUTPUT"
-
-      - name: Wait for simulator boot
-        id: simulator_ready
-        timeout-minutes: 5
-        shell: bash
-        run: |
-          set -euo pipefail
-          wait_start="$(date +%s)"
-          trap 'echo "Simulator wait ended at $(date -u +%FT%TZ)"; cat "$RUNNER_TEMP/simulator-boot.log"' EXIT
-          xcrun simctl bootstatus "${{ steps.simulator.outputs.id }}" -b
-          ready_confirmed_at="$(date +%s)"
-          {
-            echo "confirmed_at=$ready_confirmed_at"
-            echo "wait_seconds=$((ready_confirmed_at - wait_start))"
-            echo "ready_elapsed_seconds=$((ready_confirmed_at - ${{ steps.simulator.outputs.boot_started_at }}))"
-          } >> "$GITHUB_OUTPUT"
-          echo "Simulator readiness confirmed at $(date -u +%FT%TZ) (epoch=$ready_confirmed_at)"
-          if [[ -f "$RUNNER_TEMP/simulator-ready-at" ]]; then
-            observed_at="$(cat "$RUNNER_TEMP/simulator-ready-at")"
-            echo "observed_at=$observed_at" >> "$GITHUB_OUTPUT"
-            echo "observed_elapsed_seconds=$((observed_at - ${{ steps.simulator.outputs.boot_started_at }}))" >> "$GITHUB_OUTPUT"
-            echo "Simulator readiness observed at epoch=$observed_at; compare with build started_at/finished_at and xcodebuild logs"
-          fi
 
       - name: Run UI screenshot tests without building
         id: test
@@ -161,8 +125,6 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild_start="$(date +%s)"
-          echo "started_at=$xcodebuild_start" >> "$GITHUB_OUTPUT"
-          echo "xcodebuild started at $(date -u +%FT%TZ) (epoch=$xcodebuild_start)"
           xcodebuild -project KASANE.xcodeproj \
             -scheme KASANEScreenshot \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testPrimaryScreenshots \
@@ -176,8 +138,6 @@ jobs:
             -collect-test-diagnostics never \
             test-without-building
           xcodebuild_end="$(date +%s)"
-          echo "finished_at=$xcodebuild_end" >> "$GITHUB_OUTPUT"
-          echo "xcodebuild finished at $(date -u +%FT%TZ) (epoch=$xcodebuild_end)"
           xctest_reported_seconds="$(
             xcrun xcresulttool get test-results summary \
               --path "$RUNNER_TEMP/ui-screenshots.xcresult" \
@@ -279,48 +239,22 @@ jobs:
         if: always()
         shell: bash
         run: |
-          main_elapsed=n/a
-          if [[ -n "${{ steps.simulator.outputs.started_at }}" && -n "${{ steps.test.outputs.finished_at }}" ]]; then
-            main_elapsed="$(( ${{ steps.test.outputs.finished_at || '0' }} - ${{ steps.simulator.outputs.started_at || '0' }} ))"
-          fi
           {
             echo "## UI Screenshot Timing"
-            echo
-            echo "Timestamps below are Unix seconds (UTC). Readiness observation may be unavailable if the observer has not completed or failed; confirmation is an upper bound on readiness."
-            echo
-            echo "| Event | Timestamp |"
-            echo "| --- | ---: |"
-            echo "| Simulator boot requested | ${{ steps.simulator.outputs.boot_started_at || 'n/a' }} |"
-            echo "| Simulator ready observed | ${{ steps.simulator_ready.outputs.observed_at || 'n/a' }} |"
-            echo "| Simulator ready confirmed | ${{ steps.simulator_ready.outputs.confirmed_at || 'n/a' }} |"
-            echo "| Build started | ${{ steps.build_for_testing.outputs.started_at || 'n/a' }} |"
-            echo "| Build finished | ${{ steps.build_for_testing.outputs.finished_at || 'n/a' }} |"
             echo
             echo "| 区間 | 秒 |"
             echo "| --- | ---: |"
             echo "| Simulator検索 | ${{ steps.simulator.outputs.search_seconds || 'n/a' }} |"
-            echo "| Simulator起動コマンド | ${{ steps.simulator.outputs.boot_command_seconds || 'n/a' }} |"
-            echo "| Simulator起動から準備完了観測 | ${{ steps.simulator_ready.outputs.observed_elapsed_seconds || 'n/a' }} |"
-            echo "| Simulator起動から準備完了確認（上限） | ${{ steps.simulator_ready.outputs.ready_elapsed_seconds || 'n/a' }} |"
-            echo "| ビルド後のSimulator待機 | ${{ steps.simulator_ready.outputs.wait_seconds || 'n/a' }} |"
-            echo "| 主要工程の実経過（Simulator検索開始〜UIテスト終了） | $main_elapsed |"
+            echo "| Simulator初回boot | ${{ steps.simulator.outputs.first_boot_seconds || 'n/a' }} |"
+            echo "| 日本語／locale設定 | ${{ steps.simulator.outputs.locale_seconds || 'n/a' }} |"
+            echo "| Simulator再起動 | ${{ steps.simulator.outputs.restart_seconds || 'n/a' }} |"
+            echo "| Simulator合計 | ${{ steps.simulator.outputs.total_seconds || 'n/a' }} |"
             echo "| build-for-testing | ${{ steps.build_for_testing.outputs.total_seconds || 'n/a' }} |"
             echo "| test-without-building | ${{ steps.test.outputs.total_seconds || 'n/a' }} |"
             echo "| XCTest reported duration | ${{ steps.test.outputs.xctest_reported_seconds || 'n/a' }} |"
             echo "| xcresult screenshot export | ${{ steps.extract.outputs.export_seconds || 'n/a' }} |"
             echo "| Screenshot枚数 | ${{ steps.extract.outputs.screenshot_count || 'n/a' }} |"
-            echo
-            echo "Overlapping durations are not summed. Compare readiness observation with build timestamps and xcodebuild logs to assess overlap/internal waiting; CPU and memory contention may increase build duration."
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload simulator boot diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: ui-screenshot-simulator-boot
-          path: ${{ runner.temp }}/simulator-boot.log
-          if-no-files-found: ignore
-          retention-days: 7
 
       - name: Upload xcresult
         if: failure()
