@@ -166,8 +166,8 @@ jobs:
           import os
           from pathlib import Path
           lines = Path(os.environ["RUNNER_TEMP"], "ui-screenshot-build.log").read_text().splitlines()
-          hits = sum("note: replay cache hit" in line for line in lines)
-          misses = sum("note: replay cache miss" in line for line in lines)
+          hits = sum("note: replay cache hit" in line.lower() for line in lines)
+          misses = sum("note: replay cache miss" in line.lower() for line in lines)
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write(f"replay_hits={hits}\nreplay_misses={misses}\n")
           PYCACHE

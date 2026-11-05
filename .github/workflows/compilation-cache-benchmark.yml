@@ -174,8 +174,8 @@ jobs:
                   })
                   lines = (reports / f"{label}-build.log").read_text().splitlines()
                   # Count native diagnostic remarks, not duplicate human-readable cache lines.
-                  row["replay_hit_remarks"] = sum("note: replay cache hit" in line for line in lines)
-                  row["replay_miss_remarks"] = sum("note: replay cache miss" in line for line in lines)
+                  row["replay_hit_remarks"] = sum("note: replay cache hit" in line.lower() for line in lines)
+                  row["replay_miss_remarks"] = sum("note: replay cache miss" in line.lower() for line in lines)
                   diagnostics = [line for line in lines if re.search(r"cache|\bCAS\b|replay", line, re.I)]
                   (reports / f"{label}-cache-diagnostics.log").write_text("\n".join(diagnostics) + "\n")
                   timing = next((i for i, line in enumerate(lines) if "Build Timing Summary" in line), None)
