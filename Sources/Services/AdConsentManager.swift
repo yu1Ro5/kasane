@@ -27,7 +27,15 @@ final class AdConsentManager {
     }
 
     func prepare() async {
-        guard !didPrepare, !isBusy else { return }
+        // Wait for a previous preparation to finish, so a cancelled attempt can be retried.
+        while isBusy {
+            do {
+                try await Task.sleep(for: .milliseconds(100))
+            } catch {
+                return
+            }
+        }
+        guard !didPrepare, !Task.isCancelled else { return }
         isBusy = true
         defer { isBusy = false }
         do {
