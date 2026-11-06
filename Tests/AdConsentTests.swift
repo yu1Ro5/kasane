@@ -13,6 +13,31 @@ final class AdConsentTests: XCTestCase {
         XCTAssertFalse(manager.mayLoadBanner)
     }
 
+    func testCancelledPreparationRetriesAfterReturningWhileUpdateIsInFlight() async {
+        let client = Client()
+        client.pauseNextUpdate = true
+        let updatePaused = expectation(description: "First consent update is pending")
+        client.updatePausedExpectation = updatePaused
+        let manager = AdConsentManager(client: client)
+
+        let first = Task { await manager.prepare() }
+        await fulfillment(of: [updatePaused], timeout: 2)
+        XCTAssertTrue(manager.isBusy)
+
+        // The second visit to Overview happens while the first update is still busy.
+        let finishFirst = Task {
+            first.cancel()
+            client.resumePausedUpdate()
+        }
+        await manager.prepare()
+        await finishFirst.value
+        await first.value
+
+        XCTAssertEqual(client.calls, ["update", "update", "required", "start"])
+        XCTAssertTrue(manager.mayLoadBanner)
+        XCTAssertFalse(manager.isBusy)
+    }
+
     func testPermissionIsCheckedAfterBothForms() async {
         let client = Client()
         client.canRequestAds = false
@@ -55,10 +80,25 @@ final class AdConsentTests: XCTestCase {
         var calls: [String] = []
         var updateFails = false
         var formFails = false
+        var pauseNextUpdate = false
+        var updatePausedExpectation: XCTestExpectation?
+        private var pausedUpdateContinuation: CheckedContinuation<Void, Never>?
 
         func update() async throws {
             calls.append("update")
+            if pauseNextUpdate {
+                pauseNextUpdate = false
+                await withCheckedContinuation { continuation in
+                    pausedUpdateContinuation = continuation
+                    updatePausedExpectation?.fulfill()
+                }
+            }
             if updateFails { throw URLError(.notConnectedToInternet) }
+        }
+
+        func resumePausedUpdate() {
+            pausedUpdateContinuation?.resume()
+            pausedUpdateContinuation = nil
         }
 
         func presentRequiredForm() async throws {
