@@ -35,6 +35,46 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Prepare compilation cache identity
+        id: cache_identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCACHE'
+          import hashlib, json, os, platform, subprocess
+          from pathlib import Path
+          identity = {
+              "xcode": subprocess.check_output(["xcodebuild", "-version"], text=True).strip(),
+              "swift": subprocess.check_output(["xcrun", "swift", "--version"], text=True).strip(),
+              "sdk_build": subprocess.check_output(["xcrun", "--sdk", "iphonesimulator", "--show-sdk-build-version"], text=True).strip(),
+              "architecture": platform.machine(),
+              "project": hashlib.sha256(Path("project.yml").read_bytes()).hexdigest(),
+              "configuration": "KASANEScreenshot-Debug-coverage-NO-signing-NO",
+          }
+          fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+          prefix = f"ui-screenshot-cas-v1-{fingerprint}-"
+          identity["source_sha"] = os.environ["GITHUB_SHA"]
+          Path(os.environ["RUNNER_TEMP"], "ui-screenshot-cache-identity.json").write_text(json.dumps(identity, indent=2) + "\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"prefix={prefix}\nkey={prefix}{os.environ['GITHUB_SHA']}\n")
+          print(json.dumps(identity, indent=2))
+          PYCACHE
+          echo "started_at=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore screenshot compilation cache
+        id: cache_restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/ui-screenshot-compilation-cache
+          key: ${{ steps.cache_identity.outputs.key }}
+          restore-keys: ${{ steps.cache_identity.outputs.prefix }}
+
+      - name: Record cache restore timing
+        id: cache_restore_timing
+        shell: bash
+        run: |
+          echo "total_seconds=$(( $(date +%s) - ${{ steps.cache_identity.outputs.started_at }} ))" >> "$GITHUB_OUTPUT"
+
       - name: Select and boot 6.9-inch iPhone simulator
         id: simulator
         shell: bash
@@ -115,9 +155,22 @@ jobs:
             -configuration Debug \
             -enableCodeCoverage NO \
             CODE_SIGNING_ALLOWED=NO \
-            build-for-testing
+            COMPILATION_CACHE_ENABLE_CACHING=YES \
+            COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
+            COMPILATION_CACHE_CAS_PATH="$RUNNER_TEMP/ui-screenshot-compilation-cache" \
+            -showBuildTimingSummary \
+            build-for-testing 2>&1 | tee "$RUNNER_TEMP/ui-screenshot-build.log"
           xcodebuild_end="$(date +%s)"
           echo "total_seconds=$((xcodebuild_end - xcodebuild_start))" >> "$GITHUB_OUTPUT"
+          python3 - <<'PYCACHE'
+          import os
+          from pathlib import Path
+          lines = Path(os.environ["RUNNER_TEMP"], "ui-screenshot-build.log").read_text().splitlines()
+          hits = sum("note: replay cache hit" in line.lower() for line in lines)
+          misses = sum("note: replay cache miss" in line.lower() for line in lines)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"replay_hits={hits}\nreplay_misses={misses}\n")
+          PYCACHE
 
       - name: Run UI screenshot tests without building
         id: test
@@ -235,6 +288,26 @@ jobs:
             echo "screenshot_count=$screenshot_count"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Start compilation cache save timer
+        id: cache_save_start
+        if: steps.cache_restore.outputs.cache-hit != 'true'
+        shell: bash
+        run: echo "started_at=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Save screenshot compilation cache
+        if: steps.cache_restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/ui-screenshot-compilation-cache
+          key: ${{ steps.cache_identity.outputs.key }}
+
+      - name: Record cache save timing
+        id: cache_save_timing
+        if: steps.cache_restore.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          echo "total_seconds=$(( $(date +%s) - ${{ steps.cache_save_start.outputs.started_at }} ))" >> "$GITHUB_OUTPUT"
+
       - name: Summarize UI screenshot timings
         if: always()
         shell: bash
@@ -249,12 +322,31 @@ jobs:
             echo "| 日本語／locale設定 | ${{ steps.simulator.outputs.locale_seconds || 'n/a' }} |"
             echo "| Simulator再起動 | ${{ steps.simulator.outputs.restart_seconds || 'n/a' }} |"
             echo "| Simulator合計 | ${{ steps.simulator.outputs.total_seconds || 'n/a' }} |"
+            echo "| Compiler cache restore | ${{ steps.cache_restore_timing.outputs.total_seconds || 'n/a' }} |"
+            echo "| Compiler cache save (skipped on exact key hit) | ${{ steps.cache_save_timing.outputs.total_seconds || 'n/a' }} |"
             echo "| build-for-testing | ${{ steps.build_for_testing.outputs.total_seconds || 'n/a' }} |"
             echo "| test-without-building | ${{ steps.test.outputs.total_seconds || 'n/a' }} |"
             echo "| XCTest reported duration | ${{ steps.test.outputs.xctest_reported_seconds || 'n/a' }} |"
             echo "| xcresult screenshot export | ${{ steps.extract.outputs.export_seconds || 'n/a' }} |"
             echo "| Screenshot枚数 | ${{ steps.extract.outputs.screenshot_count || 'n/a' }} |"
+            echo
+            echo "Compiler cache exact key hit: ${{ steps.cache_restore.outputs.cache-hit || 'false' }}"
+            echo "Compiler replay hit remarks: ${{ steps.build_for_testing.outputs.replay_hits || 'n/a' }}"
+            echo "Compiler replay miss remarks: ${{ steps.build_for_testing.outputs.replay_misses || 'n/a' }}"
+            echo "An exact key miss may restore a compatible earlier source revision. The current source is always built."
+            echo "Replay counts are diagnostic remarks, not a hit rate. Cache timings include action/step overhead."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload compilation cache diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ui-screenshot-compilation-diagnostics
+          path: |
+            ${{ runner.temp }}/ui-screenshot-build.log
+            ${{ runner.temp }}/ui-screenshot-cache-identity.json
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload xcresult
         if: failure()

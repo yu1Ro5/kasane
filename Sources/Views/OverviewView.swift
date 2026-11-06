@@ -64,6 +64,9 @@ struct OverviewView: View {
                 }
                 if let insight = insightViewModel.insight {
                     MonthlyInsightCard(insight: insight)
+                        #if DEBUG
+                            .onAppear { DirectOverviewScreenshotReadiness.markReady() }
+                        #endif
                 }
                 TimelineView(.periodic(from: referenceDate, by: 60)) { context in
                     OverviewCalendarCard(
