@@ -47,14 +47,29 @@ jobs:
           runtimes = sorted((r for r in data['runtimes'] if r.get('isAvailable') and r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS-27-')), key=lambda r: tuple(map(int, r['version'].split('.'))), reverse=True)
           if not runtimes:
               raise SystemExit('No available iOS 27 runtime')
-          for name in ('iPhone 18 Pro Max', 'iPhone 17 Pro Max'):
-              device_type = next((d for d in data['devicetypes'] if d['name'] == name), None)
-              if device_type:
-                  break
-          else:
+          device_types = [
+              d for name in ('iPhone 18 Pro Max', 'iPhone 17 Pro Max')
+              for d in data['devicetypes'] if d['name'] == name
+          ]
+          if not device_types:
               raise SystemExit('No supported 6.9-inch device type')
-          runtime = runtimes[0]
-          udid = subprocess.check_output(['xcrun', 'simctl', 'create', 'KASANE App Store ' + os.environ['GITHUB_RUN_ID'], device_type['identifier'], runtime['identifier']], text=True).strip()
+          udid = None
+          failures = []
+          for device_type in device_types:
+              for runtime in runtimes:
+                  result = subprocess.run(
+                      ['xcrun', 'simctl', 'create', 'KASANE App Store ' + os.environ['GITHUB_RUN_ID'], device_type['identifier'], runtime['identifier']],
+                      text=True, capture_output=True,
+                  )
+                  if result.returncode == 0:
+                      udid = result.stdout.strip()
+                      name = device_type['name']
+                      break
+                  failures.append(f"{device_type['name']} / iOS {runtime['version']}: {result.stderr.strip()}")
+              if udid:
+                  break
+          if not udid:
+              raise SystemExit('No compatible 6.9-inch device and iOS 27 runtime pair:\n' + '\n'.join(failures))
           (Path(os.environ['RUNNER_TEMP']) / 'app-store-simulator-id').write_text(udid)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'id={udid}\nname={name}\nruntime={runtime["version"]}\n')
