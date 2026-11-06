@@ -6,6 +6,15 @@ import XCTest
 
 @MainActor
 final class KASANETests: XCTestCase {
+    func testAdConfigurationRequiresExplicitOptInAndIsolatesUITests() {
+        XCTAssertEqual(AdConfiguration.resolve(arguments: []), .off)
+        XCTAssertEqual(AdConfiguration.resolve(arguments: ["--stub-overview-banner"]), .off)
+        XCTAssertEqual(AdConfiguration.resolve(arguments: ["--enable-admob-test-banner"]), .googleTest)
+        let uiArguments = ["--ui-testing", "--enable-admob-test-banner"]
+        XCTAssertEqual(AdConfiguration.resolve(arguments: uiArguments), .off)
+        XCTAssertEqual(AdConfiguration.resolve(arguments: uiArguments + ["--stub-overview-banner"]), .stub)
+    }
+
     private var utcCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt

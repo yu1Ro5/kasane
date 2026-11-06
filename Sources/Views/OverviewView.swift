@@ -8,6 +8,8 @@ struct OverviewView: View {
     private let referenceDate: Date
     private let fixedReferenceDate: Date?
     private let insightGenerator: any MonthlyInsightGenerating
+    private let adMode = AdConfiguration.current
+    @State private var adConsent = AdConsentManager(client: GoogleAdConsentClient())
     @State private var selectedMonth: Date
     @State private var isMonthSelectorPresented = false
     @State private var isReplayPresented = false
@@ -74,6 +76,9 @@ struct OverviewView: View {
                 if !exerciseCardContents.isEmpty {
                     exerciseRecords(featuredExerciseRecords(from: exerciseCardContents))
                 }
+                if adMode != .off {
+                    AdBannerView(mode: adMode, consent: adConsent)
+                }
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 28)
@@ -97,6 +102,9 @@ struct OverviewView: View {
                 referenceDate: referenceDate,
                 calendar: calendar
             )
+        }
+        .task {
+            if adMode == .googleTest { await adConsent.prepare() }
         }
         .task(id: insightFacts) {
             await insightViewModel.generate(facts: insightFacts, using: insightGenerator)

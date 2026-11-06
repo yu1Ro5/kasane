@@ -1,6 +1,22 @@
 import XCTest
 
 final class KASANEUIRegressionTests: XCTestCase {
+    @MainActor
+    func testOverviewTestBanner() {
+        let app = launchApp(additionalArguments: ["--stub-overview-banner"])
+        let labels = app.scrollViews.staticTexts.matching(identifier: "overview-ad-label")
+        XCTAssertTrue(scrollToHittable(labels.firstMatch, in: app))
+        XCTAssertEqual(labels.count, 1)
+        XCTAssertTrue(app.staticTexts["テストバナー"].isHittable)
+        app.tabBars.buttons["ワークアウト"].tap()
+        XCTAssertFalse(app.staticTexts["overview-ad-label"].exists)
+        app.terminate()
+        let disabledApp = launchApp(additionalArguments: ["--enable-admob-test-banner"])
+        disabledApp.swipeUp()
+        disabledApp.swipeUp()
+        XCTAssertFalse(disabledApp.staticTexts["overview-ad-label"].exists)
+    }
+
     /// フィードバックの外部リンクを設定に追加し、既存のサポート導線も維持する。
     @MainActor
     func testFeedbackFormLinkInSettings() throws {
