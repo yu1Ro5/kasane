@@ -110,7 +110,7 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/app-store-build" \
             -resultBundlePath "$RUNNER_TEMP/app-store.xcresult" \
             -only-testing:KASANEUITests/KASANEUIScreenshotTests/testAppStoreScreenshots \
-            -parallel-testing-enabled NO -test-iterations 1 \
+            -parallel-testing-enabled NO \
             -enableCodeCoverage NO -collect-test-diagnostics never \
             CODE_SIGNING_ALLOWED=NO test-without-building
 
