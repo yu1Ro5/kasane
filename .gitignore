@@ -32,7 +32,15 @@ playground.xcworkspace
 .build/
 
 # XcodeGen output (project.yml is the source of truth)
-*.xcodeproj/
+# Track only the SwiftPM lockfile inside the generated project.
+*.xcodeproj/*
+!*.xcodeproj/project.xcworkspace/
+*.xcodeproj/project.xcworkspace/*
+!*.xcodeproj/project.xcworkspace/xcshareddata/
+*.xcodeproj/project.xcworkspace/xcshareddata/*
+!*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
+!*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # Local build output
 build/
