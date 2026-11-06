@@ -15,6 +15,14 @@ settings:
     DEVELOPMENT_TEAM: 58Y7Q3D4A7
     "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]": NO
 
+packages:
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads.git
+    exactVersion: 13.12.0
+  GoogleUserMessagingPlatform:
+    url: https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git
+    exactVersion: 3.1.0
+
 targets:
   KASANE:
     type: application
@@ -25,8 +33,12 @@ targets:
         type: group
         excludes:
           - Info.plist
+    dependencies:
+      - package: GoogleMobileAds
+      - package: GoogleUserMessagingPlatform
     settings:
       base:
+        OTHER_LDFLAGS: "$(inherited) -ObjC"
         PRODUCT_BUNDLE_IDENTIFIER: com.yu1Ro5.kasane
         PRODUCT_NAME: KASANE
         TARGETED_DEVICE_FAMILY: "1"
@@ -113,6 +125,7 @@ schemes:
       targets:
         - name: KASANEUITests
           selectedTests:
+            - KASANEUIRegressionTests/testOverviewTestBanner()
             - KASANEUIRegressionTests/testDataManagementNavigationAndActions()
             - KASANEUIRegressionTests/testOverviewRecentWorkoutOpensDetail()
             - KASANEUIRegressionTests/testOverviewSearchKeepsQueryAfterViewingDetail()
