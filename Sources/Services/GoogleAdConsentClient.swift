@@ -1,5 +1,5 @@
 import GoogleMobileAds
-import UserMessagingPlatform
+@preconcurrency import UserMessagingPlatform
 
 @MainActor
 struct GoogleAdConsentClient: AdConsentClient {

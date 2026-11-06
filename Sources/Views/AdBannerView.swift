@@ -44,6 +44,7 @@ struct AdBannerView: View {
     }
 }
 
+@MainActor
 private var adLabel: some View {
     Text("広告")
         .font(.caption)
