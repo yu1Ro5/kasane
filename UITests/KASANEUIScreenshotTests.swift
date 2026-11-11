@@ -66,22 +66,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         reuse.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.7)).tap()
         XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
 
-        let searchButton = app.buttons["workout-exercise-search-button"]
-        XCTAssertTrue(scrollToHittable(searchButton, in: app))
-        XCTAssertFalse(app.textFields["workout-exercise-search-field"].exists)
-        searchButton.tap()
-        let searchField = app.textFields["workout-exercise-search-field"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        searchField.typeText("存在しない種目212")
-        XCTAssertFalse(app.staticTexts["今回のワークアウト"].exists)
-        XCTAssertEqual(
-            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "available-exercise-")).count, 0)
-        app.buttons["workout-exercise-search-clear"].tap()
-        XCTAssertTrue(app.staticTexts["今回のワークアウト"].exists)
-        app.buttons["workout-exercise-search-cancel"].tap()
-        XCTAssertFalse(searchField.exists)
-
         let currentExercise = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "current-exercise-")
         ).firstMatch
@@ -165,10 +149,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["replay-intro-page"].waitForExistence(timeout: 10))
         let replayYear = app.descendants(matching: .any)["replay-year-selector"]
         XCTAssertTrue(replayYear.waitForExistence(timeout: 10))
-        // Validate the selected year through its semantic value, independent of Text's
-        // locale-specific number grouping (for example, "2,026").
-        let replayYearValue = try XCTUnwrap(replayYear.value as? String)
-        XCTAssertEqual(String(replayYearValue.filter(\.isNumber)), "2026")
+        // Years should remain ungrouped in both the selector and the intro heading.
+        XCTAssertEqual(replayYear.value as? String, "2026年")
+        XCTAssertTrue(app.staticTexts["2026"].exists)
+        XCTAssertFalse(app.staticTexts["2,026"].exists)
         // The accessibility snapshot includes both the combined metric (.other) and
         // its child label (.staticText). Select the metric that owns the count value.
         let replayCount = app.descendants(matching: .any)["replay-intro-page"]

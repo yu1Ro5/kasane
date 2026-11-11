@@ -49,10 +49,6 @@ targets:
         PRIVACY_MANIFEST_PATH: Sources/PrivacyInfo.xcprivacy
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: Sources/KASANE.entitlements
-    scheme:
-      testTargets:
-        - KASANETests
-        - KASANEUITests
 
   KASANETests:
     type: bundle.unit-test
@@ -87,6 +83,16 @@ targets:
         SKIP_INSTALL: YES
 
 schemes:
+  KASANE:
+    build:
+      targets:
+        KASANE: all
+    test:
+      debugEnabled: false
+      targets:
+        - name: KASANETests
+        - name: KASANEUITests
+
   KASANESmoke:
     build:
       targets:
@@ -94,6 +100,7 @@ schemes:
         KASANETests: [test]
         KASANEUITests: [test]
     test:
+      debugEnabled: false
       gatherCoverageData: false
       targets:
         - name: KASANETests
@@ -109,6 +116,7 @@ schemes:
         KASANE: all
         KASANEUITests: [test]
     test:
+      debugEnabled: false
       gatherCoverageData: false
       targets:
         - name: KASANEUITests
@@ -121,6 +129,7 @@ schemes:
         KASANE: all
         KASANEUITests: [test]
     test:
+      debugEnabled: false
       gatherCoverageData: false
       targets:
         - name: KASANEUITests
@@ -149,6 +158,7 @@ schemes:
         KASANE: all
         KASANEUITests: [test]
     test:
+      debugEnabled: false
       gatherCoverageData: false
       targets:
         - name: KASANEUITests
