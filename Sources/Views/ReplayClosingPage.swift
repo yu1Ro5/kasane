@@ -16,10 +16,10 @@ struct ReplayClosingPage: View {
                         .tracking(2)
                         .foregroundStyle(.secondary)
 
-                    Text("\(presentation.year)")
+                    Text("\(presentation.year.formatted(.number.grouping(.never)))")
                         .font(.system(.largeTitle, design: .rounded, weight: .black))
                         .monospacedDigit()
-                        .accessibilityLabel("\(presentation.year)年")
+                        .accessibilityLabel("\(presentation.year.formatted(.number.grouping(.never)))年")
 
                     Text(presentation.message)
                         .font(.system(.title, design: .rounded, weight: .bold))
