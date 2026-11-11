@@ -36,11 +36,6 @@ struct ReplayView: View {
                 } else {
                     pageProgress
                     pages
-                    if viewModel.selectedPage == .closing {
-                        previousButton
-                    } else {
-                        pageControls
-                    }
                 }
             }
             .padding(.horizontal, 20)
@@ -132,66 +127,43 @@ struct ReplayView: View {
     }
 
     private var pages: some View {
-        TabView(selection: pageSelection) {
-            ReplayIntroPage(stats: viewModel.stats, countFontSize: workoutCountFontSize)
-                .tag(ReplayPage.intro)
+        GeometryReader { geometry in
+            TabView(selection: pageSelection) {
+                ReplayIntroPage(stats: viewModel.stats, countFontSize: workoutCountFontSize)
+                    .tag(ReplayPage.intro)
 
-            ReplayActivityPage(stats: viewModel.stats)
-                .tag(ReplayPage.activity)
+                ReplayActivityPage(stats: viewModel.stats)
+                    .tag(ReplayPage.activity)
 
-            ReplayMostTrainedPage(stats: viewModel.stats)
-                .tag(ReplayPage.mostTrained)
+                ReplayMostTrainedPage(stats: viewModel.stats)
+                    .tag(ReplayPage.mostTrained)
 
-            ReplayGrowthPage(stats: viewModel.stats)
-                .tag(ReplayPage.growthAndPersonalRecords)
+                ReplayGrowthPage(stats: viewModel.stats)
+                    .tag(ReplayPage.growthAndPersonalRecords)
 
-            ReplayClosingPage(
-                presentation: ReplayClosingPresentation(
-                    stats: viewModel.stats,
-                    currentYear: viewModel.currentYear
-                ),
-                replayAction: restartReplay,
-                closeAction: { dismiss() }
+                ReplayClosingPage(
+                    presentation: ReplayClosingPresentation(
+                        stats: viewModel.stats,
+                        currentYear: viewModel.currentYear
+                    ),
+                    replayAction: restartReplay,
+                    closeAction: { dismiss() }
+                )
+                    .tag(ReplayPage.closing)
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .contentShape(Rectangle())
+            .gesture(
+                SpatialTapGesture().onEnded { tap in
+                    if tap.location.x < geometry.size.width / 2 {
+                        moveToPreviousPage()
+                    } else {
+                        moveToNextPage()
+                    }
+                }
             )
-                .tag(ReplayPage.closing)
+            .accessibilityIdentifier("replay-pages")
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .accessibilityIdentifier("replay-pages")
-    }
-
-    private var pageControls: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                previousButton
-                nextButton
-            }
-            VStack(spacing: 10) {
-                nextButton
-                previousButton
-            }
-        }
-    }
-
-    private var previousButton: some View {
-        Button(action: moveToPreviousPage) {
-            Label("前へ", systemImage: "chevron.left")
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
-        .disabled(!viewModel.canGoBack)
-        .accessibilityIdentifier("replay-previous-button")
-    }
-
-    private var nextButton: some View {
-        Button(action: moveToNextPage) {
-            Label("次へ", systemImage: "chevron.right")
-                .labelStyle(.titleAndIcon)
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .accessibilityIdentifier("replay-next-button")
     }
 
     private var emptyState: some View {
