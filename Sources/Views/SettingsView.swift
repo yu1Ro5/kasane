@@ -7,9 +7,6 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            Section("アプリ情報") {
-                LabeledContent("KASANE", value: "Version \(AppVersion.current)")
-            }
             Section("種目") {
                 NavigationLink {
                     ExerciseManagementView()
@@ -48,16 +45,25 @@ struct SettingsView: View {
                 }
             }
 
-            Section("サポート") {
+            Section {
                 if let url = AppLinks.feedback {
                     AboutLink(title: "ご意見・不具合を送る", destination: url)
                         .accessibilityIdentifier("feedback-form-link")
                 }
                 if let url = AppLinks.support { AboutLink(title: "サポート", destination: url) }
                 if let url = AppLinks.privacyPolicy { AboutLink(title: "プライバシーポリシー", destination: url) }
-            }
-            Section("情報") {
-                NavigationLink("KASANEについて") { AboutView() }
+            } header: {
+                Text("サポート")
+            } footer: {
+                VStack(spacing: 4) {
+                    Text("KASANE Version \(AppVersion.current)")
+                    Text("© 2026 yu1Ro5")
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
             }
         }
         .listStyle(.insetGrouped)
@@ -66,5 +72,23 @@ struct SettingsView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await reminderCoordinator.refreshAuthorizationStatus() } }
         }
+    }
+}
+
+struct AboutLink: View {
+    let title: String
+    let destination: URL
+
+    var body: some View {
+        Link(destination: destination) {
+            HStack {
+                Text(title)
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .accessibilityLabel(title)
     }
 }

@@ -2,24 +2,28 @@ import XCTest
 
 final class KASANEUIVisualEdgeCaseTests: XCTestCase {
     @MainActor
-    func testAboutScreenshot() throws {
+    func testSettingsScreenshot() throws {
         let app = launchApp()
 
         XCTAssertTrue(app.navigationBars["概要"].waitForExistence(timeout: 10))
-        let aboutButton = app.buttons["設定"]
-        XCTAssertTrue(aboutButton.waitForExistence(timeout: 10))
-        aboutButton.tap()
-        app.swipeUp()
-        app.buttons["KASANEについて"].tap()
+        let settingsButton = app.buttons["設定"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 10))
+        settingsButton.tap()
 
-        XCTAssertTrue(app.navigationBars["KASANEについて"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["KASANE"].exists)
+        XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["KASANEについて"].exists)
+        XCTAssertFalse(app.staticTexts["アプリ情報"].exists)
+        XCTAssertFalse(app.staticTexts["情報"].exists)
+        XCTAssertTrue(scrollToHittable(app.staticTexts["© 2026 yu1Ro5"], in: app))
         XCTAssertTrue(app.staticTexts["サポート"].exists)
         XCTAssertTrue(app.staticTexts["プライバシーポリシー"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["about-version"].exists)
+        let version = app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "KASANE Version ")
+        ).firstMatch
+        XCTAssertTrue(version.exists)
 
         let attachment = XCTAttachment(screenshot: takeStableScreenshot(app))
-        attachment.name = "about"
+        attachment.name = "settings"
         attachment.lifetime = .keepAlways
         add(attachment)
     }
