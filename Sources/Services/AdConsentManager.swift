@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 @MainActor
@@ -80,6 +81,7 @@ final class AdConsentManager {
         isBusy = true
         mayLoadBanner = false
         optionsFailed = false
+        diagnosticError = nil
         diagnosticStage = "UMP: presenting privacy options"
         defer { isBusy = false }
         do {
