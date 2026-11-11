@@ -64,10 +64,6 @@ final class ReplayViewModel {
         calendar.component(.year, from: referenceDate)
     }
 
-    var canGoBack: Bool {
-        selectedPage != .intro
-    }
-
     func selectYear(_ year: Int) {
         guard availableYears.contains(year), year != selectedYear else { return }
         selectedYear = year
@@ -80,12 +76,15 @@ final class ReplayViewModel {
     }
 
     func showPreviousPage() {
+        guard stats.workoutCount > 0 else { return }
         guard let previous = ReplayPage(rawValue: selectedPage.rawValue - 1) else { return }
         selectedPage = previous
     }
 
     func showNextPage() {
-        selectedPage = ReplayPage(rawValue: selectedPage.rawValue + 1) ?? .intro
+        guard stats.workoutCount > 0 else { return }
+        guard let next = ReplayPage(rawValue: selectedPage.rawValue + 1) else { return }
+        selectedPage = next
     }
 
     func restart() {

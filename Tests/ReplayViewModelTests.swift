@@ -147,16 +147,33 @@ final class ReplayViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.stats.workoutCount, 1)
     }
 
-    func testAdvancingFromClosingReturnsToIntro() throws {
+    func testPageNavigationStopsAtFirstAndLastPage() throws {
         let viewModel = ReplayViewModel(
             workouts: [try completedWorkout(year: 2026)],
             referenceDate: try date(year: 2026, month: 10, day: 27),
             calendar: utcCalendar
         )
+
+        viewModel.showPreviousPage()
+        XCTAssertEqual(viewModel.selectedPage, .intro)
+
         viewModel.showPage(.closing)
 
         viewModel.showNextPage()
 
+        XCTAssertEqual(viewModel.selectedPage, .closing)
+    }
+
+    func testEmptyYearCannotAdvance() throws {
+        let viewModel = ReplayViewModel(
+            workouts: [],
+            referenceDate: try date(year: 2026, month: 10, day: 27),
+            calendar: utcCalendar
+        )
+
+        viewModel.showNextPage()
+
+        XCTAssertEqual(viewModel.stats.workoutCount, 0)
         XCTAssertEqual(viewModel.selectedPage, .intro)
     }
 
