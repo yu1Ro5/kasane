@@ -28,7 +28,7 @@ struct ReplayBiggestGrowthCard: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 18) {
-                Label("\(year)年に最も成長した種目", systemImage: "chart.line.uptrend.xyaxis")
+                Label("\(String(year))年に最も成長した種目", systemImage: "chart.line.uptrend.xyaxis")
                     .font(.headline)
                     .foregroundStyle(.secondary)
 

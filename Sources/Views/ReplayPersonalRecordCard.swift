@@ -14,7 +14,7 @@ struct ReplayPersonalRecordCard: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 7) {
-                Text("\(year)年の自己ベスト更新")
+                Text("\(String(year))年の自己ベスト更新")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
 

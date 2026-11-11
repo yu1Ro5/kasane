@@ -16,7 +16,7 @@ struct ReplayClosingPage: View {
                         .tracking(2)
                         .foregroundStyle(.secondary)
 
-                    Text("\(presentation.year)")
+                    Text(String(presentation.year))
                         .font(.system(.largeTitle, design: .rounded, weight: .black))
                         .monospacedDigit()
                         .accessibilityLabel("\(presentation.year)年")

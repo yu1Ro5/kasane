@@ -165,10 +165,10 @@ final class KASANEUIScreenshotTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["replay-intro-page"].waitForExistence(timeout: 10))
         let replayYear = app.descendants(matching: .any)["replay-year-selector"]
         XCTAssertTrue(replayYear.waitForExistence(timeout: 10))
-        // Validate the selected year through its semantic value, independent of Text's
-        // locale-specific number grouping (for example, "2,026").
-        let replayYearValue = try XCTUnwrap(replayYear.value as? String)
-        XCTAssertEqual(String(replayYearValue.filter(\.isNumber)), "2026")
+        // Years should remain ungrouped in both the selector and the intro heading.
+        XCTAssertEqual(replayYear.value as? String, "2026年")
+        XCTAssertTrue(app.staticTexts["2026"].exists)
+        XCTAssertFalse(app.staticTexts["2,026"].exists)
         // The accessibility snapshot includes both the combined metric (.other) and
         // its child label (.staticText). Select the metric that owns the count value.
         let replayCount = app.descendants(matching: .any)["replay-intro-page"]
