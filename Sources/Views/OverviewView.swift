@@ -9,6 +9,7 @@ struct OverviewView: View {
     private let fixedReferenceDate: Date?
     private let insightGenerator: any MonthlyInsightGenerating
     @State private var adMode: AdConfiguration = .off
+    @State private var testFlightAdDiagnostic: String?
     @State private var adConsent = AdConsentManager(client: GoogleAdConsentClient())
     @State private var selectedMonth: Date
     @State private var isMonthSelectorPresented = false
@@ -77,7 +78,15 @@ struct OverviewView: View {
                     exerciseRecords(featuredExerciseRecords(from: exerciseCardContents))
                 }
                 if adMode != .off {
-                    AdBannerView(mode: adMode, consent: adConsent)
+                    AdBannerView(
+                        mode: adMode, consent: adConsent,
+                        testFlightDiagnostic: testFlightAdDiagnostic
+                    )
+                } else if let testFlightAdDiagnostic {
+                    AdDebugPanel(lines: [
+                        testFlightAdDiagnostic,
+                        "Ad mode: off (no SDK initialization or ad request)",
+                    ])
                 }
             }
             .padding(.horizontal, 18)
@@ -104,10 +113,11 @@ struct OverviewView: View {
             )
         }
         .task {
-            let resolvedMode = await AdConfiguration.current()
+            let resolution = await AdConfiguration.currentWithDiagnostics()
             guard !Task.isCancelled else { return }
-            adMode = resolvedMode
-            if resolvedMode == .googleTest { await adConsent.prepare() }
+            testFlightAdDiagnostic = resolution.testFlightDiagnostic
+            adMode = resolution.mode
+            if resolution.mode == .googleTest { await adConsent.prepare() }
         }
         .task(id: insightFacts) {
             await insightViewModel.generate(facts: insightFacts, using: insightGenerator)
