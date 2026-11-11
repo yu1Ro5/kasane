@@ -15,6 +15,35 @@ final class KASANETests: XCTestCase {
         XCTAssertEqual(AdConfiguration.resolve(arguments: uiArguments + ["--stub-overview-banner"]), .stub)
     }
 
+    func testAdConfigurationEnablesOnlyVerifiedTestFlightInRelease() {
+        XCTAssertEqual(
+            AdConfiguration.resolve(arguments: [], isDebug: false, isTestFlight: true),
+            .googleTest
+        )
+        XCTAssertEqual(
+            AdConfiguration.resolve(arguments: [], isDebug: false, isTestFlight: false),
+            .off
+        )
+        XCTAssertEqual(
+            AdConfiguration.resolve(
+                arguments: ["--enable-admob-test-banner"], isDebug: false, isTestFlight: false),
+            .off
+        )
+        XCTAssertEqual(
+            AdConfiguration.resolve(
+                arguments: ["--ui-testing"], isDebug: false, isTestFlight: true),
+            .off
+        )
+        XCTAssertEqual(
+            AdConfiguration.resolve(
+                arguments: ["--ui-testing", "--stub-overview-banner"],
+                isDebug: false,
+                isTestFlight: true
+            ),
+            .stub
+        )
+    }
+
     private var utcCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
