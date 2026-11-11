@@ -153,7 +153,7 @@ schemes:
       targets:
         - name: KASANEUITests
           selectedTests:
-            - KASANEUIVisualEdgeCaseTests/testAboutScreenshot()
+            - KASANEUIVisualEdgeCaseTests/testSettingsScreenshot()
             - KASANEUIVisualEdgeCaseTests/testOverviewUnavailableInsightScreenshot()
             - KASANEUIVisualEdgeCaseTests/testOverviewDarkModeScreenshot()
             - KASANEUIVisualEdgeCaseTests/testOverviewDynamicTypeScreenshot()

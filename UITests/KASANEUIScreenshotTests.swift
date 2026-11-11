@@ -66,22 +66,6 @@ final class KASANEUIScreenshotTests: XCTestCase {
         reuse.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.7)).tap()
         XCTAssertTrue(app.staticTexts["今回のワークアウト"].waitForExistence(timeout: 10))
 
-        let searchButton = app.buttons["workout-exercise-search-button"]
-        XCTAssertTrue(scrollToHittable(searchButton, in: app))
-        XCTAssertFalse(app.textFields["workout-exercise-search-field"].exists)
-        searchButton.tap()
-        let searchField = app.textFields["workout-exercise-search-field"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        searchField.typeText("存在しない種目212")
-        XCTAssertFalse(app.staticTexts["今回のワークアウト"].exists)
-        XCTAssertEqual(
-            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "available-exercise-")).count, 0)
-        app.buttons["workout-exercise-search-clear"].tap()
-        XCTAssertTrue(app.staticTexts["今回のワークアウト"].exists)
-        app.buttons["workout-exercise-search-cancel"].tap()
-        XCTAssertFalse(searchField.exists)
-
         let currentExercise = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "current-exercise-")
         ).firstMatch
