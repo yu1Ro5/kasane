@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 @MainActor
@@ -17,6 +18,18 @@ final class AdConsentManager {
     private(set) var needsPrivacyOptions = false
     private(set) var isBusy = false
     private(set) var optionsFailed = false
+    private(set) var diagnosticStage = "UMP: not started"
+    private(set) var diagnosticError: String?
+    private(set) var diagnosticCanRequestAds: Bool?
+    private(set) var diagnosticSDKStarted = false
+
+    var diagnosticLines: [String] {
+        [
+            diagnosticStage,
+            "UMP canRequestAds: \(diagnosticCanRequestAds.map(String.init) ?? "unknown")",
+            "GMA initialized: \(diagnosticSDKStarted)",
+        ] + (diagnosticError.map { [$0] } ?? [])
+    }
     private var didPrepare = false
     private var startedSDK = false
 
@@ -37,11 +50,18 @@ final class AdConsentManager {
         }
         guard !didPrepare, !Task.isCancelled else { return }
         isBusy = true
+        diagnosticStage = "UMP: updating consent information"
+        diagnosticError = nil
         defer { isBusy = false }
         do {
             try await client.update()
+            diagnosticStage = "UMP: update succeeded; checking consent form"
+            diagnosticCanRequestAds = client.canRequestAds
             needsPrivacyOptions = client.needsPrivacyOptions
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                diagnosticStage = "UMP: task cancelled"
+                return
+            }
             try await client.presentRequiredForm()
             try Task.checkCancellation()
             didPrepare = true
@@ -49,6 +69,10 @@ final class AdConsentManager {
         } catch {
             // Require a successful update and form flow in this session, even with cached consent.
             mayLoadBanner = false
+            diagnosticStage = "UMP: consent preparation failed"
+            diagnosticCanRequestAds = client.canRequestAds
+            let nsError = error as NSError
+            diagnosticError = "\(nsError.domain) (\(nsError.code)): \(nsError.localizedDescription)"
         }
     }
 
@@ -57,22 +81,35 @@ final class AdConsentManager {
         isBusy = true
         mayLoadBanner = false
         optionsFailed = false
+        diagnosticError = nil
+        diagnosticStage = "UMP: presenting privacy options"
         defer { isBusy = false }
         do {
             try await client.presentOptions()
             await applyConsent()
         } catch {
             optionsFailed = true
+            diagnosticStage = "UMP: privacy options failed"
+            let nsError = error as NSError
+            diagnosticError = "\(nsError.domain) (\(nsError.code)): \(nsError.localizedDescription)"
         }
     }
 
     private func applyConsent() async {
         needsPrivacyOptions = client.needsPrivacyOptions
-        guard client.canRequestAds else { return }
+        diagnosticCanRequestAds = client.canRequestAds
+        guard client.canRequestAds else {
+            diagnosticStage = "UMP: ad requests blocked by consent state"
+            return
+        }
         if !startedSDK {
+            diagnosticStage = "GMA: initializing"
             await client.startAds()
             startedSDK = true
+            diagnosticSDKStarted = true
         }
         mayLoadBanner = client.canRequestAds
+        diagnosticCanRequestAds = mayLoadBanner
+        diagnosticStage = mayLoadBanner ? "GMA: ready to request banner" : "UMP: consent no longer permits ads"
     }
 }

@@ -86,3 +86,12 @@ Release配布ではStoreKit 2の署名済み `AppTransaction.shared` を用い�
 TestFlight実機では、概要画面末尾のテストバナー表示／同意とプライバシー設定／通信失敗時の非表示を確認する。同じコードのApp Store本番配布では広告が無効であることを確認する。本番広告IDへの切り替えと収益化はIssue #236で別途扱う。
 
 参考： [Apple AppTransaction](https://developer.apple.com/documentation/storekit/apptransaction)、[Apple StoreKit sandbox](https://developer.apple.com/documentation/storekit/testing-in-app-purchases-with-sandbox)、[Googleテスト広告](https://developers.google.com/admob/ios/test-ads)。
+
+## TestFlight失敗時の画面内診断（2026-11-11）
+
+- TestFlightに限り、概要の広告枠で広告未表示時に高さ140pt以上の診断カードを表示する。StoreKitの配布判定、UMP進行段階、`canRequestAds`、SDK初期化状態、バナー読み込みエラーのNSErrorドメイン／コード／説明を出す。カードの「診断情報をコピー」からテキストをコピーできる。
+- 正常に広告が読み込めた場合は診断カードを消してテスト広告を表示する。TestFlightの広告読み込み失敗時も高さ0に折りたたまずエラーを表示する。
+- 署名済みAppTransactionでsandboxが確認できた時のみ広告を取得する。未検証のsandbox判定やStoreKit取得失敗時は診断表示のみ。App Store production / 通常のDebug OFF / UIテストに診断カードは表示しない。StoreKit取得失敗時のsandboxReceipt判定は診断表示専用で、広告有効化には使用しない。
+- UIテストのスタブと通常のスクリーンショットは維持する。広告テストID、既存のUMP同意フローと本番広告OFFは変更しない。
+- 本変更自体は本番公開可否・プライバシー申告・Google UMP設定を解決しない。診断値は個人情報（Workout履歴など）を含めないが、SDKエラーテキストを共有する場合は内容を確認する。
+- 実機TestFlightで、広告成功・UMPエラー・バナーエラー・オフラインの状態とレイアウトを検証する。CIではTestFlightの署名と実ネットワークは再現できない。
