@@ -44,6 +44,28 @@ final class KASANETests: XCTestCase {
         )
     }
 
+    func testTestFlightDiagnosticPanelNeverAppearsForProduction() {
+        let production = AdConfiguration.resolveDistribution(isSandbox: false, isVerified: true)
+        XCTAssertEqual(production.mode, .off)
+        XCTAssertNil(production.testFlightDiagnostic)
+
+        let sandbox = AdConfiguration.resolveDistribution(isSandbox: true, isVerified: true)
+        XCTAssertEqual(sandbox.mode, .googleTest)
+        XCTAssertNotNil(sandbox.testFlightDiagnostic)
+
+        let unverified = AdConfiguration.resolveDistribution(
+            isSandbox: true, isVerified: false, reason: "signature failure"
+        )
+        XCTAssertEqual(unverified.mode, .off)
+        XCTAssertTrue(unverified.testFlightDiagnostic?.contains("signature failure") == true)
+
+        let productionError = AdConfiguration.resolveDistribution(
+            isSandbox: false, isVerified: false, reason: "lookup failed"
+        )
+        XCTAssertEqual(productionError.mode, .off)
+        XCTAssertNil(productionError.testFlightDiagnostic)
+    }
+
     private var utcCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
