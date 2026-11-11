@@ -28,7 +28,7 @@ struct ReplayBiggestGrowthCard: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 18) {
-                Label("\(year)年に最も成長した種目", systemImage: "chart.line.uptrend.xyaxis")
+                Label("\(year.formatted(.number.grouping(.never)))年に最も成長した種目", systemImage: "chart.line.uptrend.xyaxis")
                     .font(.headline)
                     .foregroundStyle(.secondary)
 
@@ -57,7 +57,7 @@ struct ReplayBiggestGrowthCard: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(year)年に最も成長した種目")
+        .accessibilityLabel("\(year.formatted(.number.grouping(.never)))年に最も成長した種目")
         .accessibilityValue(accessibilityValue)
     }
 

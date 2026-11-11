@@ -81,16 +81,16 @@ struct ReplayView: View {
                     changeYear(to: year)
                 } label: {
                     if year == viewModel.selectedYear {
-                        Label("\(year)年", systemImage: "checkmark")
+                        Label("\(year.formatted(.number.grouping(.never)))年", systemImage: "checkmark")
                     } else {
-                        Text("\(year)年")
+                        Text("\(year.formatted(.number.grouping(.never)))年")
                     }
                 }
                 .accessibilityValue(year == viewModel.selectedYear ? "選択中" : "")
             }
         } label: {
             HStack(spacing: 6) {
-                Text("\(viewModel.selectedYear)")
+                Text("\(viewModel.selectedYear.formatted(.number.grouping(.never)))")
                     .font(.headline.monospacedDigit())
                 Image(systemName: "chevron.down")
                     .font(.caption.weight(.bold))
@@ -101,7 +101,7 @@ struct ReplayView: View {
             .background(.thinMaterial, in: Capsule())
         }
         .accessibilityLabel("Replayの対象年")
-        .accessibilityValue("\(viewModel.selectedYear)年")
+        .accessibilityValue("\(viewModel.selectedYear.formatted(.number.grouping(.never)))年")
         .accessibilityHint("ダブルタップして対象年を変更")
         .accessibilityIdentifier("replay-year-selector")
     }
@@ -197,7 +197,7 @@ struct ReplayView: View {
     private var emptyState: some View {
         ReplayPageLayout {
             ContentUnavailableView {
-                Label("\(viewModel.selectedYear)年のReplayはまだありません", systemImage: "calendar")
+                Label("\(viewModel.selectedYear.formatted(.number.grouping(.never)))年のReplayはまだありません", systemImage: "calendar")
             } description: {
                 Text("ワークアウトを完了すると、この年の積み重ねを振り返れます。")
             }
@@ -249,7 +249,7 @@ private struct ReplayIntroPage: View {
                     .tracking(2)
                     .foregroundStyle(.secondary)
 
-                Text("\(stats.year)")
+                Text("\(stats.year.formatted(.number.grouping(.never)))")
                     .font(.system(.largeTitle, design: .rounded, weight: .black))
                     .monospacedDigit()
 
