@@ -76,3 +76,13 @@ xcodebuild -project KASANE.xcodeproj -scheme KASANE -configuration Debug \
 実機では広告ON/OFF、公式Test Ad表示、機内モード、広告読み込み中の画面移動、再選択・撤回、再起動を確認する。小画面、縦横、Light/Dark、最大Dynamic Type、VoiceOverで末尾までスクロールし、カードとタブバーを覆わないことを確認する。通信観測でOFF・UIテスト・Releaseが広告取得しないことも確認する。
 
 TestFlightは未実施。配布前条件を満たすまでは送信しない。#236では本番用設定、配布審査、同意設定、広告報告、申告とポリシーの最終照合を扱う。
+
+## TestFlightでのテスト広告表示（2026-11-11追記）
+
+Release配布ではStoreKit 2の署名済み `AppTransaction.shared` を用い、`environment == .sandbox` で検証成功した場合にだけGoogle公式デモバナー（`googleTest`）を有効にする。`production`、検証失敗、取得エラーではOFFのままとする。コンパイル設定の `DEBUG` だけでTestFlightを判別しない。Debugの明示的有効化、UIテスト時の広告OFF／スタブは維持する。
+
+本変更は**TestFlightで表示を試すための機能フラグ変更**であり、プライバシー確認・App Store Connectの申告・同意設定・実機確認の完了を意味しない。TestFlightに配布する前に「プライバシーと配布条件」のゲートを満たす必要がある。Google公式デモApp IDでUMP同意情報の更新が失敗した場合は、既存の安全な動作どおり広告を出さない。同意を省略して表示を強制しない。
+
+TestFlight実機では、概要画面末尾のテストバナー表示／同意とプライバシー設定／通信失敗時の非表示を確認する。同じコードのApp Store本番配布では広告が無効であることを確認する。本番広告IDへの切り替えと収益化はIssue #236で別途扱う。
+
+参考： [Apple AppTransaction](https://developer.apple.com/documentation/storekit/apptransaction)、[Apple StoreKit sandbox](https://developer.apple.com/documentation/storekit/testing-in-app-purchases-with-sandbox)、[Googleテスト広告](https://developers.google.com/admob/ios/test-ads)。

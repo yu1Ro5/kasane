@@ -8,7 +8,7 @@ struct OverviewView: View {
     private let referenceDate: Date
     private let fixedReferenceDate: Date?
     private let insightGenerator: any MonthlyInsightGenerating
-    private let adMode = AdConfiguration.current
+    @State private var adMode: AdConfiguration = .off
     @State private var adConsent = AdConsentManager(client: GoogleAdConsentClient())
     @State private var selectedMonth: Date
     @State private var isMonthSelectorPresented = false
@@ -104,7 +104,10 @@ struct OverviewView: View {
             )
         }
         .task {
-            if adMode == .googleTest { await adConsent.prepare() }
+            let resolvedMode = await AdConfiguration.current()
+            guard !Task.isCancelled else { return }
+            adMode = resolvedMode
+            if resolvedMode == .googleTest { await adConsent.prepare() }
         }
         .task(id: insightFacts) {
             await insightViewModel.generate(facts: insightFacts, using: insightGenerator)
